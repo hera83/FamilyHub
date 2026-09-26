@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="da">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <base href="/" />
+    @* Apply this screen's theme and size before the first paint, so a reload never flashes. *@
+    <script>
+        (function () {
+            try {
+                var a = JSON.parse(localStorage.getItem('familyhub.appearance') || 'null');
+                if (a && a.theme) document.documentElement.dataset.theme = a.theme;
+                if (a && a.scale) document.documentElement.style.setProperty('--hub-scale', a.scale);
+            } catch (e) { }
+        })();
+    </script>
+    <ResourcePreloader />
+    @* Same URL as the @font-face in tokens.css (not fingerprinted), so the preload is actually used. *@
+    <link rel="preload" href="_content/FamilyHub.UI/fonts/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="@Assets["_content/FamilyHub.UI/css/tokens.css"]" />
+    <link rel="stylesheet" href="@Assets["_content/FamilyHub.UI/css/base.css"]" />
+    <link rel="stylesheet" href="@Assets["_content/FamilyHub.UI/css/components.css"]" />
+    <link rel="stylesheet" href="@Assets["_content/FamilyHub.UI/css/keyboard.css"]" />
+    <link rel="stylesheet" href="@Assets["FamilyHub.Web.styles.css"]" />
+    <link rel="icon" type="image/svg+xml" href="@Assets["favicon.svg"]" />
+    <ImportMap />
+    <HeadOutlet @rendermode="PageRenderMode" />
+</head>
+
+<body>
+    <div class="hub-boot" aria-hidden="true"><span class="hub-boot__dot"></span></div>
+    <Routes @rendermode="PageRenderMode" />
+    <ReconnectModal />
+    <script src="@Assets["_framework/blazor.web.js"]"></script>
+</body>
+
+</html>
+
+@code {
+    // Interactive from the start, without prerendering: component life cycles run exactly once,
+    // and JS interop is available in OnAfterRenderAsync. Right for a kiosk on localhost.
+    private static readonly IComponentRenderMode PageRenderMode = new InteractiveServerRenderMode(prerender: false);
+}

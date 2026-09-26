@@ -1,0 +1,438 @@
+/* Family Hub – base: reset, typography, the app shell and utilities. */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  font-size: calc(16px * var(--hub-scale));
+  height: 100%;
+  -webkit-text-size-adjust: 100%;
+  overscroll-behavior: none;
+}
+
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden; /* the app scrolls inside .hub-main */
+  background: var(--hub-bg);
+  color: var(--hub-text);
+  font-family: var(--hub-font);
+  font-size: var(--hub-text-md);
+  font-weight: var(--hub-weight-regular);
+  line-height: var(--hub-leading);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  -webkit-tap-highlight-color: transparent;
+  /* A kiosk UI: no accidental text selection from long presses. Fields stay selectable. */
+  user-select: none;
+  -webkit-user-select: none;
+  transition: background-color var(--hub-duration-slow) ease;
+}
+
+input,
+textarea,
+.hub-selectable {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+h1,
+h2,
+h3,
+h4,
+p,
+figure {
+  margin: 0;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-weight: var(--hub-weight-bold);
+  line-height: var(--hub-leading-tight);
+  letter-spacing: -0.01em;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+a {
+  color: var(--hub-accent);
+  text-decoration: none;
+}
+
+a,
+img,
+svg {
+  -webkit-user-drag: none;
+}
+
+:focus {
+  outline: none;
+}
+
+:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--hub-accent) 55%, transparent);
+  outline-offset: 2px;
+}
+
+h1:focus,
+h1:focus-visible {
+  outline: none;
+}
+
+pre {
+  white-space: pre-wrap;
+  font-size: var(--hub-text-sm);
+}
+
+/* The mouse pointer disappears while the screen is used by touch (see device.js). */
+html.hub-touch-input,
+html.hub-touch-input * {
+  cursor: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
+}
+
+/* ------------------------------------------------------------------ app shell */
+
+.hub-app {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto; /* content, then the docked keyboard */
+  height: 100vh;
+  height: 100dvh;
+}
+
+.hub-shell {
+  display: grid;
+  grid-template-columns: var(--hub-rail-width) minmax(0, 1fr);
+  min-height: 0;
+}
+
+.hub-main {
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: var(--hub-border-strong) transparent;
+}
+
+@keyframes hub-page-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.375rem);
+  }
+}
+
+/* Navigation rail */
+.hub-rail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hub-space-2);
+  padding: var(--hub-space-5) var(--hub-space-3);
+  border-right: 1px solid var(--hub-border);
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.hub-rail__clock {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--hub-space-1) 0 var(--hub-space-4);
+  font-size: var(--hub-text-lg);
+  font-weight: var(--hub-weight-bold);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.hub-rail__clock small {
+  font-size: var(--hub-text-xs);
+  font-weight: var(--hub-weight-medium);
+  color: var(--hub-text-subtle);
+}
+
+.hub-rail__item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  min-height: 4.75rem;
+  padding: var(--hub-space-2) var(--hub-space-1);
+  border-radius: var(--hub-radius-lg);
+  color: var(--hub-text-muted);
+  font-size: var(--hub-text-xs);
+  font-weight: var(--hub-weight-medium);
+  text-align: center;
+  line-height: 1.2;
+  transition: background-color var(--hub-duration-fast), color var(--hub-duration-fast), transform var(--hub-duration-fast);
+}
+
+.hub-rail__item .hub-icon {
+  width: 1.75rem;
+  height: 1.75rem;
+}
+
+.hub-rail__item:active {
+  transform: scale(0.96);
+}
+
+.hub-rail__item.active {
+  background: var(--hub-accent-soft);
+  color: var(--hub-accent-strong);
+  font-weight: var(--hub-weight-bold);
+}
+
+.hub-rail__spacer {
+  flex: 1;
+}
+
+/* Phones: the rail becomes a bottom bar. */
+@media (max-width: 47.99rem) {
+  :root {
+    --hub-page-padding: 1rem;
+  }
+
+  .hub-shell {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+
+  .hub-rail {
+    order: 2;
+    flex-direction: row;
+    justify-content: space-around;
+    padding: var(--hub-space-2);
+    border-right: 0;
+    border-top: 1px solid var(--hub-border);
+    overflow: visible;
+  }
+
+  .hub-rail__clock,
+  .hub-rail__spacer {
+    display: none;
+  }
+
+  .hub-rail__item {
+    flex: 1;
+    min-height: 3.75rem;
+  }
+}
+
+/* ------------------------------------------------------------------ page */
+
+.hub-page {
+  width: 100%;
+  max-width: var(--hub-page-max);
+  margin: 0 auto;
+  padding: var(--hub-page-padding);
+  padding-bottom: var(--hub-space-16);
+  animation: hub-page-in var(--hub-duration-slow) var(--hub-ease) both; /* a new page fades in gently */
+}
+
+.hub-page--narrow {
+  max-width: var(--hub-page-narrow);
+}
+
+.hub-page--full {
+  max-width: none;
+}
+
+.hub-page__header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--hub-space-4) var(--hub-space-6);
+  margin-bottom: var(--hub-space-8);
+}
+
+.hub-page__back {
+  margin: 0 0 var(--hub-space-2) calc(-1 * var(--hub-space-3));
+}
+
+.hub-page__title {
+  font-size: var(--hub-text-2xl);
+}
+
+.hub-page__subtitle {
+  margin-top: var(--hub-space-2);
+  color: var(--hub-text-muted);
+}
+
+.hub-page__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hub-space-3);
+}
+
+.hub-page__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hub-space-10);
+}
+
+/* ------------------------------------------------------------------ section & grid */
+
+.hub-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hub-space-5);
+}
+
+.hub-section__header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--hub-space-4);
+}
+
+.hub-section__title {
+  font-size: var(--hub-text-xl);
+}
+
+.hub-section__description {
+  margin-top: var(--hub-space-1);
+  color: var(--hub-text-muted);
+  font-size: var(--hub-text-sm);
+}
+
+.hub-section__actions {
+  display: flex;
+  gap: var(--hub-space-3);
+}
+
+.hub-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--hub-grid-min, 20rem)), 1fr));
+  gap: var(--hub-grid-gap, var(--hub-space-6));
+}
+
+/* ------------------------------------------------------------------ utilities */
+
+.hub-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--hub-space-3);
+}
+
+.hub-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hub-space-5);
+}
+
+.hub-muted {
+  color: var(--hub-text-muted);
+}
+
+.hub-subtle {
+  color: var(--hub-text-subtle);
+}
+
+.hub-small {
+  font-size: var(--hub-text-sm);
+}
+
+.hub-numeric {
+  font-variant-numeric: tabular-nums;
+}
+
+.visually-hidden {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ------------------------------------------------------------------ boot & system messages */
+
+.hub-boot {
+  position: fixed;
+  inset: 0;
+  z-index: var(--hub-z-system);
+  display: grid;
+  place-items: center;
+  background: var(--hub-bg);
+}
+
+.hub-boot__dot {
+  width: 0.875rem;
+  height: 0.875rem;
+  border-radius: 50%;
+  background: var(--hub-accent);
+  animation: hub-breathe 1.6s ease-in-out infinite;
+}
+
+body:has(.hub-app) .hub-boot {
+  display: none;
+}
+
+@keyframes hub-breathe {
+  50% {
+    transform: scale(1.8);
+    opacity: 0.4;
+  }
+}
+
+/* Shown by Blazor if the connection to the server breaks down unrecoverably. */
+#blazor-error-ui {
+  display: none;
+  position: fixed;
+  left: 50%;
+  bottom: var(--hub-space-6);
+  z-index: var(--hub-z-system);
+  transform: translateX(-50%);
+  width: min(34rem, calc(100vw - 2rem));
+  padding: var(--hub-space-4) var(--hub-space-5);
+  border-radius: var(--hub-radius-lg);
+  background: var(--hub-surface);
+  color: var(--hub-text);
+  box-shadow: var(--hub-shadow-lg);
+  border: 1px solid var(--hub-border);
+}
+
+#blazor-error-ui .reload {
+  font-weight: var(--hub-weight-bold);
+}
+
+.hub-error-details {
+  margin-top: var(--hub-space-3);
+  padding: var(--hub-space-3);
+  border-radius: var(--hub-radius-sm);
+  background: var(--hub-surface-sunken);
+  color: var(--hub-text-muted);
+  user-select: text;
+}

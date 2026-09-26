@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+  <!-- Modul: Madplan og indkøbsliste. Kun skelet indtil videre – se README.md. -->
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\FamilyHub.Core\FamilyHub.Core.csproj" />
+    <ProjectReference Include="..\..\FamilyHub.UI\FamilyHub.UI.csproj" />
+  </ItemGroup>
+
+</Project>

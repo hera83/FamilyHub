@@ -1,0 +1,85 @@
+@namespace FamilyHub.UI.Components
+
+@*
+    Modal dialog for short tasks that need the user's full attention (e.g. "Tilføj familiemedlem").
+    Always sits above the on-screen keyboard, so fields in it stay visible while typing.
+*@
+@if (Open)
+{
+    <div class="hub-dialog-backdrop" @onpointerdown="() => pressStartedOnBackdrop = true" @onclick="OnBackdropClickAsync">
+        <div class="hub-dialog hub-dialog--@Size.ToString().ToLowerInvariant()" role="dialog" aria-modal="true" aria-labelledby="@titleId"
+             @onpointerdown:stopPropagation="true" @onclick:stopPropagation="true" @onkeydown="OnKeyDownAsync">
+            <header class="hub-dialog__header">
+                <h2 class="hub-dialog__title" id="@titleId">@Title</h2>
+                @if (ShowCloseButton)
+                {
+                    <HubButton Variant="ButtonVariant.Quiet" Icon="IconName.X" AriaLabel="Luk" OnClick="CloseAsync" />
+                }
+            </header>
+            @if (ChildContent is not null)
+            {
+                <div class="hub-dialog__body">@ChildContent</div>
+            }
+            @if (Footer is not null)
+            {
+                <footer class="hub-dialog__footer">@Footer</footer>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private readonly string titleId = $"hub-dialog-{Guid.NewGuid():N}";
+    private bool pressStartedOnBackdrop;
+
+    [Parameter]
+    public bool Open { get; set; }
+
+    [Parameter]
+    public EventCallback<bool> OpenChanged { get; set; }
+
+    /// <summary>Short title, e.g. "Tilføj familiemedlem".</summary>
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = "";
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>Buttons: quiet "Annuller" first, the primary action last.</summary>
+    [Parameter]
+    public RenderFragment? Footer { get; set; }
+
+    [Parameter]
+    public DialogSize Size { get; set; } = DialogSize.Medium;
+
+    /// <summary>Tapping outside closes the dialog. Turn off when the user could lose typed input.</summary>
+    [Parameter]
+    public bool CloseOnBackdrop { get; set; } = true;
+
+    [Parameter]
+    public bool ShowCloseButton { get; set; } = true;
+
+    /// <summary>Raised whenever the dialog is closed without a specific action (X, backdrop, Escape).</summary>
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    public async Task CloseAsync()
+    {
+        Open = false;
+        await OpenChanged.InvokeAsync(false);
+        await OnClose.InvokeAsync();
+    }
+
+    private async Task OnBackdropClickAsync()
+    {
+        // Only a press that also started outside the dialog closes it (not a drag out of a field).
+        var startedOutside = pressStartedOnBackdrop;
+        pressStartedOnBackdrop = false;
+        if (CloseOnBackdrop && startedOutside)
+        {
+            await CloseAsync();
+        }
+    }
+
+    private Task OnKeyDownAsync(KeyboardEventArgs e) => e.Key == "Escape" ? CloseAsync() : Task.CompletedTask;
+}

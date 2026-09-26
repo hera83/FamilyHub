@@ -1,0 +1,28 @@
+@implements IDisposable
+@inject IHubClock Clock
+
+@* Small clock at the top of the rail. Hidden (but keeps its space) on the home screen, which has the big one. *@
+<div class="hub-rail__clock" style="@(Hidden ? "visibility:hidden" : null)" aria-hidden="true">
+    <span>@DanishFormat.Time(TimeOnly.FromDateTime(now.DateTime))</span>
+    <small>@now.ToString("ddd d/M", DanishFormat.Culture)</small>
+</div>
+
+@code {
+    private DateTimeOffset now;
+    private IDisposable? tick;
+
+    [Parameter]
+    public bool Hidden { get; set; }
+
+    protected override void OnInitialized()
+    {
+        now = Clock.Now;
+        tick = Clock.SubscribeMinuteTick(time => _ = InvokeAsync(() =>
+        {
+            now = time;
+            StateHasChanged();
+        }));
+    }
+
+    public void Dispose() => tick?.Dispose();
+}

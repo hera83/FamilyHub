@@ -1,0 +1,111 @@
+@implements IDisposable
+@inject DeviceService Device
+@inject IToastService Toasts
+@inject ILogger<DeviceSettingsSection> Logger
+
+<HubSection Title="Denne skærm" Description="Gælder kun den skærm, du står ved. Køkkenskærmen og din bærbare kan være indstillet forskelligt.">
+    <HubCard Title="Skærmtastatur" Icon="IconName.Keyboard">
+        <div class="hub-stack">
+            <HubChoice Options="keyboardOptions" Value="Device.Settings.KeyboardMode"
+                       ValueChanged="(KeyboardMode mode) => UpdateAsync(s => s with { KeyboardMode = mode })" />
+            <InfoBox Tone="KeyboardTone" Icon="KeyboardIcon">@KeyboardStatus</InfoBox>
+            @if (Device.Keyboard.Enabled)
+            {
+                <HubTextField Label="Prøv tastaturet" Placeholder="Tryk her og skriv noget" @bind-Value="tryText" />
+            }
+        </div>
+    </HubCard>
+
+    <HubCard Title="Udseende" Icon="IconName.Sun">
+        <div class="hub-stack">
+            <HubChoice Label="Tema" Options="themeOptions" Value="Device.Settings.Theme"
+                       ValueChanged="(ThemeMode theme) => UpdateAsync(s => s with { Theme = theme })" />
+            @if (Device.Settings.Theme == ThemeMode.Auto)
+            {
+                <div class="hub-row">
+                    <NumberStepper Label="Mørkt fra kl." Value="Device.Settings.NightStartHour" Min="0" Max="23" Format="Hour"
+                                   DecreaseLabel="Tidligere" IncreaseLabel="Senere"
+                                   ValueChanged="(int hour) => UpdateAsync(s => s with { NightStartHour = hour })" />
+                    <NumberStepper Label="Lyst igen kl." Value="Device.Settings.NightEndHour" Min="0" Max="23" Format="Hour"
+                                   DecreaseLabel="Tidligere" IncreaseLabel="Senere"
+                                   ValueChanged="(int hour) => UpdateAsync(s => s with { NightEndHour = hour })" />
+                </div>
+            }
+            <HubChoice Label="Visningsstørrelse" Options="scaleOptions" Value="Device.Settings.DisplayScalePercent"
+                       Help="Gør alt på skærmen større eller mindre."
+                       ValueChanged="(int scale) => UpdateAsync(s => s with { DisplayScalePercent = scale })" />
+        </div>
+    </HubCard>
+
+    <HubCard Title="Tilbage til forsiden" Icon="IconName.Home">
+        <HubChoice Options="idleOptions" Value="Device.Settings.IdleReturnMinutes"
+                   Help="Når ingen har rørt skærmen i et stykke tid, vender den tilbage til forsiden."
+                   ValueChanged="(int minutes) => UpdateAsync(s => s with { IdleReturnMinutes = minutes })" />
+    </HubCard>
+</HubSection>
+
+@code {
+    private static readonly IReadOnlyList<ChoiceOption<KeyboardMode>> keyboardOptions =
+    [
+        new(KeyboardMode.Auto, "Automatisk"),
+        new(KeyboardMode.Always, "Altid"),
+        new(KeyboardMode.Off, "Fra"),
+    ];
+
+    private static readonly IReadOnlyList<ChoiceOption<ThemeMode>> themeOptions =
+    [
+        new(ThemeMode.Auto, "Efter tidspunkt", IconName.Clock),
+        new(ThemeMode.Light, "Lys", IconName.Sun),
+        new(ThemeMode.Dark, "Mørk", IconName.Moon),
+    ];
+
+    private static readonly IReadOnlyList<ChoiceOption<int>> scaleOptions =
+    [
+        new(90, "Lille"),
+        new(100, "Normal"),
+        new(115, "Stor"),
+        new(130, "Ekstra stor"),
+    ];
+
+    private static readonly IReadOnlyList<ChoiceOption<int>> idleOptions =
+    [
+        new(0, "Aldrig"),
+        new(2, "2 min"),
+        new(5, "5 min"),
+        new(10, "10 min"),
+    ];
+
+    private string? tryText;
+
+    private static string Hour(int hour) => $"{hour:00}:00";
+
+    private string TouchPoints => Device.Profile.MaxTouchPoints == 1 ? "1 berøringspunkt" : $"{Device.Profile.MaxTouchPoints} berøringspunkter";
+
+    private HubTone KeyboardTone => Device.Keyboard.Reason switch
+    {
+        KeyboardActivationReason.TouchScreenDetected or KeyboardActivationReason.AlwaysOn => HubTone.Success,
+        _ => HubTone.Neutral,
+    };
+
+    private IconName KeyboardIcon => Device.Keyboard.Enabled ? IconName.CheckCircle : IconName.KeyboardOff;
+
+    private string KeyboardStatus => Device.Keyboard.Reason switch
+    {
+        KeyboardActivationReason.TouchScreenDetected =>
+            $"Touchskærm fundet ({TouchPoints}). Tastaturet vises, når du trykker i et tekstfelt med fingeren – ikke når du bruger mus eller et almindeligt tastatur.",
+        KeyboardActivationReason.AlwaysOn => "Tastaturet vises, hver gang et tekstfelt vælges – også med mus.",
+        KeyboardActivationReason.DisabledByUser => "Skærmtastaturet er slået fra på denne skærm.",
+        KeyboardActivationReason.DeviceHasOwnKeyboard => "Denne enhed har sit eget skærmtastatur, så Family Hubs tastatur bruges ikke.",
+        KeyboardActivationReason.NoTouchScreen => "Ingen touchskærm fundet. Vælg \"Altid\", hvis skærmen alligevel er en touchskærm.",
+        _ => "Undersøger skærmen …",
+    };
+
+    protected override void OnInitialized() => Device.Changed += OnDeviceChanged;
+
+    private void OnDeviceChanged() => _ = InvokeAsync(StateHasChanged);
+
+    private Task UpdateAsync(Func<DeviceSettings, DeviceSettings> change) =>
+        Toasts.TryAsync(() => Device.UpdateSettingsAsync(change), "Indstillingen blev ikke gemt", Logger);
+
+    public void Dispose() => Device.Changed -= OnDeviceChanged;
+}

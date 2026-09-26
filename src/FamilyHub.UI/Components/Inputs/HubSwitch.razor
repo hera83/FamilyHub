@@ -1,0 +1,40 @@
+@namespace FamilyHub.UI.Components
+
+@* On/off that takes effect immediately. The whole row is the touch target. *@
+<button type="button" role="switch" class="hub-switch @Class" aria-checked="@(Value ? "true" : "false")"
+        disabled="@Disabled" @onclick="ToggleAsync">
+    <span class="hub-switch__text">
+        <span class="hub-switch__label">@Label</span>
+        @if (Description is not null)
+        {
+            <span class="hub-switch__description">@Description</span>
+        }
+    </span>
+    <span class="hub-switch__track" aria-hidden="true"><span class="hub-switch__thumb"></span></span>
+</button>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Label { get; set; } = "";
+
+    [Parameter]
+    public string? Description { get; set; }
+
+    [Parameter]
+    public bool Value { get; set; }
+
+    [Parameter]
+    public EventCallback<bool> ValueChanged { get; set; }
+
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    [Parameter]
+    public string? Class { get; set; }
+
+    private async Task ToggleAsync()
+    {
+        Value = !Value;
+        await ValueChanged.InvokeAsync(Value);
+    }
+}

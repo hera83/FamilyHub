@@ -1,0 +1,57 @@
+# Family Hub
+
+# Alle mapper i roden, der starter med punktum (.vscode, .vs, .idea, .claude …).
+# Filer som .gitignore, .gitattributes og .editorconfig kommer stadig med.
+/.*/
+
+# Kompileret output fra .NET
+[Bb]in/
+[Oo]bj/
+
+# Pi-pakken fra deploy/publish-pi.ps1 og anden publish-output
+artifacts/
+publish/
+*.tar.gz
+
+# Test og kodedækning
+[Tt]est[Rr]esult*/
+*.trx
+*.coverage
+coverage*.json
+coverage*.xml
+coverage*.info
+
+# Byggelogfiler
+*.binlog
+*.log
+
+# Brugerspecifikke IDE-filer
+*.user
+*.suo
+*.rsuser
+*.userprefs
+*.DotSettings.user
+*.code-workspace
+
+# Lokale data og hemmeligheder
+.env
+*.local.json
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+
+# UI-røgtest (Node)
+node_modules/
+tools/ui-smoke/shots/
+tools/ui-smoke/package-lock.json
+
+# Styresystem og editorer
+Thumbs.db
+ehthumbs.db
+[Dd]esktop.ini
+$RECYCLE.BIN/
+.DS_Store
+*.swp
+*~
+~$*

@@ -1,0 +1,15 @@
+@namespace FamilyHub.UI.Components
+
+@* Small status label or count, e.g. "3 varer" or "I dag". *@
+<span class="hub-badge hub-badge--@Tone.CssName() @Class">@ChildContent</span>
+
+@code {
+    [Parameter]
+    public HubTone Tone { get; set; } = HubTone.Neutral;
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter]
+    public string? Class { get; set; }
+}

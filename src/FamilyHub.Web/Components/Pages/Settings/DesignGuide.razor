@@ -1,0 +1,362 @@
+@page "/indstillinger/komponenter"
+@inject IToastService Toasts
+@inject DialogService Dialogs
+
+@*
+    Living style guide: every building block, used the way modules should use them.
+    Also a test bench for the on-screen keyboard. See docs/standarder/.
+*@
+<HubPage Title="Komponentoversigt" Subtitle="Family Hubs byggeklodser – brug dem, når der bygges nye menuer."
+         BackHref="indstillinger" BackLabel="Indstillinger">
+    <Actions>
+        <HubButton Icon="IconName.Bell" OnClick="ShowToastSequence">Vis toasts</HubButton>
+    </Actions>
+    <ChildContent>
+
+        <HubSection Title="Informationsbokse" Description="En tilstand, der varer. Står på siden, indtil situationen ændrer sig.">
+            <div class="hub-stack">
+                <InfoBox Tone="HubTone.Info" Title="Kalenderen opdateres hvert 5. minut">Sidst opdateret kl. 08:40.</InfoBox>
+                <InfoBox Tone="HubTone.Success" Title="Alt er opdateret" />
+                <InfoBox Tone="HubTone.Warning" Title="Google Kalender er ikke forbundet">
+                    <ChildContent>Familiens aftaler kan ikke vises, før kalenderen er forbundet.</ChildContent>
+                    <Actions>
+                        <HubButton Variant="ButtonVariant.Primary" Size="ButtonSize.Small" OnClick="@(() => Toasts.Info("Her ville forbindelsen starte"))">Forbind</HubButton>
+                    </Actions>
+                </InfoBox>
+                <InfoBox Tone="HubTone.Danger" Title="Madplanen kunne ikke hentes">Prøv igen om lidt.</InfoBox>
+                @if (showTip)
+                {
+                    <InfoBox Tone="HubTone.Neutral" Title="Tip" OnDismiss="() => showTip = false">Hold + nede for at tælle hurtigt op.</InfoBox>
+                }
+            </div>
+        </HubSection>
+
+        <HubSection Title="Toasts" Description="Kort besked om noget, man lige har gjort. Forsvinder af sig selv – fejl bliver stående.">
+            <div class="hub-row">
+                <HubButton Icon="IconName.CheckCircle" OnClick="@(() => Toasts.Success("Gemt"))">Succes</HubButton>
+                <HubButton Icon="IconName.Info" OnClick="@(() => Toasts.Info("Kalenderen er opdateret", "3 nye aftaler i denne uge."))">Info</HubButton>
+                <HubButton Icon="IconName.AlertTriangle" OnClick="@(() => Toasts.Warning("Gemt – men ikke synkroniseret", "Prøver igen, når der er forbindelse."))">Advarsel</HubButton>
+                <HubButton Icon="IconName.AlertCircle" OnClick="@(() => Toasts.Error("Kunne ikke gemme", "Prøv igen om lidt."))">Fejl</HubButton>
+                <HubButton Icon="IconName.Undo" OnClick="ShowUndo">Med »Fortryd«</HubButton>
+            </div>
+        </HubSection>
+
+        <HubSection Title="Dialoger" Description="Kun når der skal tages stilling. Foretræk »Fortryd« frem for »Er du sikker?«.">
+            <div class="hub-row">
+                <HubButton Icon="IconName.Trash" OnClick="ConfirmDeleteAsync">Bekræftelse</HubButton>
+                <HubButton Icon="IconName.Plus" OnClick="() => itemDialogOpen = true">Dialog med felt</HubButton>
+            </div>
+        </HubSection>
+
+        <HubSection Title="Vælg frem for at skrive" Description="Stepper, valg og kontakter virker uden tastatur – førstevalget på en touchskærm.">
+            <HubCard>
+                <div class="hub-stack">
+                    <div class="hub-row guide-top">
+                        <NumberStepper Label="Antal personer" @bind-Value="portions" Min="1" Max="12" Unit="pers." />
+                        <NumberStepper Label="Mængde" @bind-Value="amount" Min="0" Max="10" Step="0.5m" Unit="kg" />
+                        <NumberStepper Label="Klokken" @bind-Value="hour" Min="0" Max="23" Format="@(h => $"{h:00}:00")" />
+                    </div>
+                    <HubChoice Label="Hvornår" Options="dayOptions" @bind-Value="day" />
+                    <HubChoice Label="Kategori" Options="categoryOptions" @bind-Value="category" Appearance="ChoiceAppearance.Chips" />
+                    <HubSwitch Label="Påmindelse" Description="Giv besked dagen før." @bind-Value="reminder" />
+                </div>
+            </HubCard>
+        </HubSection>
+
+        <HubSection Title="Tekstfelter og skærmtastatur" Description="Kind bestemmer tastaturet. Brug kun tekstfelter, når der ikke kan vælges.">
+            <HubCard>
+                <div class="guide-fields">
+                    <HubTextField Label="Tekst" Kind="InputKind.Text" Placeholder="Fx Husk madpakker" @bind-Value="textValue" />
+                    <HubTextField Label="Navn" Kind="InputKind.Name" Placeholder="Fx Anne Marie" @bind-Value="nameValue" />
+                    <HubTextField Label="Søg" Kind="InputKind.Search" Placeholder="Søg efter en ret" @bind-Value="searchValue" />
+                    <HubTextField Label="E-mail" Kind="InputKind.Email" Placeholder="navn@eksempel.dk" @bind-Value="emailValue" />
+                    <HubTextField Label="Antal" Kind="InputKind.Number" @bind-Value="numberValue" Help="Taltastatur – til små tal er en stepper bedre." />
+                    <HubTextField Label="Pris" Kind="InputKind.Decimal" Placeholder="0,00" @bind-Value="decimalValue" />
+                    <HubTextField Label="Telefon" Kind="InputKind.Phone" @bind-Value="phoneValue" />
+                    <HubTextField Label="Med fejl" @bind-Value="errorValue" Error="Skriv mindst tre tegn" />
+                </div>
+                <HubTextField Label="Note" Kind="InputKind.Multiline" Rows="3" Placeholder="Enter giver ny linje" @bind-Value="noteValue" />
+            </HubCard>
+
+            <HubCard Title="Tilføj flere i træk" Subtitle="Tastaturet bliver oppe efter »Tilføj«, så man kan fortsætte med den næste.">
+                <HubTextField Label="Ny vare" Placeholder="Fx Mælk" @bind-Value="quickItem" EnterLabel="Tilføj"
+                              KeepKeyboardOnEnter="true" OnEnter="AddQuickItem" />
+                @if (quickItems.Count > 0)
+                {
+                    <HubList>
+                        @foreach (var item in quickItems)
+                        {
+                            <HubListItem Title="@item" Icon="IconName.ShoppingCart" />
+                        }
+                    </HubList>
+                }
+            </HubCard>
+        </HubSection>
+
+        <HubSection Title="Knapper" Description="Én primær knap pr. visning. Asynkrone handlinger viser selv, at de arbejder.">
+            <HubCard>
+                <div class="hub-stack">
+                    <div class="hub-row">
+                        <HubButton Variant="ButtonVariant.Primary" Icon="IconName.Check">Primær</HubButton>
+                        <HubButton>Sekundær</HubButton>
+                        <HubButton Variant="ButtonVariant.Quiet">Stille</HubButton>
+                        <HubButton Variant="ButtonVariant.Danger" Icon="IconName.Trash">Slet</HubButton>
+                        <HubButton Disabled="true">Deaktiveret</HubButton>
+                    </div>
+                    <div class="hub-row">
+                        <HubButton Size="ButtonSize.Small">Lille</HubButton>
+                        <HubButton>Normal</HubButton>
+                        <HubButton Size="ButtonSize.Large" Variant="ButtonVariant.Primary">Stor</HubButton>
+                        <HubButton Variant="ButtonVariant.Quiet" Icon="IconName.Edit" AriaLabel="Redigér" />
+                        <HubButton Icon="IconName.Plus" AriaLabel="Tilføj" />
+                    </div>
+                    <div class="hub-row">
+                        <HubButton Icon="IconName.Refresh" OnClick="SlowActionAsync">Tager lidt tid</HubButton>
+                        <HubButton Icon="IconName.AlertTriangle" OnClick="FailingAction">Fejler med vilje</HubButton>
+                    </div>
+                </div>
+            </HubCard>
+        </HubSection>
+
+        <HubSection Title="Kort" Description="Informationskort samler ét emne. Hele kortet kan være et trykmål.">
+            <HubGrid MinItemWidth="17rem">
+                <HubCard Title="Standard" Subtitle="Hvid flade" Icon="IconName.Calendar">
+                    <p class="hub-muted">Til det meste indhold.</p>
+                </HubCard>
+                <HubCard Title="Afdæmpet" Subtitle="Flad og rolig" Icon="IconName.List" Variant="CardVariant.Subtle">
+                    <p class="hub-muted">Til sekundært indhold.</p>
+                </HubCard>
+                <HubCard Title="Fremhævet" Subtitle="Accentfarve" Icon="IconName.Star" Variant="CardVariant.Accent">
+                    <p class="hub-muted">Til ét vigtigt kort, fx »I dag«.</p>
+                </HubCard>
+                <HubCard Title="Tryk på mig" Subtitle="Hele kortet er et mål" Icon="IconName.Utensils"
+                         OnClick="@(() => Toasts.Info("Kortet blev trykket"))" />
+            </HubGrid>
+        </HubSection>
+
+        <HubSection Title="Lister, avatarer og mærkater">
+            <HubList>
+                <HubListItem Title="Charlotte" Subtitle="Afhentning kl. 15:30">
+                    <Leading><HubAvatar Name="Charlotte" Color="MemberColor.Sage" /></Leading>
+                    <Trailing><HubBadge Tone="HubTone.Success">I dag</HubBadge></Trailing>
+                </HubListItem>
+                <HubListItem Title="Indkøbsliste" Subtitle="Tryk for at åbne" Icon="IconName.ShoppingCart"
+                             OnClick="@(() => Toasts.Info("Rækken blev trykket"))">
+                    <Trailing><HubBadge>3 varer</HubBadge></Trailing>
+                </HubListItem>
+                <HubListItem Title="Fodbold" Subtitle="Tirsdag og torsdag" Icon="IconName.Calendar">
+                    <Trailing>
+                        <HubButton Variant="ButtonVariant.Quiet" Icon="IconName.Edit" AriaLabel="Redigér" />
+                        <HubButton Variant="ButtonVariant.Quiet" Icon="IconName.Trash" AriaLabel="Slet" />
+                    </Trailing>
+                </HubListItem>
+            </HubList>
+            <div class="hub-row">
+                @foreach (var color in Enum.GetValues<MemberColor>())
+                {
+                    <HubAvatar Name="@MemberColors.DanishName(color)" Color="color" />
+                }
+            </div>
+            <div class="hub-row">
+                <HubBadge>Neutral</HubBadge>
+                <HubBadge Tone="HubTone.Info">Info</HubBadge>
+                <HubBadge Tone="HubTone.Success">Succes</HubBadge>
+                <HubBadge Tone="HubTone.Warning">Advarsel</HubBadge>
+                <HubBadge Tone="HubTone.Danger">Fejl</HubBadge>
+            </div>
+        </HubSection>
+
+        <HubSection Title="Tom tilstand og indlæsning">
+            <HubGrid MinItemWidth="20rem">
+                <HubCard>
+                    <EmptyState Compact="true" Icon="IconName.ShoppingCart" Title="Indkøbslisten er tom">
+                        <ChildContent>Tilføj den første vare – eller hent den fra madplanen.</ChildContent>
+                        <Actions>
+                            <HubButton Variant="ButtonVariant.Primary" Icon="IconName.Plus" Size="ButtonSize.Small">Tilføj vare</HubButton>
+                        </Actions>
+                    </EmptyState>
+                </HubCard>
+                <HubCard Title="Henter …" Icon="IconName.Refresh">
+                    <HubSkeleton Lines="3" />
+                </HubCard>
+                <HubCard Title="Spinner" Icon="IconName.Clock">
+                    <div class="hub-row">
+                        <HubSpinner Size="ButtonSize.Small" />
+                        <HubSpinner />
+                        <HubSpinner Size="ButtonSize.Large" />
+                    </div>
+                </HubCard>
+            </HubGrid>
+        </HubSection>
+
+        <HubSection Title="Typografi">
+            <HubCard>
+                <div class="hub-stack">
+                    <p class="guide-type guide-type--display">08:42</p>
+                    <p class="hub-page__title">Sidetitel</p>
+                    <p class="hub-section__title">Sektionstitel</p>
+                    <p class="hub-card__title">Korttitel</p>
+                    <p>Brødtekst – 18 px, rolig og let at læse på afstand.</p>
+                    <p class="hub-muted">Dæmpet tekst til forklaringer.</p>
+                    <p class="hub-small hub-subtle">Lille tekst til hjælp og detaljer.</p>
+                </div>
+            </HubCard>
+        </HubSection>
+
+        <HubSection Title="Farver" Description="Accent kun til handlinger og valgt tilstand. Statusfarver altid sammen med ikon og tekst.">
+            <div class="guide-swatches">
+                @foreach (var (token, label) in colorTokens)
+                {
+                    <div class="guide-swatch">
+                        <span class="guide-swatch__color" style="background:var(@token)"></span>
+                        <span class="guide-swatch__label">@label</span>
+                        <span class="guide-swatch__token">@token</span>
+                    </div>
+                }
+            </div>
+        </HubSection>
+
+        <HubSection Title="Ikoner">
+            <div class="guide-icons">
+                @foreach (var icon in Enum.GetValues<IconName>())
+                {
+                    <div class="guide-icon">
+                        <Icon Name="icon" />
+                        <span>@icon</span>
+                    </div>
+                }
+            </div>
+        </HubSection>
+
+    </ChildContent>
+</HubPage>
+
+<HubDialog @bind-Open="itemDialogOpen" Title="Ny vare" CloseOnBackdrop="false">
+    <ChildContent>
+        <HubTextField Label="Vare" Placeholder="Fx Havregryn" AutoFocus="true" @bind-Value="dialogItem" Error="@dialogError" OnEnter="AddDialogItem" />
+        <NumberStepper Label="Antal" @bind-Value="dialogCount" Min="1" Max="20" Unit="stk." />
+    </ChildContent>
+    <Footer>
+        <HubButton Variant="ButtonVariant.Quiet" OnClick="() => itemDialogOpen = false">Annuller</HubButton>
+        <HubButton Variant="ButtonVariant.Primary" Icon="IconName.Plus" OnClick="AddDialogItem">Tilføj</HubButton>
+    </Footer>
+</HubDialog>
+
+@code {
+    private static readonly IReadOnlyList<ChoiceOption<string>> dayOptions =
+    [
+        new("i-dag", "I dag"),
+        new("i-morgen", "I morgen"),
+        new("weekend", "Weekend"),
+    ];
+
+    private static readonly IReadOnlyList<ChoiceOption<string>> categoryOptions =
+    [
+        new("frugt", "Frugt og grønt"),
+        new("mejeri", "Mejeri"),
+        new("brod", "Brød"),
+        new("kod", "Kød og fisk"),
+        new("frost", "Frost"),
+        new("andet", "Andet"),
+    ];
+
+    private static readonly (string Token, string Label)[] colorTokens =
+    [
+        ("--hub-bg", "Baggrund"),
+        ("--hub-surface", "Flade"),
+        ("--hub-surface-sunken", "Nedsænket"),
+        ("--hub-border", "Kant"),
+        ("--hub-text", "Tekst"),
+        ("--hub-text-muted", "Dæmpet tekst"),
+        ("--hub-accent", "Accent"),
+        ("--hub-accent-soft", "Accent, blød"),
+        ("--hub-info", "Info"),
+        ("--hub-success", "Succes"),
+        ("--hub-warning", "Advarsel"),
+        ("--hub-danger", "Fejl"),
+    ];
+
+    private bool showTip = true;
+    private bool itemDialogOpen;
+    private int portions = 4;
+    private decimal amount = 1.5m;
+    private int hour = 18;
+    private string day = "i-dag";
+    private string category = "frugt";
+    private bool reminder = true;
+
+    private string? textValue, nameValue, searchValue, emailValue, numberValue, decimalValue, phoneValue, noteValue;
+    private string? errorValue = "ab";
+
+    private string quickItem = "";
+    private readonly List<string> quickItems = [];
+
+    private string dialogItem = "";
+    private int dialogCount = 1;
+    private string? dialogError;
+
+    private void ShowToastSequence()
+    {
+        Toasts.Success("Gemt");
+        Toasts.Info("Kalenderen er opdateret", "3 nye aftaler i denne uge.");
+        Toasts.Warning("Gemt – men ikke synkroniseret", "Prøver igen, når der er forbindelse.");
+    }
+
+    private void ShowUndo() =>
+        Toasts.Undoable("Mælk er fjernet fra listen", () =>
+        {
+            Toasts.Info("Mælk er tilbage på listen");
+            return Task.CompletedTask;
+        });
+
+    private async Task ConfirmDeleteAsync()
+    {
+        var confirmed = await Dialogs.ConfirmAsync(new ConfirmOptions
+        {
+            Title = "Slet madplanen for uge 39?",
+            Message = "Retterne og indkøbslisten for ugen fjernes.",
+            ConfirmText = "Slet",
+            Destructive = true,
+        });
+
+        if (confirmed)
+        {
+            Toasts.Success("Madplanen er slettet");
+        }
+    }
+
+    private void AddQuickItem()
+    {
+        var item = quickItem.Trim();
+        if (item.Length == 0)
+        {
+            return;
+        }
+
+        quickItems.Insert(0, item);
+        quickItem = "";
+    }
+
+    private void AddDialogItem()
+    {
+        if (string.IsNullOrWhiteSpace(dialogItem))
+        {
+            dialogError = "Skriv hvilken vare";
+            return;
+        }
+
+        quickItems.Insert(0, $"{dialogCount} × {dialogItem.Trim()}");
+        dialogItem = "";
+        dialogCount = 1;
+        dialogError = null;
+        itemDialogOpen = false;
+    }
+
+    private async Task SlowActionAsync()
+    {
+        await Task.Delay(1500);
+        Toasts.Success("Færdig");
+    }
+
+    private static void FailingAction() => throw new InvalidOperationException("Demonstration af fejlhåndtering");
+}

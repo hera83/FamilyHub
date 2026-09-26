@@ -1,0 +1,158 @@
+@implements IDisposable
+@inject IHouseholdService Household
+@inject IToastService Toasts
+@inject ILogger<HouseholdSection> Logger
+
+<HubSection Title="Familien" Description="Deles af alle skærme i huset.">
+    <HubCard>
+        <HubTextField Label="Husstandens navn" Kind="InputKind.Name" Placeholder="Fx Familien Hansen"
+                      MaxLength="HouseholdSettings.MaxNameLength" Help="Vises i hilsenen på forsiden."
+                      @bind-Value="householdName" OnCommit="SaveNameAsync" />
+    </HubCard>
+
+    <HubCard Title="Familiemedlemmer" Subtitle="Menuerne bruger dem til at vise, hvem en aftale eller opgave hører til.">
+        <HeaderActions>
+            <HubButton Variant="ButtonVariant.Primary" Size="ButtonSize.Small" Icon="IconName.Plus" OnClick="OpenNew"
+                       Disabled="members.Count >= HouseholdSettings.MaxMembers">Tilføj</HubButton>
+        </HeaderActions>
+        <ChildContent>
+            @if (members.Count == 0)
+            {
+                <EmptyState Compact="true" Icon="IconName.Users" Title="Ingen familiemedlemmer endnu">
+                    Tilføj jer selv – så kan kalenderen og madplanen vise, hvem det handler om.
+                </EmptyState>
+            }
+            else
+            {
+                <HubList>
+                    @foreach (var member in members)
+                    {
+                        <HubListItem Title="@member.Name" Subtitle="@MemberColors.DanishName(member.Color)">
+                            <Leading><HubAvatar Member="member" /></Leading>
+                            <Trailing>
+                                <HubButton Variant="ButtonVariant.Quiet" Icon="IconName.Edit" AriaLabel="@($"Redigér {member.Name}")" OnClick="() => OpenEdit(member)" />
+                                <HubButton Variant="ButtonVariant.Quiet" Icon="IconName.Trash" AriaLabel="@($"Fjern {member.Name}")" OnClick="() => RemoveAsync(member)" />
+                            </Trailing>
+                        </HubListItem>
+                    }
+                </HubList>
+            }
+        </ChildContent>
+    </HubCard>
+</HubSection>
+
+<HubDialog @bind-Open="editorOpen" Title="@(editing is null ? "Tilføj familiemedlem" : "Redigér familiemedlem")" CloseOnBackdrop="false">
+    <ChildContent>
+        <HubTextField Label="Navn" Kind="InputKind.Name" MaxLength="FamilyMember.MaxNameLength" AutoFocus="editing is null"
+                      Error="@nameError" @bind-Value="draftName" OnEnter="SaveMemberAsync" />
+        <MemberColorPicker @bind-Value="draftColor" />
+    </ChildContent>
+    <Footer>
+        <HubButton Variant="ButtonVariant.Quiet" OnClick="() => editorOpen = false">Annuller</HubButton>
+        <HubButton Variant="ButtonVariant.Primary" Icon="IconName.Check" OnClick="SaveMemberAsync">@(editing is null ? "Tilføj" : "Gem")</HubButton>
+    </Footer>
+</HubDialog>
+
+@code {
+    private string householdName = "";
+    private IReadOnlyList<FamilyMember> members = [];
+
+    private bool editorOpen;
+    private FamilyMember? editing;
+    private string draftName = "";
+    private MemberColor draftColor;
+    private string? nameError;
+
+    protected override void OnInitialized()
+    {
+        Apply(Household.Current, includeName: true);
+        Household.Changed += OnHouseholdChanged;
+    }
+
+    private void Apply(HouseholdSettings settings, bool includeName)
+    {
+        members = settings.Members;
+        if (includeName)
+        {
+            householdName = settings.Name;
+        }
+    }
+
+    // Another screen changed something – show it here too (but never overwrite what is being typed).
+    private void OnHouseholdChanged(HouseholdSettings settings) => _ = InvokeAsync(() =>
+    {
+        Apply(settings, includeName: false);
+        StateHasChanged();
+    });
+
+    // Auto-save when the field is committed. The field itself doesn't change, so confirm with a toast.
+    private async Task SaveNameAsync(string name)
+    {
+        if (await Toasts.TryAsync(() => Household.UpdateAsync(h => h with { Name = name }), "Navnet blev ikke gemt", Logger))
+        {
+            Toasts.Success("Navnet er gemt");
+        }
+    }
+
+    private void OpenNew()
+    {
+        editing = null;
+        draftName = "";
+        draftColor = Household.Current.NextFreeColor();
+        nameError = null;
+        editorOpen = true;
+    }
+
+    private void OpenEdit(FamilyMember member)
+    {
+        editing = member;
+        draftName = member.Name;
+        draftColor = member.Color;
+        nameError = null;
+        editorOpen = true;
+    }
+
+    private async Task SaveMemberAsync()
+    {
+        var name = draftName.Trim();
+        if (name.Length == 0)
+        {
+            nameError = "Skriv et navn";
+            return;
+        }
+
+        var updated = editing is { } existing
+            ? existing with { Name = name, Color = draftColor }
+            : new FamilyMember { Name = name, Color = draftColor };
+
+        var isNew = editing is null;
+        var saved = await Toasts.TryAsync(() => Household.UpdateAsync(h => h with
+        {
+            Members = isNew
+                ? [.. h.Members, updated]
+                : [.. h.Members.Select(m => m.Id == updated.Id ? updated : m)],
+        }), "Familiemedlemmet blev ikke gemt", Logger);
+
+        // The list below shows the result, so no toast on success.
+        if (saved)
+        {
+            editorOpen = false;
+        }
+    }
+
+    // Delete immediately, offer "Fortryd" – instead of asking "Er du sikker?".
+    private async Task RemoveAsync(FamilyMember member)
+    {
+        var index = members.ToList().FindIndex(m => m.Id == member.Id);
+        await Household.UpdateAsync(h => h with { Members = [.. h.Members.Where(m => m.Id != member.Id)] });
+
+        Toasts.Undoable($"{member.Name} er fjernet", () => Household.UpdateAsync(h =>
+        {
+            var restored = h.Members.ToList();
+            restored.Insert(Math.Clamp(index, 0, restored.Count), member);
+            return h with { Members = restored };
+        }));
+    }
+
+    public void Dispose() => Household.Changed -= OnHouseholdChanged;
+}

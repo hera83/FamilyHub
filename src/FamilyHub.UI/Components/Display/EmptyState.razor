@@ -1,0 +1,36 @@
+@namespace FamilyHub.UI.Components
+
+@*
+    When a list or page has nothing to show yet: say what goes here, and offer ONE way to start.
+    Never leave an empty area without explanation.
+*@
+<div class="hub-empty @(Compact ? "hub-empty--compact" : null)">
+    <span class="hub-empty__icon"><Icon Name="Icon" /></span>
+    <p class="hub-empty__title">@Title</p>
+    @if (ChildContent is not null)
+    {
+        <div class="hub-empty__text">@ChildContent</div>
+    }
+    @if (Actions is not null)
+    {
+        <div class="hub-empty__actions">@Actions</div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public IconName Icon { get; set; } = IconName.Info;
+
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = "";
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter]
+    public RenderFragment? Actions { get; set; }
+
+    /// <summary>Less padding – inside cards and widgets.</summary>
+    [Parameter]
+    public bool Compact { get; set; }
+}

@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <!-- Værten: app-skallen (layout, navigation, forside, indstillinger) + registrering af moduler. -->
+
+  <PropertyGroup>
+    <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting.Systemd" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\FamilyHub.Core\FamilyHub.Core.csproj" />
+    <ProjectReference Include="..\FamilyHub.UI\FamilyHub.UI.csproj" />
+    <ProjectReference Include="..\Modules\FamilyHub.Modules.Calendar\FamilyHub.Modules.Calendar.csproj" />
+    <ProjectReference Include="..\Modules\FamilyHub.Modules.MealPlan\FamilyHub.Modules.MealPlan.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="FamilyHub.Tests" />
+  </ItemGroup>
+
+</Project>

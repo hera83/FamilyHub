@@ -1,0 +1,232 @@
+/*
+  Family Hub – on-screen keyboard.
+  Docked in the app grid (not floating), so the page shrinks above it and the field being
+  typed into is never hidden. data-layer / data-shift are set by keyboard.js.
+*/
+
+.hub-osk {
+  position: relative;
+  z-index: var(--hub-z-keyboard);
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.hub-osk[data-visibility="expanded"] {
+  border-top: 1px solid var(--hub-border);
+  background: var(--hub-osk-bg);
+}
+
+.hub-osk__panel {
+  max-width: var(--hub-osk-max);
+  margin: 0 auto;
+  padding: var(--hub-space-1) var(--hub-space-4) var(--hub-space-4);
+  animation: hub-osk-in 180ms var(--hub-ease) both;
+}
+
+.hub-osk__panel--compact {
+  max-width: 30rem;
+}
+
+.hub-osk.is-limit .hub-osk__panel {
+  animation: hub-osk-limit 240ms ease;
+}
+
+.hub-osk__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--hub-space-3);
+  min-height: 2.75rem;
+}
+
+.hub-osk__field {
+  overflow: hidden;
+  color: var(--hub-text-subtle);
+  font-size: var(--hub-text-sm);
+  font-weight: var(--hub-weight-medium);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hub-osk__tools {
+  display: flex;
+  flex: none;
+  gap: var(--hub-space-1);
+}
+
+.hub-osk__tool {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--hub-space-2);
+  min-height: 2.75rem;
+  padding: 0 var(--hub-space-3);
+  border: 0;
+  border-radius: var(--hub-radius-sm);
+  background: transparent;
+  color: var(--hub-text-muted);
+  font-size: var(--hub-text-sm);
+  font-weight: var(--hub-weight-medium);
+  cursor: pointer;
+}
+
+.hub-osk__tool .hub-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.hub-osk__tool:active {
+  background: var(--hub-osk-key-down);
+}
+
+.hub-osk__keys {
+  display: flex;
+  flex-direction: column;
+}
+
+.hub-osk__layer {
+  display: none;
+  flex-direction: column;
+  gap: var(--hub-space-2);
+}
+
+/* Show the active layer. Single-layer layouts (number pads) always show. */
+.hub-osk__layer:only-child,
+.hub-osk:not([data-layer]) .hub-osk__layer:first-child,
+.hub-osk[data-layer="letters"] .hub-osk__layer[data-layer-name="letters"],
+.hub-osk[data-layer="symbols"] .hub-osk__layer[data-layer-name="symbols"] {
+  display: flex;
+}
+
+.hub-osk__row {
+  display: flex;
+  gap: var(--hub-space-2);
+}
+
+.hub-osk__key,
+.hub-osk__spacer {
+  flex: var(--w, 1) 1 0;
+  min-width: 0;
+  height: var(--hub-osk-key-height);
+}
+
+.hub-osk__key {
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--hub-radius-sm);
+  background: var(--hub-osk-key);
+  box-shadow: 0 1px 0 var(--hub-osk-key-shadow);
+  color: var(--hub-text);
+  font-size: 1.375rem;
+  font-weight: var(--hub-weight-regular);
+  line-height: 1;
+  cursor: pointer;
+  touch-action: none;
+  transition: background-color 60ms, transform 60ms;
+}
+
+.hub-osk__key .hub-icon {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+.hub-osk__key--fn {
+  background: var(--hub-osk-key-fn);
+  color: var(--hub-text-muted);
+}
+
+.hub-osk__key--text {
+  font-size: var(--hub-text-md);
+  font-weight: var(--hub-weight-bold);
+}
+
+.hub-osk__key--enter {
+  background: var(--hub-accent);
+  color: var(--hub-text-on-accent);
+}
+
+.hub-osk__key.is-down {
+  background: var(--hub-osk-key-down);
+  box-shadow: none;
+  transform: translateY(1px);
+}
+
+.hub-osk__key--enter.is-down {
+  background: var(--hub-accent-strong);
+}
+
+/* Shift: once = soft highlight, caps lock = solid accent. Letters follow via CSS. */
+.hub-osk[data-shift="once"] .hub-osk__key--letter,
+.hub-osk[data-shift="lock"] .hub-osk__key--letter {
+  text-transform: uppercase;
+}
+
+.hub-osk[data-shift="once"] .hub-osk__key--shift {
+  background: var(--hub-accent-soft);
+  color: var(--hub-accent-strong);
+}
+
+.hub-osk[data-shift="lock"] .hub-osk__key--shift {
+  background: var(--hub-accent);
+  color: var(--hub-text-on-accent);
+}
+
+.hub-osk[data-shift="once"] .hub-osk__key--shift svg,
+.hub-osk[data-shift="lock"] .hub-osk__key--shift svg {
+  fill: currentColor;
+}
+
+/* Minimised: a small button in the corner brings the keyboard back. */
+.hub-osk__pill {
+  position: fixed;
+  right: var(--hub-space-6);
+  bottom: var(--hub-space-6);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--hub-space-2);
+  min-height: var(--hub-control-md);
+  padding: 0 var(--hub-space-5);
+  border: 1px solid var(--hub-border);
+  border-radius: var(--hub-radius-pill);
+  background: var(--hub-surface);
+  box-shadow: var(--hub-shadow-lg);
+  color: var(--hub-text);
+  font-weight: var(--hub-weight-bold);
+  cursor: pointer;
+  animation: hub-fade-in var(--hub-duration) ease both;
+}
+
+.hub-osk__pill:active {
+  transform: scale(0.96);
+}
+
+@keyframes hub-osk-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.75rem);
+  }
+}
+
+@keyframes hub-osk-limit {
+  25% {
+    transform: translateX(-4px);
+  }
+
+  75% {
+    transform: translateX(4px);
+  }
+}
+
+/* Short screens (e.g. 1366×768): tighter keyboard. */
+@media (max-height: 50rem) {
+  .hub-osk__bar {
+    min-height: 2.25rem;
+  }
+
+  .hub-osk__layer,
+  .hub-osk__row {
+    gap: 0.375rem;
+  }
+}

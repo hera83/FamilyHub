@@ -1,0 +1,38 @@
+@implements IDisposable
+@inject ModuleCatalog Modules
+@inject NavigationManager Navigation
+
+@* Main navigation: Hjem, the modules in their Order, and Indstillinger at the bottom. *@
+<nav class="hub-rail" aria-label="Hovedmenu">
+    <RailClock Hidden="IsHome" />
+
+    <NavLink class="hub-rail__item" href="" Match="NavLinkMatch.All">
+        <Icon Name="IconName.Home" />
+        <span>Hjem</span>
+    </NavLink>
+
+    @foreach (var module in Modules.NavigationModules)
+    {
+        <NavLink class="hub-rail__item" href="@module.Route.TrimStart('/')" Match="NavLinkMatch.Prefix">
+            <Icon Name="module.Icon" />
+            <span>@module.Title</span>
+        </NavLink>
+    }
+
+    <span class="hub-rail__spacer"></span>
+
+    <NavLink class="hub-rail__item" href="indstillinger" Match="NavLinkMatch.Prefix">
+        <Icon Name="IconName.Settings" />
+        <span>Indstillinger</span>
+    </NavLink>
+</nav>
+
+@code {
+    private bool IsHome => Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0].TrimEnd('/').Length == 0;
+
+    protected override void OnInitialized() => Navigation.LocationChanged += OnLocationChanged;
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e) => _ = InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Navigation.LocationChanged -= OnLocationChanged;
+}

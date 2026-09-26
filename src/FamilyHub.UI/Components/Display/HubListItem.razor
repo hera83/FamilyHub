@@ -1,0 +1,88 @@
+@namespace FamilyHub.UI.Components
+
+@*
+    One row (min. 64px high). Tappable when OnClick/Href is set – then the whole row is the target.
+    Otherwise put buttons in Trailing.
+*@
+<li class="hub-list__item">
+    @if (Href is not null)
+    {
+        <a class="hub-list__row hub-list__row--interactive" href="@Href">@RowContent</a>
+    }
+    else if (OnClick.HasDelegate)
+    {
+        <button type="button" class="hub-list__row hub-list__row--interactive" @onclick="OnClick">@RowContent</button>
+    }
+    else
+    {
+        <div class="hub-list__row">@RowContent</div>
+    }
+</li>
+
+@code {
+    [Parameter]
+    public string? Title { get; set; }
+
+    [Parameter]
+    public string? Subtitle { get; set; }
+
+    [Parameter]
+    public IconName? Icon { get; set; }
+
+    /// <summary>Custom leading content, e.g. a <HubAvatar>. Overrides Icon.</summary>
+    [Parameter]
+    public RenderFragment? Leading { get; set; }
+
+    /// <summary>Content on the right: a value, a badge, a switch or quiet buttons.</summary>
+    [Parameter]
+    public RenderFragment? Trailing { get; set; }
+
+    /// <summary>Custom main content. Overrides Title/Subtitle.</summary>
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter]
+    public EventCallback<MouseEventArgs> OnClick { get; set; }
+
+    [Parameter]
+    public string? Href { get; set; }
+
+    private bool IsInteractive => Href is not null || OnClick.HasDelegate;
+
+    private RenderFragment RowContent => __builder =>
+    {
+        if (Leading is not null)
+        {
+            <span class="hub-list__leading">@Leading</span>
+        }
+        else if (Icon is { } icon)
+        {
+            <span class="hub-list__leading hub-list__leading--icon"><Icon Name="icon" /></span>
+        }
+
+        <span class="hub-list__main">
+            @if (ChildContent is not null)
+            {
+                @ChildContent
+            }
+            else
+            {
+                <span class="hub-list__title">@Title</span>
+                @if (Subtitle is not null)
+                {
+                    <span class="hub-list__subtitle">@Subtitle</span>
+                }
+            }
+        </span>
+
+        if (Trailing is not null)
+        {
+            <span class="hub-list__trailing">@Trailing</span>
+        }
+
+        if (IsInteractive)
+        {
+            <Icon Name="IconName.ChevronRight" Class="hub-list__chevron" />
+        }
+    };
+}

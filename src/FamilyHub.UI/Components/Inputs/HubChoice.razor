@@ -1,0 +1,71 @@
+@namespace FamilyHub.UI.Components
+@typeparam TValue
+
+@*
+    Pick one of a few visible options – always better than typing or a dropdown on a touch screen.
+    Segmented for 2–5 short options, Chips for more or longer ones.
+*@
+<div class="hub-choice-field @Class">
+    @if (Label is not null)
+    {
+        <span class="hub-field__label" id="@labelId">@Label</span>
+    }
+    <div class="hub-choice hub-choice--@Appearance.ToString().ToLowerInvariant()" role="radiogroup"
+         aria-labelledby="@(Label is null ? null : labelId)">
+        @foreach (var option in Options)
+        {
+            var selected = EqualityComparer<TValue>.Default.Equals(option.Value, Value);
+            <button type="button" role="radio" class="hub-choice__option" aria-checked="@(selected ? "true" : "false")"
+                    disabled="@(Disabled || option.Disabled)" @onclick="() => SelectAsync(option.Value)">
+                @if (option.Icon is { } icon)
+                {
+                    <Icon Name="icon" />
+                }
+                <span>@option.Label</span>
+            </button>
+        }
+    </div>
+    @if (Help is not null)
+    {
+        <p class="hub-field__help">@Help</p>
+    }
+</div>
+
+@code {
+    private readonly string labelId = $"hub-choice-{Guid.NewGuid():N}";
+
+    [Parameter]
+    public string? Label { get; set; }
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<ChoiceOption<TValue>> Options { get; set; } = [];
+
+    [Parameter]
+    public TValue? Value { get; set; }
+
+    [Parameter]
+    public EventCallback<TValue> ValueChanged { get; set; }
+
+    [Parameter]
+    public ChoiceAppearance Appearance { get; set; } = ChoiceAppearance.Segmented;
+
+    [Parameter]
+    public string? Help { get; set; }
+
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    [Parameter]
+    public string? Class { get; set; }
+
+    private async Task SelectAsync(TValue value)
+    {
+        if (EqualityComparer<TValue>.Default.Equals(value, Value))
+        {
+            return;
+        }
+
+        Value = value;
+        await ValueChanged.InvokeAsync(value);
+    }
+}

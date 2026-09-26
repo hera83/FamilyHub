@@ -1,0 +1,170 @@
+@namespace FamilyHub.UI.Components
+@inject IToastService Toasts
+@inject ILogger<HubButton> Logger
+
+@*
+    The only button in Family Hub. An async OnClick automatically:
+      * disables the button while running (no double taps)
+      * shows a spinner if it takes more than 250 ms
+      * turns an exception into an error toast (and a log entry) instead of breaking the page
+*@
+@if (Href is not null)
+{
+    <a class="@CssClass" href="@Href" aria-label="@AriaLabel" title="@Title" @attributes="AdditionalAttributes">@ButtonContent</a>
+}
+else
+{
+    <button type="@(Type == ButtonType.Submit ? "submit" : "button")" class="@CssClass" disabled="@(Disabled || IsBusy)"
+            aria-busy="@(IsBusy ? "true" : null)" aria-label="@AriaLabel" title="@Title"
+            @onclick="HandleClickAsync" @attributes="AdditionalAttributes">@ButtonContent</button>
+}
+
+@code {
+    private bool running;
+    private bool showSpinner;
+
+    [Parameter]
+    public ButtonVariant Variant { get; set; } = ButtonVariant.Secondary;
+
+    [Parameter]
+    public ButtonSize Size { get; set; } = ButtonSize.Medium;
+
+    [Parameter]
+    public IconName? Icon { get; set; }
+
+    [Parameter]
+    public IconName? TrailingIcon { get; set; }
+
+    [Parameter]
+    public string? Text { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter]
+    public EventCallback<MouseEventArgs> OnClick { get; set; }
+
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    /// <summary>Force the busy state from outside (e.g. while a form submits).</summary>
+    [Parameter]
+    public bool Busy { get; set; }
+
+    /// <summary>Full width.</summary>
+    [Parameter]
+    public bool Block { get; set; }
+
+    [Parameter]
+    public ButtonType Type { get; set; } = ButtonType.Button;
+
+    /// <summary>Renders a link that looks like a button.</summary>
+    [Parameter]
+    public string? Href { get; set; }
+
+    /// <summary>Required for icon-only buttons.</summary>
+    [Parameter]
+    public string? AriaLabel { get; set; }
+
+    [Parameter]
+    public string? Title { get; set; }
+
+    /// <summary>Toast title if OnClick throws.</summary>
+    [Parameter]
+    public string ErrorMessage { get; set; } = "Det lykkedes ikke";
+
+    [Parameter]
+    public string? Class { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private bool IsBusy => Busy || running;
+
+    private bool HasLabel => ChildContent is not null || !string.IsNullOrEmpty(Text);
+
+    private string CssClass
+    {
+        get
+        {
+            var css = $"hub-btn hub-btn--{Variant.ToString().ToLowerInvariant()} hub-btn--{Size.ToString().ToLowerInvariant()}";
+            if (!HasLabel)
+            {
+                css += " hub-btn--icon";
+            }
+
+            if (Block)
+            {
+                css += " hub-btn--block";
+            }
+
+            return Class is null ? css : $"{css} {Class}";
+        }
+    }
+
+    private RenderFragment ButtonContent => __builder =>
+    {
+        if (showSpinner || Busy)
+        {
+            <span class="hub-btn__spinner" aria-hidden="true"></span>
+        }
+        else if (Icon is { } icon)
+        {
+            <Icon Name="icon" />
+        }
+
+        if (ChildContent is not null)
+        {
+            <span class="hub-btn__label">@ChildContent</span>
+        }
+        else if (!string.IsNullOrEmpty(Text))
+        {
+            <span class="hub-btn__label">@Text</span>
+        }
+
+        if (TrailingIcon is { } trailing)
+        {
+            <Icon Name="trailing" />
+        }
+    };
+
+    private async Task HandleClickAsync(MouseEventArgs args)
+    {
+        if (running || !OnClick.HasDelegate)
+        {
+            return;
+        }
+
+        running = true;
+        using var spinnerDelay = new CancellationTokenSource();
+        _ = ShowSpinnerLaterAsync(spinnerDelay.Token);
+        try
+        {
+            await OnClick.InvokeAsync(args);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Button '{Button}' failed", Text ?? AriaLabel ?? Title);
+            Toasts.Error(ErrorMessage, "Prøv igen om lidt.");
+        }
+        finally
+        {
+            spinnerDelay.Cancel();
+            running = false;
+            showSpinner = false;
+        }
+    }
+
+    private async Task ShowSpinnerLaterAsync(CancellationToken token)
+    {
+        try
+        {
+            await Task.Delay(250, token);
+            showSpinner = true;
+            StateHasChanged();
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+}

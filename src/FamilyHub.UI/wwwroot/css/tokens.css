@@ -1,0 +1,193 @@
+/*
+  Family Hub – design tokens.
+
+  Every colour, size, spacing and timing lives here. Components and modules use ONLY these
+  variables – never hard-coded values – so the whole app changes together and night mode just works.
+  Light is the default; night mode sets data-theme="dark" on <html>.
+*/
+
+@font-face {
+  font-family: "Inter";
+  src: url("../fonts/inter-latin-wght-normal.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  color-scheme: light;
+
+  /* Overall size – set per screen under Indstillinger → Visningsstørrelse. Everything is in rem. */
+  --hub-scale: 1;
+
+  /* ---- Surfaces: warm, paper-like neutrals ---- */
+  --hub-bg: #f4f2ee;
+  --hub-surface: #ffffff;
+  --hub-surface-muted: #f9f8f5;
+  --hub-surface-sunken: #ebe8e2;
+  --hub-border: #e4e0d8;
+  --hub-border-strong: #cfc9bd;
+  --hub-overlay: rgba(28, 27, 24, 0.36);
+
+  /* ---- Text ---- */
+  --hub-text: #2a2926;
+  --hub-text-muted: #5f5b53;
+  --hub-text-subtle: #8a857b;
+  --hub-text-on-accent: #ffffff;
+  --hub-text-on-danger: #ffffff;
+
+  /* ---- Accent: calm sage. Only for primary actions, selection and "active". ---- */
+  --hub-accent: #4e7d6a;
+  --hub-accent-strong: #3f6a58;
+  --hub-accent-soft: #e2ece6;
+  --hub-accent-softer: #eff5f1;
+
+  /* ---- Status: muted, and always paired with an icon + text (never colour alone) ---- */
+  --hub-info: #4a6a8a;
+  --hub-info-soft: #e6edf4;
+  --hub-success: #4b7c58;
+  --hub-success-soft: #e4eee6;
+  --hub-warning: #9c6c1c;
+  --hub-warning-soft: #f6eddb;
+  --hub-danger: #ad4f3b;
+  --hub-danger-soft: #f6e5e0;
+  --hub-neutral: #6f6a61;
+  --hub-neutral-soft: #eeebe5;
+
+  /* ---- Family members (MemberColor) ---- */
+  --hub-person-sage: #6f9a84;
+  --hub-person-sky: #6a8db1;
+  --hub-person-terracotta: #c07a5c;
+  --hub-person-sand: #bf9a55;
+  --hub-person-plum: #8c6e9e;
+  --hub-person-rose: #c07689;
+  --hub-person-teal: #4c9696;
+  --hub-person-stone: #878175;
+
+  /* ---- Typography ---- */
+  --hub-font: "Inter", "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, "Noto Sans", "DejaVu Sans", sans-serif;
+  --hub-text-xs: 0.875rem;    /* 14px – captions, sparingly */
+  --hub-text-sm: 1rem;        /* 16px – help text, meta */
+  --hub-text-md: 1.125rem;    /* 18px – body (default) */
+  --hub-text-lg: 1.3125rem;   /* 21px – card titles */
+  --hub-text-xl: 1.625rem;    /* 26px – section titles */
+  --hub-text-2xl: 2.125rem;   /* 34px – page titles */
+  --hub-text-display: clamp(5rem, 10vw, 8.5rem);  /* the clock */
+  --hub-leading: 1.5;
+  --hub-leading-tight: 1.2;
+  --hub-weight-regular: 400;
+  --hub-weight-medium: 500;
+  --hub-weight-bold: 600;
+
+  /* ---- Spacing: 4px grid ---- */
+  --hub-space-1: 0.25rem;
+  --hub-space-2: 0.5rem;
+  --hub-space-3: 0.75rem;
+  --hub-space-4: 1rem;
+  --hub-space-5: 1.25rem;
+  --hub-space-6: 1.5rem;
+  --hub-space-8: 2rem;
+  --hub-space-10: 2.5rem;
+  --hub-space-12: 3rem;
+  --hub-space-16: 4rem;
+
+  /* ---- Radii ---- */
+  --hub-radius-sm: 0.625rem;
+  --hub-radius-md: 0.875rem;
+  --hub-radius-lg: 1.25rem;
+  --hub-radius-xl: 1.75rem;
+  --hub-radius-pill: 999px;
+
+  /* ---- Elevation: soft, never dramatic ---- */
+  --hub-shadow-sm: 0 1px 2px rgba(42, 41, 38, 0.05);
+  --hub-shadow-md: 0 4px 14px rgba(42, 41, 38, 0.08);
+  --hub-shadow-lg: 0 14px 44px rgba(42, 41, 38, 0.16);
+
+  /* ---- Touch targets ---- */
+  --hub-touch-min: 3rem;      /* 48px – absolute minimum for anything tappable */
+  --hub-control-sm: 2.75rem;  /* 44px – compact, secondary controls only */
+  --hub-control-md: 3.5rem;   /* 56px – standard buttons and fields */
+  --hub-control-lg: 4rem;     /* 64px – primary actions on the big screen */
+
+  /* ---- Layout ---- */
+  --hub-rail-width: 6.75rem;
+  --hub-page-padding: 2rem;
+  --hub-page-max: 88rem;
+  --hub-page-narrow: 56rem;
+  --hub-osk-inset: 0px;       /* current height of the on-screen keyboard (set by keyboard.js) */
+
+  /* ---- Motion: short and gentle ---- */
+  --hub-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --hub-duration-fast: 120ms;
+  --hub-duration: 200ms;
+  --hub-duration-slow: 320ms;
+
+  /* ---- Layers ---- */
+  --hub-z-dialog: 900;
+  --hub-z-keyboard: 950;
+  --hub-z-toast: 1000;
+  --hub-z-system: 2000;
+
+  /* ---- On-screen keyboard ---- */
+  --hub-osk-bg: #e8e5df;
+  --hub-osk-key: #ffffff;
+  --hub-osk-key-fn: #d9d5cc;
+  --hub-osk-key-down: #cbc6bb;
+  --hub-osk-key-shadow: rgba(42, 41, 38, 0.2);
+  --hub-osk-key-height: clamp(2.875rem, 5.6vh, 4rem);
+  --hub-osk-max: 74rem;
+}
+
+/* Night mode: warm dark, low glare in a dim kitchen. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --hub-bg: #151514;
+  --hub-surface: #1f1e1c;
+  --hub-surface-muted: #1a1918;
+  --hub-surface-sunken: #111110;
+  --hub-border: #312f2b;
+  --hub-border-strong: #46433d;
+  --hub-overlay: rgba(0, 0, 0, 0.55);
+
+  --hub-text: #ebe8e2;
+  --hub-text-muted: #b1aba1;
+  --hub-text-subtle: #807b72;
+  --hub-text-on-accent: #10201a;
+  --hub-text-on-danger: #2a130e;
+
+  --hub-accent: #86b39e;
+  --hub-accent-strong: #9fc4b2;
+  --hub-accent-soft: #24322b;
+  --hub-accent-softer: #1c2621;
+
+  --hub-info: #93b1cf;
+  --hub-info-soft: #1d2631;
+  --hub-success: #8fbe99;
+  --hub-success-soft: #1d2b21;
+  --hub-warning: #dcb068;
+  --hub-warning-soft: #30281a;
+  --hub-danger: #e0907c;
+  --hub-danger-soft: #36221d;
+  --hub-neutral: #a8a298;
+  --hub-neutral-soft: #262522;
+
+  --hub-person-sage: #86b39e;
+  --hub-person-sky: #87a9cc;
+  --hub-person-terracotta: #d69276;
+  --hub-person-sand: #d4b170;
+  --hub-person-plum: #a88bba;
+  --hub-person-rose: #d692a4;
+  --hub-person-teal: #6cb3b3;
+  --hub-person-stone: #a39d91;
+
+  --hub-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --hub-shadow-md: 0 4px 14px rgba(0, 0, 0, 0.45);
+  --hub-shadow-lg: 0 14px 44px rgba(0, 0, 0, 0.6);
+
+  --hub-osk-bg: #0f0f0e;
+  --hub-osk-key: #2a2926;
+  --hub-osk-key-fn: #1c1b19;
+  --hub-osk-key-down: #3b3935;
+  --hub-osk-key-shadow: rgba(0, 0, 0, 0.55);
+}

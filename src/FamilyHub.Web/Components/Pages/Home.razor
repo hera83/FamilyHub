@@ -1,0 +1,77 @@
+@page "/"
+@implements IDisposable
+@inject IHubClock Clock
+@inject IHouseholdService Household
+@inject ModuleCatalog Modules
+
+<HubPage Title="Hjem" HideHeader="true">
+    <section class="home-hero" aria-label="Dato og tid">
+        <p class="home-hero__date">@DanishFormat.LongDate(Today) · uge @DanishFormat.WeekNumber(Today)</p>
+        <p class="home-hero__time">@DanishFormat.Time(TimeOnly.FromDateTime(now.DateTime))</p>
+        <h1 class="home-hero__greeting" tabindex="-1">@Greeting</h1>
+    </section>
+
+    @if (Modules.Widgets.Count > 0)
+    {
+        <div class="home-widgets">
+            @foreach (var item in Modules.Widgets)
+            {
+                <div class="home-widget home-widget--@item.Widget.Size.ToString().ToLowerInvariant()">
+                    <DynamicComponent Type="item.Widget.Component" />
+                </div>
+            }
+        </div>
+    }
+    else if (Modules.NavigationModules.Count > 0)
+    {
+        <HubSection Title="Genveje">
+            <HubGrid MinItemWidth="19rem">
+                @foreach (var module in Modules.NavigationModules)
+                {
+                    <HubCard Title="@module.Title" Subtitle="@module.Description" Icon="module.Icon" Href="@module.Route.TrimStart('/')" />
+                }
+            </HubGrid>
+        </HubSection>
+    }
+</HubPage>
+
+@code {
+    private DateTimeOffset now;
+    private string householdName = "";
+    private IDisposable? tick;
+
+    private DateOnly Today => DateOnly.FromDateTime(now.DateTime);
+
+    private string Greeting
+    {
+        get
+        {
+            var greeting = DanishFormat.Greeting(TimeOnly.FromDateTime(now.DateTime));
+            return string.IsNullOrWhiteSpace(householdName) ? greeting : $"{greeting}, {householdName}";
+        }
+    }
+
+    protected override void OnInitialized()
+    {
+        now = Clock.Now;
+        householdName = Household.Current.Name;
+        tick = Clock.SubscribeMinuteTick(time => _ = InvokeAsync(() =>
+        {
+            now = time;
+            StateHasChanged();
+        }));
+        Household.Changed += OnHouseholdChanged;
+    }
+
+    private void OnHouseholdChanged(HouseholdSettings settings) => _ = InvokeAsync(() =>
+    {
+        householdName = settings.Name;
+        StateHasChanged();
+    });
+
+    public void Dispose()
+    {
+        tick?.Dispose();
+        Household.Changed -= OnHouseholdChanged;
+    }
+}

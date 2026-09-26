@@ -1,0 +1,26 @@
+@page "/Error"
+@using System.Diagnostics
+
+<HubPage Title="Der opstod en fejl" Width="PageWidth.Narrow">
+    <InfoBox Tone="HubTone.Danger" Title="Family Hub kunne ikke vise siden">
+        <ChildContent>
+            <p>Prøv at gå til forsiden. Fejlen er skrevet i loggen.</p>
+            @if (RequestId is not null)
+            {
+                <p class="hub-small hub-subtle">Reference: @RequestId</p>
+            }
+        </ChildContent>
+        <Actions>
+            <HubButton Variant="ButtonVariant.Primary" Icon="IconName.Home" Href="">Til forsiden</HubButton>
+        </Actions>
+    </InfoBox>
+</HubPage>
+
+@code {
+    [CascadingParameter]
+    private HttpContext? HttpContext { get; set; }
+
+    private string? RequestId { get; set; }
+
+    protected override void OnInitialized() => RequestId = Activity.Current?.Id ?? HttpContext?.TraceIdentifier;
+}

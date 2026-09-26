@@ -1,0 +1,216 @@
+@namespace FamilyHub.UI.Keyboard
+@implements IAsyncDisposable
+@inject KeyboardService Keyboard
+@inject DeviceService Device
+@inject IToastService Toasts
+@inject IJSRuntime JS
+@inject ILogger<OnScreenKeyboard> Logger
+
+@*
+    The on-screen keyboard. Placed once in the layout – never in pages.
+    Visibility is decided here; typing happens in wwwroot/js/keyboard.js.
+    data-layer and data-shift on the root element are owned by keyboard.js.
+*@
+<div @ref="root" class="hub-osk" data-visibility="@VisibilityName" role="group" aria-label="Skærmtastatur">
+    @if (Keyboard.Visibility == KeyboardVisibility.Expanded && Keyboard.Target is { } target)
+    {
+        var layout = KeyboardLayouts.Get(target.Layout);
+        <div class="hub-osk__panel @(layout.IsCompact ? "hub-osk__panel--compact" : null)">
+            <div class="hub-osk__bar">
+                <span class="hub-osk__field">@target.FieldLabel</span>
+                <div class="hub-osk__tools">
+                    <button type="button" class="hub-osk__tool" @onclick="Keyboard.Minimize">
+                        <Icon Name="IconName.ChevronsDown" />
+                        <span>Minimér</span>
+                    </button>
+                    <button type="button" class="hub-osk__tool" @onclick="DisableAsync">
+                        <Icon Name="IconName.KeyboardOff" />
+                        <span>Slå fra</span>
+                    </button>
+                </div>
+            </div>
+            <div class="hub-osk__keys">
+                @foreach (var layer in layout.Layers)
+                {
+                    <div class="hub-osk__layer" data-layer-name="@layer.Name">
+                        @foreach (var row in layer.Rows)
+                        {
+                            <div class="hub-osk__row">
+                                @foreach (var key in row)
+                                {
+                                    @RenderKey(key, target)
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    }
+    else if (Keyboard.Visibility == KeyboardVisibility.Minimized)
+    {
+        <button type="button" class="hub-osk__pill" @onclick="Keyboard.Expand">
+            <Icon Name="IconName.Keyboard" />
+            <span>Vis tastatur</span>
+        </button>
+    }
+</div>
+
+@code {
+    private ElementReference root;
+    private IJSObjectReference? module;
+    private DotNetObjectReference<OnScreenKeyboard>? selfReference;
+    private KeyboardActivation? appliedActivation;
+
+    private string VisibilityName => Keyboard.Visibility.ToString().ToLowerInvariant();
+
+    protected override void OnInitialized()
+    {
+        Keyboard.Changed += OnKeyboardChanged;
+        Device.Changed += OnDeviceChanged;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        try
+        {
+            module = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/FamilyHub.UI/js/keyboard.js");
+            selfReference = DotNetObjectReference.Create(this);
+            appliedActivation = Device.Keyboard;
+            await module.InvokeVoidAsync("init", selfReference, root, ToJs(appliedActivation));
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    [JSInvokable]
+    public void OnFieldFocused(KeyboardFieldInfo info) => Keyboard.Attach(KeyboardTarget.From(info));
+
+    [JSInvokable]
+    public void OnFieldReleased() => Keyboard.Detach();
+
+    private RenderFragment RenderKey(KeyDefinition key, KeyboardTarget target) => key.Kind switch
+    {
+        KeyKind.Spacer => @<span class="hub-osk__spacer" style="@WidthStyle(key)"></span>,
+        _ => @<button type="button" tabindex="-1" class="@KeyClass(key, target)" style="@WidthStyle(key)"
+                      data-key="@ActionName(key.Kind)" data-text="@key.Text" data-layer-target="@key.TargetLayer"
+                      aria-label="@key.AriaLabel">
+                  @if (key.Kind == KeyKind.Enter && target.EnterLabel.Length > 0)
+                  {
+                      <span>@target.EnterLabel</span>
+                  }
+                  else if (key.Kind == KeyKind.Enter)
+                  {
+                      <Icon Name="IconName.Enter" />
+                  }
+                  else if (key.Icon is { } icon)
+                  {
+                      <Icon Name="icon" />
+                  }
+                  else
+                  {
+                      <span>@(key.Label ?? key.Text)</span>
+                  }
+              </button>,
+    };
+
+    private static string WidthStyle(KeyDefinition key) =>
+        $"--w:{key.Width.ToString(CultureInfo.InvariantCulture)}";
+
+    private static string KeyClass(KeyDefinition key, KeyboardTarget target) => key.Kind switch
+    {
+        KeyKind.Character when key.IsLetter => "hub-osk__key hub-osk__key--letter",
+        KeyKind.Character or KeyKind.Space => "hub-osk__key",
+        KeyKind.Enter => target.EnterLabel.Length > 0 ? "hub-osk__key hub-osk__key--enter hub-osk__key--text" : "hub-osk__key hub-osk__key--enter",
+        KeyKind.Shift => "hub-osk__key hub-osk__key--fn hub-osk__key--shift",
+        KeyKind.Layer => "hub-osk__key hub-osk__key--fn hub-osk__key--text",
+        _ => "hub-osk__key hub-osk__key--fn",
+    };
+
+    private static string ActionName(KeyKind kind) => kind switch
+    {
+        KeyKind.Character => "char",
+        KeyKind.Space => "space",
+        KeyKind.Shift => "shift",
+        KeyKind.Backspace => "backspace",
+        KeyKind.Enter => "enter",
+        KeyKind.Layer => "layer",
+        KeyKind.CursorLeft => "left",
+        KeyKind.CursorRight => "right",
+        _ => "none",
+    };
+
+    private static object ToJs(KeyboardActivation activation) =>
+        new { enabled = activation.Enabled, requireTouch = activation.RequireTouchInteraction };
+
+    private async Task DisableAsync()
+    {
+        var previous = Device.Settings.KeyboardMode;
+        await Device.UpdateSettingsAsync(s => s with { KeyboardMode = KeyboardMode.Off });
+        Toasts.Show(new ToastOptions
+        {
+            Level = ToastLevel.Info,
+            Title = "Skærmtastaturet er slået fra",
+            Message = "Kun på denne skærm. Slå det til igen under Indstillinger.",
+            Key = "keyboard-mode",
+            Action = new ToastAction("Fortryd", () => Device.UpdateSettingsAsync(s => s with { KeyboardMode = previous })),
+        });
+    }
+
+    private void OnKeyboardChanged() => _ = InvokeAsync(StateHasChanged);
+
+    private void OnDeviceChanged() => _ = InvokeAsync(ApplyActivationAsync);
+
+    private async Task ApplyActivationAsync()
+    {
+        var activation = Device.Keyboard;
+        if (module is null || activation == appliedActivation)
+        {
+            return;
+        }
+
+        appliedActivation = activation;
+        try
+        {
+            await module.InvokeVoidAsync("configure", ToJs(activation));
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not reconfigure the on-screen keyboard");
+        }
+
+        if (!activation.Enabled)
+        {
+            Keyboard.Detach();
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        Keyboard.Changed -= OnKeyboardChanged;
+        Device.Changed -= OnDeviceChanged;
+
+        if (module is not null)
+        {
+            try
+            {
+                await module.InvokeVoidAsync("dispose");
+                await module.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+
+        selfReference?.Dispose();
+    }
+}

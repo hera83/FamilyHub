@@ -1,0 +1,16 @@
+@inject ModuleCatalog Modules
+
+<Router AppAssembly="typeof(Program).Assembly" AdditionalAssemblies="additionalAssemblies" NotFoundPage="typeof(Pages.NotFound)">
+    <Found Context="routeData">
+        <RouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)" />
+        <FocusOnNavigate RouteData="routeData" Selector="h1" />
+    </Found>
+</Router>
+
+@code {
+    // Module projects contain their own pages – the router needs to know their assemblies.
+    private System.Reflection.Assembly[] additionalAssemblies = [];
+
+    protected override void OnInitialized() =>
+        additionalAssemblies = [.. Modules.Assemblies.Where(a => a != typeof(Program).Assembly)];
+}

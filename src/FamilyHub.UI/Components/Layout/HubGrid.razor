@@ -1,0 +1,24 @@
+@namespace FamilyHub.UI.Components
+
+@* Responsive grid: as many columns as fit, never narrower than MinItemWidth. *@
+<div class="hub-grid @Class" style="@Style">
+    @ChildContent
+</div>
+
+@code {
+    /// <summary>Smallest column width, e.g. "18rem". Columns are added as the screen allows.</summary>
+    [Parameter]
+    public string MinItemWidth { get; set; } = "20rem";
+
+    /// <summary>Gap between items – use a spacing token, e.g. "var(--hub-space-4)".</summary>
+    [Parameter]
+    public string? Gap { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter]
+    public string? Class { get; set; }
+
+    private string Style => Gap is null ? $"--hub-grid-min:{MinItemWidth}" : $"--hub-grid-min:{MinItemWidth};--hub-grid-gap:{Gap}";
+}

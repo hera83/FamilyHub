@@ -1,0 +1,117 @@
+@namespace FamilyHub.UI.Components
+
+@*
+    Information card – the basic building block for content and dashboard widgets.
+    Tappable when OnClick or Href is set; then the whole card is the target (no buttons inside).
+*@
+@if (Href is not null)
+{
+    <a class="@CssClass" href="@Href" @attributes="AdditionalAttributes">@CardContent</a>
+}
+else if (OnClick.HasDelegate)
+{
+    <button type="button" class="@CssClass" @onclick="OnClick" @attributes="AdditionalAttributes">@CardContent</button>
+}
+else
+{
+    <article class="@CssClass" @attributes="AdditionalAttributes">@CardContent</article>
+}
+
+@code {
+    [Parameter]
+    public string? Title { get; set; }
+
+    [Parameter]
+    public string? Subtitle { get; set; }
+
+    [Parameter]
+    public IconName? Icon { get; set; }
+
+    /// <summary>Small quiet buttons in the top right corner (not on tappable cards).</summary>
+    [Parameter]
+    public RenderFragment? HeaderActions { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter]
+    public RenderFragment? Footer { get; set; }
+
+    [Parameter]
+    public EventCallback<MouseEventArgs> OnClick { get; set; }
+
+    [Parameter]
+    public string? Href { get; set; }
+
+    /// <summary>Subtle = flat, no border; Accent = tinted with the accent colour.</summary>
+    [Parameter]
+    public CardVariant Variant { get; set; } = CardVariant.Default;
+
+    [Parameter]
+    public string? Class { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private bool IsInteractive => Href is not null || OnClick.HasDelegate;
+
+    private bool HasHeader => Title is not null || Icon is not null || HeaderActions is not null;
+
+    private string CssClass
+    {
+        get
+        {
+            var css = "hub-card";
+            if (Variant != CardVariant.Default)
+            {
+                css += $" hub-card--{Variant.ToString().ToLowerInvariant()}";
+            }
+
+            if (IsInteractive)
+            {
+                css += " hub-card--interactive";
+            }
+
+            return Class is null ? css : $"{css} {Class}";
+        }
+    }
+
+    private RenderFragment CardContent => __builder =>
+    {
+        if (HasHeader)
+        {
+            <header class="hub-card__header">
+                @if (Icon is { } icon)
+                {
+                    <span class="hub-card__icon"><Icon Name="icon" /></span>
+                }
+                <div class="hub-card__heading">
+                    @if (Title is not null)
+                    {
+                        <h3 class="hub-card__title">@Title</h3>
+                    }
+                    @if (Subtitle is not null)
+                    {
+                        <p class="hub-card__subtitle">@Subtitle</p>
+                    }
+                </div>
+                @if (HeaderActions is not null && !IsInteractive)
+                {
+                    <div class="hub-card__actions">@HeaderActions</div>
+                }
+                @if (IsInteractive)
+                {
+                    <Icon Name="IconName.ChevronRight" Class="hub-card__chevron" />
+                }
+            </header>
+        }
+        if (ChildContent is not null)
+        {
+            <div class="hub-card__body">@ChildContent</div>
+        }
+        if (Footer is not null)
+        {
+            <footer class="hub-card__footer">@Footer</footer>
+        }
+    };
+}

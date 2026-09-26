@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Kernelogik uden UI: konfiguration, tid, toasts, indstillinger og lagring.
+    Må ikke referere til Razor-komponenter – så kan alt her unit-testes direkte.
+  -->
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="FamilyHub.Tests" />
+  </ItemGroup>
+
+</Project>

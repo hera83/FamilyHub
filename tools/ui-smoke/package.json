@@ -1,0 +1,12 @@
+{
+  "name": "familyhub-ui-smoke",
+  "private": true,
+  "type": "module",
+  "description": "End-to-end check of Family Hub's touch UI and on-screen keyboard in real Chrome/Edge.",
+  "scripts": {
+    "smoke": "node smoke.mjs"
+  },
+  "dependencies": {
+    "playwright-core": "^1.63.0"
+  }
+}

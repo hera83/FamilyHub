@@ -1,0 +1,37 @@
+<script type="module" src="@Assets["Components/Layout/ReconnectModal.razor.js"]"></script>
+
+@*
+    Shown by Blazor when the connection to the server is lost (e.g. while Family Hub is updated).
+    Kiosk behaviour: keeps trying by itself and reloads as soon as the server answers again –
+    nobody has to touch the screen.
+*@
+<dialog id="components-reconnect-modal" data-nosnippet>
+    <div class="components-reconnect-container">
+        <div class="components-rejoining-animation" aria-hidden="true">
+            <div></div>
+            <div></div>
+        </div>
+        <p class="reconnect-title">Et øjeblik …</p>
+        <p class="components-reconnect-first-attempt-visible">
+            Forbinder til Family Hub igen.
+        </p>
+        <p class="components-reconnect-repeated-attempt-visible">
+            Prøver igen om <span id="components-seconds-to-next-attempt"></span> sekunder.
+        </p>
+        <p class="components-reconnect-failed-visible">
+            Family Hub svarer ikke lige nu. Skærmen prøver selv igen.
+        </p>
+        <button id="components-reconnect-button" class="components-reconnect-failed-visible">
+            Prøv nu
+        </button>
+        <p class="components-pause-visible">
+            Forbindelsen er sat på pause.
+        </p>
+        <p class="components-resume-failed-visible">
+            Forbindelsen kunne ikke genoptages.
+        </p>
+        <button id="components-resume-button" class="components-pause-visible components-resume-failed-visible">
+            Fortsæt
+        </button>
+    </div>
+</dialog>

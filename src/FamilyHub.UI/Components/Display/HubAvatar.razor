@@ -1,0 +1,25 @@
+@namespace FamilyHub.UI.Components
+
+@* A family member's initials in their colour. Use Member="..." or Name + Color. *@
+<span class="hub-avatar hub-avatar--@Size.ToString().ToLowerInvariant()" style="--hub-avatar-color:@MemberColors.CssVariable(EffectiveColor)"
+      role="img" aria-label="@EffectiveName" title="@EffectiveName">@Initials</span>
+
+@code {
+    [Parameter]
+    public FamilyMember? Member { get; set; }
+
+    [Parameter]
+    public string? Name { get; set; }
+
+    [Parameter]
+    public MemberColor Color { get; set; } = MemberColor.Sage;
+
+    [Parameter]
+    public AvatarSize Size { get; set; } = AvatarSize.Medium;
+
+    private string EffectiveName => Member?.Name ?? Name ?? "";
+
+    private MemberColor EffectiveColor => Member?.Color ?? Color;
+
+    private string Initials => (Member ?? new FamilyMember { Name = EffectiveName }).Initials;
+}

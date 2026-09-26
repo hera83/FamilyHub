@@ -1,0 +1,88 @@
+@using System.Diagnostics
+@using System.Reflection
+@using System.Runtime.InteropServices
+@using FamilyHub.Core.Storage
+@using Microsoft.AspNetCore.Hosting.Server
+@using Microsoft.AspNetCore.Hosting.Server.Features
+@using Microsoft.Extensions.Hosting
+@implements IDisposable
+@inject IAppDataPaths Paths
+@inject IServer Server
+@inject IHostEnvironment Environment
+@inject IHubClock Clock
+@inject DeviceService Device
+
+<HubSection Title="System">
+    <HubCard>
+        <ChildContent>
+            <dl class="hub-facts">
+                <dt>Version</dt>
+                <dd>@Version</dd>
+                <dt>Adresse</dt>
+                <dd>@Addresses</dd>
+                <dt>Kører siden</dt>
+                <dd>@StartedText</dd>
+                <dt>Datamappe</dt>
+                <dd class="hub-selectable">@Paths.Root</dd>
+                <dt>Maskine</dt>
+                <dd>@System.Environment.MachineName · @RuntimeInformation.OSDescription (@RuntimeInformation.OSArchitecture)</dd>
+                <dt>Platform</dt>
+                <dd>@RuntimeInformation.FrameworkDescription · @Environment.EnvironmentName</dd>
+                <dt>Denne skærm</dt>
+                <dd>@ScreenText</dd>
+            </dl>
+        </ChildContent>
+        <Footer>
+            <HubButton Icon="IconName.Refresh" OnClick="Device.ReloadScreenAsync">Genindlæs skærmen</HubButton>
+            <HubButton Icon="IconName.Grid" Href="indstillinger/komponenter">Komponentoversigt</HubButton>
+        </Footer>
+    </HubCard>
+</HubSection>
+
+@code {
+    private static readonly DateTimeOffset ProcessStarted = new(Process.GetCurrentProcess().StartTime);
+
+    // The screen is detected after the first render – update when it reports in.
+    protected override void OnInitialized() => Device.Changed += OnDeviceChanged;
+
+    private void OnDeviceChanged() => _ = InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Device.Changed -= OnDeviceChanged;
+
+    private static string Version =>
+        typeof(Program).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion.Split('+')[0] ?? "ukendt";
+
+    private string Addresses
+    {
+        get
+        {
+            var addresses = Server.Features.Get<IServerAddressesFeature>()?.Addresses;
+            return addresses is { Count: > 0 } ? string.Join(", ", addresses) : "ukendt";
+        }
+    }
+
+    private string StartedText
+    {
+        get
+        {
+            var started = TimeZoneInfo.ConvertTime(ProcessStarted, Clock.TimeZone);
+            var day = DanishFormat.RelativeDay(DateOnly.FromDateTime(started.DateTime), Clock.Today);
+            return $"{day} kl. {DanishFormat.Time(TimeOnly.FromDateTime(started.DateTime))}";
+        }
+    }
+
+    private string ScreenText
+    {
+        get
+        {
+            var profile = Device.Profile;
+            if (!profile.IsKnown)
+            {
+                return "Undersøger …";
+            }
+
+            var input = profile.HasTouch ? (profile.IsTouchOnly ? "touch" : "touch + mus") : "mus/tastatur";
+            return $"{profile.ScreenWidth} × {profile.ScreenHeight} · {input}";
+        }
+    }
+}

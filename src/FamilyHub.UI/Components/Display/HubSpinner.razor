@@ -1,0 +1,11 @@
+@namespace FamilyHub.UI.Components
+
+<span class="hub-spinner hub-spinner--@Size.ToString().ToLowerInvariant()" role="status" aria-label="@Label"></span>
+
+@code {
+    [Parameter]
+    public ButtonSize Size { get; set; } = ButtonSize.Medium;
+
+    [Parameter]
+    public string Label { get; set; } = "Henter …";
+}

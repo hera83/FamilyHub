@@ -1,0 +1,28 @@
+@namespace FamilyHub.UI.Components
+@implements IDisposable
+@inject DialogService Dialogs
+
+@* Renders confirmations from DialogService.ConfirmAsync. Placed once in the layout. *@
+@if (Dialogs.Current is { } options)
+{
+    <HubDialog Open="true" Title="@options.Title" Size="DialogSize.Small" OnClose="() => Dialogs.Resolve(false)">
+        <ChildContent>
+            @if (options.Message is not null)
+            {
+                <p class="hub-muted">@options.Message</p>
+            }
+        </ChildContent>
+        <Footer>
+            <HubButton Variant="ButtonVariant.Quiet" OnClick="() => Dialogs.Resolve(false)">@options.CancelText</HubButton>
+            <HubButton Variant="@(options.Destructive ? ButtonVariant.Danger : ButtonVariant.Primary)" OnClick="() => Dialogs.Resolve(true)">@options.ConfirmText</HubButton>
+        </Footer>
+    </HubDialog>
+}
+
+@code {
+    protected override void OnInitialized() => Dialogs.Changed += OnChanged;
+
+    private void OnChanged() => _ = InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Dialogs.Changed -= OnChanged;
+}

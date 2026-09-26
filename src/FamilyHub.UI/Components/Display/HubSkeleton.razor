@@ -1,0 +1,14 @@
+@namespace FamilyHub.UI.Components
+
+@* Placeholder lines while content loads – calmer than a spinner for lists and cards. *@
+<div class="hub-skeleton" aria-hidden="true">
+    @for (var i = 0; i < Lines; i++)
+    {
+        <span class="hub-skeleton__line" style="width:@(i == Lines - 1 && Lines > 1 ? "60%" : "100%")"></span>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public int Lines { get; set; } = 3;
+}

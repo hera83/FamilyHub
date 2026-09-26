@@ -1,0 +1,22 @@
+<Project>
+  <!-- Fælles indstillinger for alle projekter i løsningen. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+
+    <!-- Null-fejl skal fanges ved build, ikke i køkkenet. -->
+    <WarningsAsErrors>$(WarningsAsErrors);nullable</WarningsAsErrors>
+
+    <Product>Family Hub</Product>
+    <Company>Family Hub</Company>
+    <Version>0.1.0</Version>
+    <NeutralLanguage>da-DK</NeutralLanguage>
+
+    <!-- Kultur-data (dansk dato/tal-format) skal med – også på Raspberry Pi. -->
+    <InvariantGlobalization>false</InvariantGlobalization>
+    <!-- Undgå at publicere oversættelser af framework-beskeder til 30+ sprog. -->
+    <SatelliteResourceLanguages>da;en</SatelliteResourceLanguages>
+  </PropertyGroup>
+</Project>

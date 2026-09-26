@@ -1,0 +1,164 @@
+@inherits LayoutComponentBase
+@implements IAsyncDisposable
+@inject DeviceService Device
+@inject IHubClock Clock
+@inject NavigationManager Navigation
+@inject DialogService Dialogs
+@inject IJSRuntime JS
+
+@*
+    The app shell: navigation rail | page, with the on-screen keyboard docked below.
+    Toasts and dialogs live here once – pages only call the services.
+*@
+<div class="hub-app">
+    <div class="hub-shell">
+        <NavRail />
+        <main class="hub-main" @ref="main">
+            <ErrorBoundary @ref="errorBoundary">
+                <ChildContent>
+                    @Body
+                </ChildContent>
+                <ErrorContent Context="exception">
+                    <PageError Exception="exception" OnRetry="Recover" />
+                </ErrorContent>
+            </ErrorBoundary>
+        </main>
+    </div>
+    <OnScreenKeyboard />
+</div>
+
+<ToastHost />
+<DialogHost />
+
+<div id="blazor-error-ui" data-nosnippet>
+    Forbindelsen til Family Hub blev afbrudt. Skærmen genindlæses automatisk – eller <a href="." class="reload">genindlæs nu</a>.
+</div>
+
+@code {
+    private ElementReference main;
+    private ErrorBoundary? errorBoundary;
+    private IJSObjectReference? deviceModule;
+    private DotNetObjectReference<MainLayout>? selfReference;
+    private IDisposable? minuteTick;
+    private int appliedIdleMinutes = -1;
+    private string currentPath = "";
+
+    protected override void OnInitialized()
+    {
+        currentPath = PathOf(Navigation.Uri);
+        Navigation.LocationChanged += OnLocationChanged;
+        Device.Changed += OnDeviceChanged;
+    }
+
+    // A new page gets a fresh chance after an error.
+    protected override void OnParametersSet() => errorBoundary?.Recover();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        try
+        {
+            await Device.InitializeAsync();
+            deviceModule = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/FamilyHub.UI/js/device.js");
+            selfReference = DotNetObjectReference.Create(this);
+            await ApplyIdleTimeoutAsync();
+
+            // Night mode follows the clock.
+            minuteTick = Clock.SubscribeMinuteTick(time => _ = InvokeAsync(Device.RefreshAppearanceAsync));
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    /// <summary>Called by device.js after the configured idle time: back to the home screen, calmly.</summary>
+    [JSInvokable]
+    public async Task OnIdle()
+    {
+        Dialogs.CloseAll();
+        if (deviceModule is not null)
+        {
+            await deviceModule.InvokeVoidAsync("blurActiveElement");
+        }
+
+        if (currentPath.Length > 0)
+        {
+            Navigation.NavigateTo("");
+        }
+    }
+
+    private void Recover() => errorBoundary?.Recover();
+
+    private void OnDeviceChanged() => _ = InvokeAsync(ApplyIdleTimeoutAsync);
+
+    private async Task ApplyIdleTimeoutAsync()
+    {
+        var minutes = Device.Settings.IdleReturnMinutes;
+        if (deviceModule is null || selfReference is null || minutes == appliedIdleMinutes)
+        {
+            return;
+        }
+
+        appliedIdleMinutes = minutes;
+        try
+        {
+            await deviceModule.InvokeVoidAsync("setIdleTimeout", selfReference, minutes);
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        var path = PathOf(e.Location);
+        if (path == currentPath)
+        {
+            return;
+        }
+
+        currentPath = path;
+        _ = InvokeAsync(async () =>
+        {
+            if (deviceModule is null)
+            {
+                return;
+            }
+
+            try
+            {
+                await deviceModule.InvokeVoidAsync("scrollToTop", main);
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        });
+    }
+
+    private string PathOf(string uri) => Navigation.ToBaseRelativePath(uri).Split('?', '#')[0].TrimEnd('/');
+
+    public async ValueTask DisposeAsync()
+    {
+        Navigation.LocationChanged -= OnLocationChanged;
+        Device.Changed -= OnDeviceChanged;
+        minuteTick?.Dispose();
+
+        if (deviceModule is not null)
+        {
+            try
+            {
+                await deviceModule.InvokeVoidAsync("setIdleTimeout", null, 0);
+                await deviceModule.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+
+        selfReference?.Dispose();
+    }
+}

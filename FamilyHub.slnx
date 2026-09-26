@@ -1,0 +1,22 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/FamilyHub.Core/FamilyHub.Core.csproj" />
+    <Project Path="src/FamilyHub.UI/FamilyHub.UI.csproj" />
+    <Project Path="src/FamilyHub.Web/FamilyHub.Web.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/">
+    <Project Path="src/Modules/FamilyHub.Modules.Calendar/FamilyHub.Modules.Calendar.csproj" />
+    <Project Path="src/Modules/FamilyHub.Modules.MealPlan/FamilyHub.Modules.MealPlan.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/FamilyHub.Tests/FamilyHub.Tests.csproj" />
+  </Folder>
+  <Folder Name="/Solution Items/">
+    <File Path=".editorconfig" />
+    <File Path="CLAUDE.md" />
+    <File Path="Directory.Build.props" />
+    <File Path="Directory.Packages.props" />
+    <File Path="global.json" />
+    <File Path="README.md" />
+  </Folder>
+</Solution>

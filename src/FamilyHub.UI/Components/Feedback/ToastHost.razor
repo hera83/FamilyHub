@@ -1,0 +1,67 @@
+@namespace FamilyHub.UI.Components
+@implements IDisposable
+@inject IToastService Toasts
+
+@* Renders the toasts from IToastService. Placed once in the layout – never in pages. *@
+<div class="hub-toasts" aria-live="polite">
+    @foreach (var toast in Toasts.Visible)
+    {
+        var id = toast.Id;
+        <div @key="id" class="hub-toast hub-toast--@LevelName(toast.Level)" role="@(toast.Level == ToastLevel.Error ? "alert" : "status")"
+             @onpointerdown="() => Toasts.Pause(id)" @onpointerup="() => Toasts.Resume(id)"
+             @onpointerleave="() => Toasts.Resume(id)" @onpointercancel="() => Toasts.Resume(id)">
+            <span class="hub-toast__icon"><Icon Name="IconFor(toast.Level)" /></span>
+            <div class="hub-toast__content">
+                <p class="hub-toast__title">
+                    @toast.Title
+                    @if (toast.Occurrences > 1)
+                    {
+                        <span class="hub-toast__count">×@toast.Occurrences</span>
+                    }
+                </p>
+                @if (toast.Message is not null)
+                {
+                    <p class="hub-toast__message">@toast.Message</p>
+                }
+            </div>
+            @if (toast.Action is { } action)
+            {
+                <button type="button" class="hub-toast__action" @onclick="() => Toasts.InvokeActionAsync(id)">@action.Label</button>
+            }
+            <button type="button" class="hub-toast__close" aria-label="Luk besked" @onclick="() => Toasts.Dismiss(id)">
+                <Icon Name="IconName.X" />
+            </button>
+            @if (toast.Duration is { } duration)
+            {
+                <span @key="toast.Generation" class="hub-toast__timer @(toast.IsPaused ? "is-paused" : null)"
+                      style="@TimerStyle(duration, toast.RemainingAtStart)"></span>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    protected override void OnInitialized() => Toasts.Changed += OnChanged;
+
+    private void OnChanged() => _ = InvokeAsync(StateHasChanged);
+
+    private static string LevelName(ToastLevel level) => level.ToString().ToLowerInvariant();
+
+    private static IconName IconFor(ToastLevel level) => level switch
+    {
+        ToastLevel.Success => IconName.CheckCircle,
+        ToastLevel.Warning => IconName.AlertTriangle,
+        ToastLevel.Error => IconName.AlertCircle,
+        _ => IconName.Info,
+    };
+
+    // The bar shrinks over the full duration; a resumed countdown starts part-way through.
+    private static string TimerStyle(TimeSpan duration, TimeSpan remaining)
+    {
+        var total = (long)duration.TotalMilliseconds;
+        var elapsed = Math.Max(0, total - (long)remaining.TotalMilliseconds);
+        return string.Create(CultureInfo.InvariantCulture, $"animation-duration:{total}ms;animation-delay:-{elapsed}ms");
+    }
+
+    public void Dispose() => Toasts.Changed -= OnChanged;
+}

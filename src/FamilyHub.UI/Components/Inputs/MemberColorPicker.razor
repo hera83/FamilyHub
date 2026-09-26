@@ -1,0 +1,42 @@
+@namespace FamilyHub.UI.Components
+
+@* Pick a family member's colour from the fixed palette. *@
+<div class="hub-choice-field">
+    @if (Label is not null)
+    {
+        <span class="hub-field__label" id="@labelId">@Label</span>
+    }
+    <div class="hub-swatches" role="radiogroup" aria-labelledby="@(Label is null ? null : labelId)">
+        @foreach (var color in Enum.GetValues<MemberColor>())
+        {
+            var selected = color == Value;
+            <button type="button" role="radio" class="hub-swatch" aria-checked="@(selected ? "true" : "false")"
+                    aria-label="@MemberColors.DanishName(color)" title="@MemberColors.DanishName(color)"
+                    style="--hub-swatch:@MemberColors.CssVariable(color)" @onclick="() => SelectAsync(color)">
+                @if (selected)
+                {
+                    <Icon Name="IconName.Check" />
+                }
+            </button>
+        }
+    </div>
+</div>
+
+@code {
+    private readonly string labelId = $"hub-swatches-{Guid.NewGuid():N}";
+
+    [Parameter]
+    public string? Label { get; set; } = "Farve";
+
+    [Parameter]
+    public MemberColor Value { get; set; }
+
+    [Parameter]
+    public EventCallback<MemberColor> ValueChanged { get; set; }
+
+    private async Task SelectAsync(MemberColor color)
+    {
+        Value = color;
+        await ValueChanged.InvokeAsync(color);
+    }
+}

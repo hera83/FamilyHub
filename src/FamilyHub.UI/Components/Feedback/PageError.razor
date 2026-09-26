@@ -1,0 +1,28 @@
+@namespace FamilyHub.UI.Components
+@using Microsoft.Extensions.Hosting
+@inject IHostEnvironment Environment
+
+@* Shown by the layout's ErrorBoundary when a page fails. The rest of the app keeps working. *@
+<div class="hub-page hub-page--narrow">
+    <InfoBox Tone="HubTone.Danger" Title="Siden kunne ikke vises">
+        <ChildContent>
+            <p>Der skete en fejl. Prøv igen – hjælper det ikke, så gå til forsiden og prøv senere.</p>
+            @if (Environment.IsDevelopment() && Exception is not null)
+            {
+                <pre class="hub-error-details">@Exception.GetType().Name: @Exception.Message</pre>
+            }
+        </ChildContent>
+        <Actions>
+            <HubButton Variant="ButtonVariant.Primary" Icon="IconName.Refresh" OnClick="OnRetry">Prøv igen</HubButton>
+            <HubButton Icon="IconName.Home" Href="">Til forsiden</HubButton>
+        </Actions>
+    </InfoBox>
+</div>
+
+@code {
+    [Parameter]
+    public Exception? Exception { get; set; }
+
+    [Parameter]
+    public EventCallback OnRetry { get; set; }
+}

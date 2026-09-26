@@ -1,0 +1,30 @@
+@namespace FamilyHub.UI.Components
+
+@* Decorative by default (hidden from screen readers). Give it a Label when the icon carries meaning on its own. *@
+<svg class="@CssClass" style="@SizeStyle" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+     stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" focusable="false"
+     aria-hidden="@(Label is null ? "true" : null)" role="@(Label is null ? null : "img")" aria-label="@Label"
+     @attributes="AdditionalAttributes">@((MarkupString)IconPaths.Get(Name))</svg>
+
+@code {
+    [Parameter, EditorRequired]
+    public IconName Name { get; set; }
+
+    /// <summary>Any CSS length, e.g. "2rem". Default: 1.5rem via CSS, or inherited from the parent component.</summary>
+    [Parameter]
+    public string? Size { get; set; }
+
+    /// <summary>Accessible name – only when the icon stands alone without text.</summary>
+    [Parameter]
+    public string? Label { get; set; }
+
+    [Parameter]
+    public string? Class { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string CssClass => Class is null ? "hub-icon" : $"hub-icon {Class}";
+
+    private string? SizeStyle => Size is null ? null : $"width:{Size};height:{Size}";
+}

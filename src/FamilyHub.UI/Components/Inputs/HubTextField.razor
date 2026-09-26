@@ -1,0 +1,274 @@
+@namespace FamilyHub.UI.Components
+@using System.Linq.Expressions
+@implements IDisposable
+
+@*
+    The text field. Kind decides the on-screen keyboard layout (letters, number pad, e-mail …).
+    Only use it when the user really has to type – see docs/standarder/input-og-tastatur.md.
+
+    Value/ValueChanged update while typing. OnCommit fires once when the user is done
+    (Enter, "Færdig" or leaving the field) – use it for auto-save.
+    Works inside an EditForm with validation when bound with @bind-Value.
+*@
+<div class="@FieldClass">
+    @if (Label is not null)
+    {
+        <label class="hub-field__label" for="@FieldId">@Label</label>
+    }
+    <div class="hub-field__control">
+        @if (Kind == InputKind.Multiline)
+        {
+            <textarea @ref="element" id="@FieldId" class="hub-input hub-input--multiline" rows="@Rows"
+                      placeholder="@Placeholder" maxlength="@MaxLengthAttribute" disabled="@Disabled"
+                      autocapitalize="@spec.AutoCapitalize" autocomplete="off" spellcheck="false"
+                      enterkeyhint="@EnterKeyHintAttribute" data-osk-layout="@spec.KeyboardLayout"
+                      aria-invalid="@(HasError ? "true" : null)" aria-describedby="@DescribedBy"
+                      value="@Value" @oninput="OnInputAsync" @onchange="OnChangeAsync" @onblur="OnBlurAsync"
+                      @attributes="AdditionalAttributes"></textarea>
+        }
+        else
+        {
+            <input @ref="element" id="@FieldId" class="hub-input" type="@spec.Type" inputmode="@spec.InputMode"
+                   placeholder="@Placeholder" maxlength="@MaxLengthAttribute" disabled="@Disabled"
+                   autocapitalize="@spec.AutoCapitalize" autocomplete="@spec.AutoComplete" autocorrect="off" spellcheck="false"
+                   pattern="@spec.Pattern" enterkeyhint="@EnterKeyHintAttribute"
+                   data-osk-layout="@spec.KeyboardLayout" data-osk-enter-label="@EnterLabel"
+                   data-osk-enter="@(KeepKeyboardOnEnter ? "keep" : null)"
+                   aria-invalid="@(HasError ? "true" : null)" aria-describedby="@DescribedBy"
+                   value="@Value" @oninput="OnInputAsync" @onchange="OnChangeAsync" @onblur="OnBlurAsync"
+                   @onkeydown="OnKeyDownAsync" @attributes="AdditionalAttributes" />
+            @if (ShowClearButton)
+            {
+                @* mousedown is cancelled so the field keeps focus (and the keyboard stays open). *@
+                <button type="button" class="hub-field__clear" tabindex="-1" aria-label="Ryd feltet"
+                        @onmousedown:preventDefault="true" @onclick="ClearAsync">
+                    <Icon Name="IconName.X" />
+                </button>
+            }
+        }
+    </div>
+    @if (ErrorText is { } error)
+    {
+        <p class="hub-field__error" id="@MessageId"><Icon Name="IconName.AlertCircle" /><span>@error</span></p>
+    }
+    else if (Help is not null)
+    {
+        <p class="hub-field__help" id="@MessageId">@Help</p>
+    }
+</div>
+
+@code {
+    private readonly string generatedId = $"hub-field-{Guid.NewGuid():N}";
+    private ElementReference element;
+    private InputKindSpec spec = InputKindSpec.For(InputKind.Text);
+    private FieldIdentifier? fieldIdentifier;
+    private EditContext? subscribedContext;
+    private bool dirty;
+    private bool focusPending;
+
+    [Parameter]
+    public string? Label { get; set; }
+
+    [Parameter]
+    public string? Value { get; set; }
+
+    [Parameter]
+    public EventCallback<string> ValueChanged { get; set; }
+
+    /// <summary>Supplied automatically by @bind-Value – enables EditForm validation.</summary>
+    [Parameter]
+    public Expression<Func<string?>>? ValueExpression { get; set; }
+
+    /// <summary>Fires once when editing is finished (Enter / leaving the field) and the text changed.</summary>
+    [Parameter]
+    public EventCallback<string> OnCommit { get; set; }
+
+    /// <summary>Fires when Enter (or the keyboard's Enter key) is pressed.</summary>
+    [Parameter]
+    public EventCallback OnEnter { get; set; }
+
+    [Parameter]
+    public InputKind Kind { get; set; } = InputKind.Text;
+
+    [Parameter]
+    public string? Placeholder { get; set; }
+
+    /// <summary>Short hint below the field.</summary>
+    [Parameter]
+    public string? Help { get; set; }
+
+    /// <summary>Error text below the field. Overrides validation messages.</summary>
+    [Parameter]
+    public string? Error { get; set; }
+
+    [Parameter]
+    public int? MaxLength { get; set; }
+
+    [Parameter]
+    public EnterKey EnterKey { get; set; } = EnterKey.Default;
+
+    /// <summary>Custom Enter label on the on-screen keyboard, e.g. "Tilføj".</summary>
+    [Parameter]
+    public string? EnterLabel { get; set; }
+
+    /// <summary>Keep the keyboard open after Enter – for adding several items in a row.</summary>
+    [Parameter]
+    public bool KeepKeyboardOnEnter { get; set; }
+
+    [Parameter]
+    public bool Clearable { get; set; } = true;
+
+    /// <summary>
+    /// Focus the field when it appears. ONLY in a flow the user explicitly started
+    /// (e.g. a dialog opened by "Tilføj"), since focus opens the on-screen keyboard.
+    /// </summary>
+    [Parameter]
+    public bool AutoFocus { get; set; }
+
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    /// <summary>Visible lines for Multiline.</summary>
+    [Parameter]
+    public int Rows { get; set; } = 4;
+
+    [Parameter]
+    public string? Id { get; set; }
+
+    [Parameter]
+    public string? Class { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    [CascadingParameter]
+    private EditContext? EditContext { get; set; }
+
+    private string FieldId => Id ?? generatedId;
+
+    private string MessageId => $"{FieldId}-message";
+
+    private string? DescribedBy => ErrorText is not null || Help is not null ? MessageId : null;
+
+    private string? MaxLengthAttribute => MaxLength?.ToString(CultureInfo.InvariantCulture);
+
+    private string? EnterKeyHintAttribute => InputKindSpec.EnterKeyHint(EnterKey == EnterKey.Default ? spec.DefaultEnterKey : EnterKey);
+
+    private string? ErrorText => Error ?? (fieldIdentifier is { } f ? EditContext?.GetValidationMessages(f).FirstOrDefault() : null);
+
+    private bool HasError => ErrorText is not null;
+
+    private bool ShowClearButton => Clearable && !Disabled && !string.IsNullOrEmpty(Value);
+
+    private string FieldClass
+    {
+        get
+        {
+            var css = "hub-field";
+            if (HasError)
+            {
+                css += " hub-field--invalid";
+            }
+
+            if (Disabled)
+            {
+                css += " hub-field--disabled";
+            }
+
+            return Class is null ? css : $"{css} {Class}";
+        }
+    }
+
+    protected override void OnInitialized() => focusPending = AutoFocus;
+
+    protected override void OnParametersSet()
+    {
+        spec = InputKindSpec.For(Kind);
+
+        if (EditContext != subscribedContext)
+        {
+            if (subscribedContext is not null)
+            {
+                subscribedContext.OnValidationStateChanged -= OnValidationStateChanged;
+            }
+
+            subscribedContext = EditContext;
+            if (subscribedContext is not null)
+            {
+                subscribedContext.OnValidationStateChanged += OnValidationStateChanged;
+            }
+        }
+
+        fieldIdentifier = EditContext is not null && ValueExpression is not null ? FieldIdentifier.Create(ValueExpression) : null;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (focusPending)
+        {
+            focusPending = false;
+            await element.FocusAsync();
+        }
+    }
+
+    /// <summary>Moves focus to the field (opens the on-screen keyboard on touch screens).</summary>
+    public ValueTask FocusAsync() => element.FocusAsync();
+
+    private async Task OnInputAsync(ChangeEventArgs e)
+    {
+        dirty = true;
+        await SetValueAsync(e.Value?.ToString() ?? "");
+    }
+
+    private Task OnChangeAsync(ChangeEventArgs e) => CommitAsync();
+
+    private Task OnBlurAsync(FocusEventArgs e) => CommitAsync();
+
+    private async Task OnKeyDownAsync(KeyboardEventArgs e)
+    {
+        if (e.Key != "Enter")
+        {
+            return;
+        }
+
+        await CommitAsync();
+        await OnEnter.InvokeAsync();
+    }
+
+    private async Task ClearAsync()
+    {
+        dirty = true;
+        await SetValueAsync("");
+    }
+
+    private async Task SetValueAsync(string value)
+    {
+        Value = value;
+        await ValueChanged.InvokeAsync(value);
+        if (fieldIdentifier is { } f)
+        {
+            EditContext?.NotifyFieldChanged(f);
+        }
+    }
+
+    private async Task CommitAsync()
+    {
+        if (!dirty)
+        {
+            return;
+        }
+
+        dirty = false;
+        await OnCommit.InvokeAsync(Value ?? "");
+    }
+
+    private void OnValidationStateChanged(object? sender, ValidationStateChangedEventArgs e) => _ = InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        if (subscribedContext is not null)
+        {
+            subscribedContext.OnValidationStateChanged -= OnValidationStateChanged;
+        }
+    }
+}

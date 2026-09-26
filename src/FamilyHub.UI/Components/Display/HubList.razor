@@ -1,0 +1,14 @@
+@namespace FamilyHub.UI.Components
+
+@* A grouped list with dividers. Children are <HubListItem>. *@
+<ul class="hub-list @Class" role="list">
+    @ChildContent
+</ul>
+
+@code {
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter]
+    public string? Class { get; set; }
+}

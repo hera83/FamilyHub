@@ -1,0 +1,184 @@
+@namespace FamilyHub.UI.Components
+@using System.Numerics
+@typeparam TValue where TValue : struct, INumber<TValue>
+@implements IDisposable
+
+@*
+    − value + : the standard way to enter small numbers (portions, quantities, hours) without a keyboard.
+    Tap = one step. Hold = repeats, then speeds up. Works with int, decimal and double.
+*@
+<div class="hub-stepper-field @Class">
+    @if (Label is not null)
+    {
+        <span class="hub-field__label" id="@labelId">@Label</span>
+    }
+    <div class="hub-stepper hub-stepper--@Size.ToString().ToLowerInvariant() @(Disabled ? "hub-stepper--disabled" : null)"
+         role="group" aria-labelledby="@(Label is null ? null : labelId)">
+        <button type="button" class="hub-stepper__button" aria-label="@DecreaseLabel" disabled="@(Disabled || !CanDecrease)"
+                @onpointerdown="e => OnPointerDownAsync(e, -1)" @onpointerup="StopRepeat" @onpointerleave="StopRepeat"
+                @onpointercancel="StopRepeat" @onclick="e => OnClickAsync(e, -1)" @oncontextmenu:preventDefault="true">
+            <Icon Name="IconName.Minus" />
+        </button>
+        <output class="hub-stepper__value" aria-live="polite">
+            <span>@Display</span>
+            @if (Unit is not null)
+            {
+                <span class="hub-stepper__unit">@Unit</span>
+            }
+        </output>
+        <button type="button" class="hub-stepper__button" aria-label="@IncreaseLabel" disabled="@(Disabled || !CanIncrease)"
+                @onpointerdown="e => OnPointerDownAsync(e, 1)" @onpointerup="StopRepeat" @onpointerleave="StopRepeat"
+                @onpointercancel="StopRepeat" @onclick="e => OnClickAsync(e, 1)" @oncontextmenu:preventDefault="true">
+            <Icon Name="IconName.Plus" />
+        </button>
+    </div>
+    @if (Help is not null)
+    {
+        <p class="hub-field__help">@Help</p>
+    }
+</div>
+
+@code {
+    private static readonly TimeSpan RepeatDelay = TimeSpan.FromMilliseconds(450);
+    private static readonly TimeSpan RepeatSlow = TimeSpan.FromMilliseconds(140);
+    private static readonly TimeSpan RepeatFast = TimeSpan.FromMilliseconds(60);
+
+    private readonly string labelId = $"hub-stepper-{Guid.NewGuid():N}";
+    private CancellationTokenSource? repeat;
+
+    [Parameter]
+    public string? Label { get; set; }
+
+    [Parameter]
+    public TValue Value { get; set; }
+
+    [Parameter]
+    public EventCallback<TValue> ValueChanged { get; set; }
+
+    /// <summary>Lowest value. Default 0; null = no lower limit.</summary>
+    [Parameter]
+    public TValue? Min { get; set; } = TValue.Zero;
+
+    /// <summary>Highest value. Always set one for counts.</summary>
+    [Parameter]
+    public TValue? Max { get; set; }
+
+    [Parameter]
+    public TValue Step { get; set; } = TValue.One;
+
+    /// <summary>Unit after the number: "pers.", "stk.", "kg".</summary>
+    [Parameter]
+    public string? Unit { get; set; }
+
+    /// <summary>Custom display, e.g. v => $"{v:00}:00" for an hour.</summary>
+    [Parameter]
+    public Func<TValue, string>? Format { get; set; }
+
+    [Parameter]
+    public string? Help { get; set; }
+
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    [Parameter]
+    public ButtonSize Size { get; set; } = ButtonSize.Medium;
+
+    [Parameter]
+    public string DecreaseLabel { get; set; } = "Færre";
+
+    [Parameter]
+    public string IncreaseLabel { get; set; } = "Flere";
+
+    [Parameter]
+    public string? Class { get; set; }
+
+    private bool CanDecrease => Min is not { } min || Value > min;
+
+    private bool CanIncrease => Max is not { } max || Value < max;
+
+    private string Display => Format?.Invoke(Value) ?? Value.ToString(null, CultureInfo.CurrentCulture);
+
+    private async Task OnPointerDownAsync(PointerEventArgs e, int direction)
+    {
+        if (Disabled || (e.PointerType == "mouse" && e.Button != 0))
+        {
+            return;
+        }
+
+        StopRepeat();
+        if (!await StepAsync(direction))
+        {
+            return;
+        }
+
+        repeat = new CancellationTokenSource();
+        _ = RepeatAsync(direction, repeat.Token);
+    }
+
+    // Pointer presses step on pointerdown; a click with Detail 0 comes from the keyboard (Enter/Space).
+    private async Task OnClickAsync(MouseEventArgs e, int direction)
+    {
+        if (e.Detail == 0)
+        {
+            await StepAsync(direction);
+        }
+    }
+
+    private async Task RepeatAsync(int direction, CancellationToken token)
+    {
+        try
+        {
+            await Task.Delay(RepeatDelay, token);
+            for (var count = 0; !token.IsCancellationRequested; count++)
+            {
+                if (!await StepAsync(direction))
+                {
+                    break;
+                }
+
+                StateHasChanged();
+                await Task.Delay(count < 8 ? RepeatSlow : RepeatFast, token);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private void StopRepeat()
+    {
+        repeat?.Cancel();
+        repeat?.Dispose();
+        repeat = null;
+    }
+
+    private async Task<bool> StepAsync(int direction)
+    {
+        var next = Clamp(direction > 0 ? Value + Step : Value - Step);
+        if (next == Value)
+        {
+            return false;
+        }
+
+        Value = next;
+        await ValueChanged.InvokeAsync(next);
+        return true;
+    }
+
+    private TValue Clamp(TValue value)
+    {
+        if (Min is { } min && value < min)
+        {
+            return min;
+        }
+
+        if (Max is { } max && value > max)
+        {
+            return max;
+        }
+
+        return value;
+    }
+
+    public void Dispose() => StopRepeat();
+}

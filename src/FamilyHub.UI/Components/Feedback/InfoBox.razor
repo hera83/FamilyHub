@@ -1,0 +1,57 @@
+@namespace FamilyHub.UI.Components
+
+@*
+    Information box: a message that belongs to a place on the page and stays as long as
+    the situation lasts ("Kalenderen er ikke forbundet"). For feedback on an action, use a toast.
+*@
+<div class="hub-infobox hub-infobox--@Tone.CssName() @Class" role="@Role">
+    <span class="hub-infobox__icon"><Icon Name="@(Icon ?? Tone.DefaultIcon())" /></span>
+    <div class="hub-infobox__content">
+        @if (Title is not null)
+        {
+            <p class="hub-infobox__title">@Title</p>
+        }
+        @if (ChildContent is not null)
+        {
+            <div class="hub-infobox__text">@ChildContent</div>
+        }
+        @if (Actions is not null)
+        {
+            <div class="hub-infobox__actions">@Actions</div>
+        }
+    </div>
+    @if (OnDismiss.HasDelegate)
+    {
+        <button type="button" class="hub-infobox__close" aria-label="Luk" @onclick="OnDismiss">
+            <Icon Name="IconName.X" />
+        </button>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public HubTone Tone { get; set; } = HubTone.Info;
+
+    [Parameter]
+    public string? Title { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>At most one or two buttons that resolve the situation, e.g. "Forbind".</summary>
+    [Parameter]
+    public RenderFragment? Actions { get; set; }
+
+    /// <summary>Overrides the tone's icon.</summary>
+    [Parameter]
+    public IconName? Icon { get; set; }
+
+    /// <summary>Shows a close button. Only for boxes that are safe to ignore.</summary>
+    [Parameter]
+    public EventCallback OnDismiss { get; set; }
+
+    [Parameter]
+    public string? Class { get; set; }
+
+    private string Role => Tone is HubTone.Danger or HubTone.Warning ? "alert" : "status";
+}

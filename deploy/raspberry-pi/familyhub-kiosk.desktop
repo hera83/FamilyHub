@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Family Hub
+Comment=Family Hub i kiosktilstand
+Exec=/usr/local/bin/familyhub-kiosk
+Terminal=false
+X-GNOME-Autostart-enabled=true

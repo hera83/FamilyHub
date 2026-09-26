@@ -1,0 +1,68 @@
+@namespace FamilyHub.UI.Components
+
+@*
+    The frame of every page: title, optional back link, actions to the right, then content.
+    Every page (incl. modules) starts with <HubPage>. See docs/standarder/layout.md.
+*@
+<PageTitle>@(string.IsNullOrWhiteSpace(Title) ? "Family Hub" : $"{Title} · Family Hub")</PageTitle>
+
+<div class="@PageClass">
+    @if (!HideHeader)
+    {
+        <header class="hub-page__header">
+            <div class="hub-page__heading">
+                @if (BackHref is not null)
+                {
+                    <HubButton Variant="ButtonVariant.Quiet" Size="ButtonSize.Small" Icon="IconName.ChevronLeft" Href="@BackHref" Class="hub-page__back">@(BackLabel ?? "Tilbage")</HubButton>
+                }
+                <h1 class="hub-page__title" tabindex="-1">@Title</h1>
+                @if (Subtitle is not null)
+                {
+                    <p class="hub-page__subtitle">@Subtitle</p>
+                }
+            </div>
+            @if (Actions is not null)
+            {
+                <div class="hub-page__actions">@Actions</div>
+            }
+        </header>
+    }
+    <div class="hub-page__body">
+        @ChildContent
+    </div>
+</div>
+
+@code {
+    /// <summary>Page title – also used in the browser tab.</summary>
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = "";
+
+    [Parameter]
+    public string? Subtitle { get; set; }
+
+    /// <summary>Max two buttons; the primary one last (rightmost).</summary>
+    [Parameter]
+    public RenderFragment? Actions { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>Back link for sub-pages, e.g. "indstillinger".</summary>
+    [Parameter]
+    public string? BackHref { get; set; }
+
+    [Parameter]
+    public string? BackLabel { get; set; }
+
+    /// <summary>For pages with their own hero (the home screen).</summary>
+    [Parameter]
+    public bool HideHeader { get; set; }
+
+    [Parameter]
+    public PageWidth Width { get; set; } = PageWidth.Normal;
+
+    [Parameter]
+    public string? Class { get; set; }
+
+    private string PageClass => $"hub-page hub-page--{Width.ToString().ToLowerInvariant()} {Class}".TrimEnd();
+}
