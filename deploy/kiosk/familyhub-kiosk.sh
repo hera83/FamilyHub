@@ -2,13 +2,13 @@
 # Family Hub – starter Chromium i fuldskærm (kiosk), når serveren svarer.
 # Startes automatisk ved login. Genstarter browseren, hvis den lukkes eller går ned.
 #
-# Adressen på serveren står i /etc/familyhub-kiosk.conf (FAMILYHUB_URL=http://homelab:5000),
+# Adressen på serveren står i /etc/familyhub-kiosk.conf (FAMILYHUB_URL=http://homelab:8080),
 # som install.sh skriver. Den kan også gives som miljøvariabel.
 
 CONFIG=/etc/familyhub-kiosk.conf
 # shellcheck source=/dev/null
 [[ -z "${FAMILYHUB_URL:-}" && -f "$CONFIG" ]] && source "$CONFIG"
-URL="${FAMILYHUB_URL:-http://localhost:5000}"
+URL="${FAMILYHUB_URL:-http://localhost:8080}"
 URL="${URL%/}"
 PROFILE="$HOME/.config/familyhub-kiosk"   # egen profil: bevarer skærmens indstillinger (localStorage)
 

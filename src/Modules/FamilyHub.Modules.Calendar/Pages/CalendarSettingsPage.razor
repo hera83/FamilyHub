@@ -1,0 +1,307 @@
+@attribute [Microsoft.AspNetCore.Components.Route(CalendarModule.SettingsPath)]
+@implements IDisposable
+@inject CalendarService Calendar
+@inject GoogleCredentialsProvider Credentials
+@inject IHouseholdService Household
+@inject IHubClock Clock
+@inject NavigationManager Navigation
+@inject IToastService Toasts
+@inject DeviceService Device
+@inject DialogService Dialogs
+@inject ILogger<CalendarSettingsPage> Logger
+
+<HubPage Title="Kalenderindstillinger" BackHref="@CalendarModule.Path.TrimStart('/')" BackLabel="Kalender" Width="PageWidth.Narrow">
+    <HubSection Title="Google-konti" Description="Family Hub læser familiens kalendere herfra og kan tilføje aftaler.">
+        @if (!Calendar.IsConfigured)
+        {
+            <InfoBox Tone="HubTone.Neutral" Title="Google-forbindelsen er ikke sat op endnu">
+                Udfyld GOOGLE_CLIENT_ID og GOOGLE_CLIENT_SECRET i .env på serveren, og genstart med docker compose up -d.
+                Eller læg nøglefilen fra Google Cloud her: <span class="cal-path">@Credentials.FilePath</span>
+                Vejledningen står i docs/google-kalender.md.
+            </InfoBox>
+        }
+        else
+        {
+            @foreach (var account in Calendar.Accounts.Where(a => a.NeedsReconnect))
+            {
+                <InfoBox Tone="HubTone.Warning" Title="@($"{account.Email} skal forbindes igen")">
+                    <ChildContent>Google har afvist den gemte adgang – fx efter skift af adgangskode.</ChildContent>
+                    <Actions>
+                        <HubButton Variant="ButtonVariant.Primary" Size="ButtonSize.Small" Disabled="!canSignIn" OnClick="SignInAsync">Forbind igen</HubButton>
+                    </Actions>
+                </InfoBox>
+            }
+
+            <HubCard>
+                <ChildContent>
+                    @if (Calendar.Accounts.Count == 0)
+                    {
+                        <EmptyState Compact="true" Icon="IconName.Users" Title="Ingen Google-konti endnu">
+                            Forbind en konto, der kan se familiens kalendere. Én konto er nok, hvis de andres kalendere er delt med den.
+                        </EmptyState>
+                    }
+                    else
+                    {
+                        <HubList>
+                            @foreach (var account in Calendar.Accounts)
+                            {
+                                <HubListItem Title="@account.Email" Icon="IconName.User"
+                                             Subtitle="@(account.NeedsReconnect ? "Skal forbindes igen" : $"Forbundet {DanishFormat.LongDate(DateOnly.FromDateTime(account.ConnectedAt.DateTime)).ToLower(DanishFormat.Culture)}")">
+                                    <Trailing>
+                                        @if (account.NeedsReconnect)
+                                        {
+                                            <HubBadge Tone="HubTone.Warning">Afbrudt</HubBadge>
+                                        }
+                                        <HubButton Variant="ButtonVariant.Quiet" Icon="IconName.Trash" AriaLabel="@($"Fjern {account.Email}")" OnClick="() => RemoveAsync(account)" />
+                                    </Trailing>
+                                </HubListItem>
+                            }
+                        </HubList>
+                    }
+                </ChildContent>
+                <Footer>
+                    <div class="cal-connect">
+                        <HubButton Variant="@(Calendar.Accounts.Count == 0 ? ButtonVariant.Primary : ButtonVariant.Secondary)" Icon="IconName.Link"
+                                   Disabled="!canSignIn" OnClick="SignInAsync">Forbind Google-konto</HubButton>
+                        <p class="hub-muted hub-small">
+                            @if (canSignIn)
+                            {
+                                @:Du logger ind hos Google og kommer tilbage hertil. Family Hub får kun lov at se jeres kalendere og tilføje aftaler.
+                            }
+                            else
+                            {
+                                @:Login virker kun, når Family Hub er åbnet som localhost. Forbind fra den bærbare med scriptet deploy/forbind-google.ps1.
+                            }
+                        </p>
+                    </div>
+                </Footer>
+            </HubCard>
+        }
+    </HubSection>
+
+    @if (Calendar.Accounts.Count > 0)
+    {
+        <HubSection Title="Kalendere" Description="Vælg, hvilke der vises, og hvem de hører til. Tryk på en kalender for at ændre den.">
+            @if (Household.Current.Members.Count == 0)
+            {
+                <InfoBox Tone="HubTone.Neutral" Title="Tilføj familiemedlemmer">
+                    <ChildContent>Så får hver kalender personens navn og farve, og dagvisningen får en kolonne pr. person.</ChildContent>
+                    <Actions>
+                        <HubButton Size="ButtonSize.Small" Href="indstillinger">Gå til Indstillinger</HubButton>
+                    </Actions>
+                </InfoBox>
+            }
+
+            <HubCard>
+                @if (Calendar.Calendars.Count == 0)
+                {
+                    @if (Calendar.Status.LastAttempt is null || Calendar.Status.IsSyncing)
+                    {
+                        <HubSkeleton Lines="4" />
+                    }
+                    else
+                    {
+                        <EmptyState Compact="true" Icon="IconName.Calendar" Title="Ingen kalendere fundet">
+                            Kontoen ser ingen kalendere. Del kalenderne med kontoen i Google Kalender, og tryk »Opdatér nu«.
+                        </EmptyState>
+                    }
+                }
+                else
+                {
+                    <HubList>
+                        @foreach (var calendar in Calendar.Calendars)
+                        {
+                            <HubListItem Title="@calendar.Name" Subtitle="@Subtitle(calendar)" OnClick="() => Edit(calendar)">
+                                <Leading>
+                                    @if (calendar.Member is { } member)
+                                    {
+                                        <HubAvatar Member="member" />
+                                    }
+                                    else
+                                    {
+                                        <HubAvatar Name="@calendar.Name" Color="calendar.Color" />
+                                    }
+                                </Leading>
+                                <Trailing>
+                                    @if (!calendar.Visible)
+                                    {
+                                        <HubBadge>Skjult</HubBadge>
+                                    }
+                                </Trailing>
+                            </HubListItem>
+                        }
+                    </HubList>
+                }
+            </HubCard>
+        </HubSection>
+
+        <HubSection Title="Opdatering">
+            <HubCard>
+                <ChildContent>
+                    @if (Calendar.Status.Problem is SyncProblem.Offline)
+                    {
+                        <InfoBox Tone="HubTone.Warning" Icon="IconName.WifiOff" Title="Google kunne ikke nås">Tjek internetforbindelsen. Family Hub prøver igen af sig selv.</InfoBox>
+                    }
+                    else if (Calendar.Status.Problem is SyncProblem.Failed)
+                    {
+                        <InfoBox Tone="HubTone.Warning" Title="Nogle kalendere kunne ikke hentes">Family Hub prøver igen af sig selv om lidt.</InfoBox>
+                    }
+                    <p>@SyncText</p>
+                </ChildContent>
+                <Footer>
+                    <HubButton Icon="IconName.Refresh" OnClick="SyncNowAsync" Busy="Calendar.Status.IsSyncing" ErrorMessage="Kalenderen blev ikke opdateret">Opdatér nu</HubButton>
+                </Footer>
+            </HubCard>
+        </HubSection>
+    }
+</HubPage>
+
+<HubDialog Open="editing is not null" OpenChanged="open => { if (!open) editing = null; }" Title="@(editing?.Name ?? "")">
+    <ChildContent>
+        @if (editing is { } calendar)
+        {
+            <HubSwitch Label="Vis i kalenderen" Description="Skjulte kalendere hentes ikke og vises ingen steder."
+                       Value="calendar.Visible" ValueChanged="visible => SaveAsync(calendar, p => p with { Visible = visible })" />
+            <HubChoice TValue="string" Label="Hvem hører kalenderen til?" Appearance="ChoiceAppearance.Chips" Options="ownerOptions"
+                       Value="@(calendar.Member?.Id.ToString() ?? SharedOwner)" ValueChanged="SetOwnerAsync" />
+            @if (calendar.Member is null)
+            {
+                <MemberColorPicker Value="calendar.Color" ValueChanged="color => SaveAsync(calendar, p => p with { Color = color })" />
+            }
+            @if (!calendar.CanWrite)
+            {
+                <p class="hub-muted">Kun visning – der kan ikke tilføjes aftaler i denne kalender herfra.</p>
+            }
+        }
+    </ChildContent>
+    <Footer>
+        <HubButton Variant="ButtonVariant.Primary" OnClick="() => editing = null">Færdig</HubButton>
+    </Footer>
+</HubDialog>
+
+@code {
+    private const string SharedOwner = "faelles";
+
+    private bool isLoopback;
+    private CalendarEntry? editing;
+    private IReadOnlyList<ChoiceOption<string>> ownerOptions = [];
+    private IDisposable? tick;
+
+    // The key file is picked up without a restart, so this is checked on every render.
+    private bool canSignIn => isLoopback && Calendar.IsConfigured;
+
+    private string SyncText
+    {
+        get
+        {
+            var status = Calendar.Status;
+            if (status.IsSyncing)
+            {
+                return "Opdaterer …";
+            }
+
+            var every = $"Opdateres hvert {CalendarService.SyncInterval.TotalMinutes:0}. minut.";
+            return status.LastSuccess is { } last
+                ? $"{every} Senest {DanishFormat.RelativeDay(DateOnly.FromDateTime(last.DateTime), Clock.Today).ToLower(DanishFormat.Culture)} kl. {DanishFormat.Time(TimeOnly.FromDateTime(last.DateTime))}."
+                : every;
+        }
+    }
+
+    protected override void OnInitialized()
+    {
+        isLoopback = GoogleOAuthClient.CanSignInFrom(new Uri(Navigation.BaseUri));
+        BuildOwnerOptions();
+        Calendar.Changed += OnChanged;
+        Household.Changed += OnHouseholdChanged;
+        tick = Clock.SubscribeMinuteTick(time => OnChanged());
+    }
+
+    private void BuildOwnerOptions() => ownerOptions =
+    [
+        .. Household.Current.Members.Select(m => new ChoiceOption<string>(m.Id.ToString(), m.Name)),
+        new(SharedOwner, "Fælles", IconName.Users),
+    ];
+
+    // "Fælles · kun visning" – the owner is left out when the calendar is simply named after them.
+    private static string? Subtitle(CalendarEntry calendar)
+    {
+        var parts = new List<string>();
+        if (calendar.OwnerLabel != calendar.Name)
+        {
+            parts.Add(calendar.OwnerLabel);
+        }
+
+        if (!calendar.CanWrite)
+        {
+            parts.Add("kun visning");
+        }
+
+        return parts.Count == 0 ? null : DanishFormat.Capitalize(string.Join(" · ", parts));
+    }
+
+    private void Edit(CalendarEntry calendar) => editing = calendar;
+
+    private Task SetOwnerAsync(string value) => editing is { } calendar
+        ? SaveAsync(calendar, p => value == SharedOwner
+            ? p with { MemberId = null, Color = CalendarMatching.NextSharedColor(Household.Current.Members, Calendar.Calendars.Where(c => c.Id != calendar.Id).Select(c => c.Preference)) }
+            : p with { MemberId = Guid.Parse(value) })
+        : Task.CompletedTask;
+
+    // Takes effect right away; the list behind the dialog shows the result, so no toast.
+    private async Task SaveAsync(CalendarEntry calendar, Func<CalendarPreference, CalendarPreference> update)
+    {
+        if (await Toasts.TryAsync(() => Calendar.UpdatePreferenceAsync(calendar.Id, update), "Ændringen blev ikke gemt", Logger))
+        {
+            editing = Calendar.Calendars.FirstOrDefault(c => c.Id == calendar.Id);
+        }
+    }
+
+    private async Task SignInAsync()
+    {
+        // On the kitchen screen (touch only) Google's page has neither our keyboard nor a way back – warn first.
+        if (Device.Profile is { IsTouchOnly: true, IsMobileOs: false } && !await Dialogs.ConfirmAsync(new ConfirmOptions
+        {
+            Title = "Log ind hos Google på denne skærm?",
+            Message = "Googles loginside kan ikke bruge skærmtastaturet, og der er ingen tilbage-knap. Sæt et USB-tastatur i først (Alt+← går tilbage) – eller forbind fra den bærbare med deploy/forbind-google.ps1.",
+            ConfirmText = "Fortsæt til Google",
+        }))
+        {
+            return;
+        }
+
+        var redirect = new Uri(new Uri(Navigation.BaseUri), CalendarModule.CallbackPath.TrimStart('/'));
+        Navigation.NavigateTo(Calendar.BeginSignIn(redirect).ToString(), forceLoad: true);
+    }
+
+    // Remove right away and offer "Fortryd" instead of asking "Er du sikker?".
+    private async Task RemoveAsync(GoogleAccount account)
+    {
+        await Calendar.RemoveAccountAsync(account.Id);
+        Toasts.Undoable($"{account.Email} er fjernet", () => Calendar.RestoreAccountAsync(account));
+    }
+
+    private Task SyncNowAsync() => Calendar.SyncAsync();
+
+    private void OnChanged() => _ = InvokeAsync(() =>
+    {
+        if (editing is { } calendar)
+        {
+            editing = Calendar.Calendars.FirstOrDefault(c => c.Id == calendar.Id);
+        }
+
+        StateHasChanged();
+    });
+
+    private void OnHouseholdChanged(HouseholdSettings settings) => _ = InvokeAsync(() =>
+    {
+        BuildOwnerOptions();
+        StateHasChanged();
+    });
+
+    public void Dispose()
+    {
+        Calendar.Changed -= OnChanged;
+        Household.Changed -= OnHouseholdChanged;
+        tick?.Dispose();
+    }
+}

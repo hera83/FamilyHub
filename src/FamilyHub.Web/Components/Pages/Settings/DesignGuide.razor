@@ -131,6 +131,17 @@
                 </HubCard>
                 <HubCard Title="Tryk på mig" Subtitle="Hele kortet er et mål" Icon="IconName.Utensils"
                          OnClick="@(() => Toasts.Info("Kortet blev trykket"))" />
+                <HubCard Title="Eget trykmål" Subtitle="HubPressable – til egne layouts" Icon="IconName.Calendar">
+                    <HubPressable OnClick="@(() => Toasts.Info("Aftalen blev trykket"))" AriaLabel="Fodbold kl. 16:00, Emma">
+                        <div class="hub-row">
+                            <HubAvatar Name="Emma" Color="MemberColor.Sand" Size="AvatarSize.Small" />
+                            <span>
+                                <strong>16:00 Fodbold</strong><br />
+                                <span class="hub-muted hub-small">Emma · Kunstgræsbanen</span>
+                            </span>
+                        </div>
+                    </HubPressable>
+                </HubCard>
             </HubGrid>
         </HubSection>
 

@@ -1,0 +1,101 @@
+@*
+    The month as a grid with week numbers. Each day shows its first few appointments;
+    tapping a day opens it in the day view.
+*@
+<div class="cal-month">
+    <div class="cal-month__row cal-month__row--head">
+        <span class="cal-month__week">Uge</span>
+        @foreach (var day in CalendarLayout.WeekDays(Month))
+        {
+            <span class="cal-month__weekday">@DanishFormat.WeekdayShort(day.DayOfWeek)</span>
+        }
+    </div>
+
+    @foreach (var week in CalendarLayout.MonthWeeks(Month))
+    {
+        <div class="cal-month__row">
+            <span class="cal-month__week hub-numeric">@DanishFormat.WeekNumber(week[0])</span>
+            @foreach (var day in week)
+            {
+                var onDay = Events.Where(e => e.OccursOn(day))
+                    .OrderByDescending(e => CalendarLayout.IsAllDayOn(e, day))
+                    .ThenBy(e => CalendarLayout.MinutesOn(e, day).Start)
+                    .ToList();
+                var shown = onDay.Take(MaxPerDay).ToList();
+                var more = onDay.Count - shown.Count;
+
+                <HubPressable OnClick="() => OnDaySelected.InvokeAsync(day)" AriaLabel="@AriaLabel(day, onDay.Count)">
+                    <div class="cal-month__cell @CellClass(day)">
+                        <span class="cal-month__date hub-numeric">@day.Day</span>
+                        @foreach (var e in shown)
+                        {
+                            var color = MemberColors.CssVariable(Calendars.GetValueOrDefault(e.CalendarId)?.Color ?? MemberColor.Stone);
+                            if (CalendarLayout.IsAllDayOn(e, day))
+                            {
+                                <span class="cal-month__item cal-month__item--allday" style="--cal-color:@color">@e.Title</span>
+                            }
+                            else
+                            {
+                                <span class="cal-month__item" style="--cal-color:@color">
+                                    <span class="cal-month__dot" aria-hidden="true"></span>
+                                    <span class="cal-month__time hub-numeric">@CalendarLayout.TimeLabel(e, day).Split('–')[0]</span>
+                                    <span class="cal-month__title">@e.Title</span>
+                                </span>
+                            }
+                        }
+                        @if (more > 0)
+                        {
+                            <span class="cal-month__more">+@more mere</span>
+                        }
+                    </div>
+                </HubPressable>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private const int MaxPerDay = 3;
+
+    [Parameter, EditorRequired]
+    public DateOnly Month { get; set; }
+
+    [Parameter]
+    public DateOnly Today { get; set; }
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<CalendarEvent> Events { get; set; } = [];
+
+    [Parameter, EditorRequired]
+    public IReadOnlyDictionary<string, CalendarEntry> Calendars { get; set; } = new Dictionary<string, CalendarEntry>();
+
+    [Parameter]
+    public EventCallback<DateOnly> OnDaySelected { get; set; }
+
+    private string CellClass(DateOnly day)
+    {
+        var css = day.Month != Month.Month ? "cal-month__cell--outside" : "";
+        if (day == Today)
+        {
+            css += " cal-month__cell--today";
+        }
+        else if (day < Today)
+        {
+            css += " cal-month__cell--past";
+        }
+
+        if (day.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday)
+        {
+            css += " cal-month__cell--weekend";
+        }
+
+        return css;
+    }
+
+    private static string AriaLabel(DateOnly day, int count) => count switch
+    {
+        0 => $"{DanishFormat.LongDate(day)}, ingen aftaler",
+        1 => $"{DanishFormat.LongDate(day)}, 1 aftale",
+        _ => $"{DanishFormat.LongDate(day)}, {count} aftaler",
+    };
+}

@@ -44,6 +44,7 @@ Se [feedback.md](feedback.md) for hvornår hvad bruges.
 | `HubChoice<T>` | Vælg én af få synlige muligheder. `Segmented` (2–5 korte) eller `Chips` (flere/længere). |
 | `HubSwitch` | Til/fra med øjeblikkelig virkning. Hele rækken er trykmålet. |
 | `MemberColorPicker` | Farve til et familiemedlem. |
+| `HubPressable` | Ustylet trykmål om eget indhold, når ingen af de andre passer (fx en aftale i kalenderen eller en dag i månedsgitteret). Giver trykfeedback, fokus og det rigtige element (knap eller link). Ingen knapper indeni. |
 | `HubTextField` | Fri tekst. `Kind` bestemmer tastaturet. `OnCommit` til auto-gem, `OnEnter`, `EnterKey`, `EnterLabel`, `KeepKeyboardOnEnter`, `Error`, `Help`, `MaxLength`. Virker med `EditForm`-validering via `@bind-Value`. |
 
 Se [input-og-tastatur.md](input-og-tastatur.md) for hvornår hvad bruges.

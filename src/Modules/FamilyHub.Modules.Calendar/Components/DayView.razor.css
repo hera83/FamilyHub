@@ -1,0 +1,132 @@
+.cal-day {
+    --cal-hour-height: 4.5rem;
+    --cal-gutter: 4.5rem;
+
+    display: flex;
+    flex-direction: column;
+    padding: var(--hub-space-4) var(--hub-space-4) var(--hub-space-6) 0;
+    border: 1px solid var(--hub-border);
+    border-radius: var(--hub-radius-lg);
+    background: var(--hub-surface);
+}
+
+.cal-day__row,
+.cal-day__grid {
+    display: grid;
+    grid-template-columns: var(--cal-gutter) repeat(var(--cal-cols), minmax(0, 1fr));
+}
+
+.cal-day__row--head {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    padding-bottom: var(--hub-space-3);
+    background: var(--hub-surface);
+}
+
+.cal-day__colhead {
+    display: flex;
+    align-items: center;
+    gap: var(--hub-space-2);
+    min-width: 0;
+    padding: 0 var(--hub-space-2);
+}
+
+.cal-day__name {
+    overflow: hidden;
+    font-size: var(--hub-text-md);
+    font-weight: var(--hub-weight-bold);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.cal-day__row--allday {
+    padding: var(--hub-space-2) 0;
+    border-top: 1px solid var(--hub-border);
+}
+
+.cal-day__gutter-label {
+    align-self: center;
+    padding-right: var(--hub-space-3);
+    color: var(--hub-text-subtle);
+    font-size: var(--hub-text-xs);
+    font-weight: var(--hub-weight-medium);
+    text-align: right;
+}
+
+.cal-day__allday {
+    display: flex;
+    flex-direction: column;
+    gap: var(--hub-space-1);
+    min-width: 0;
+    padding: 0 var(--hub-space-1);
+}
+
+.cal-day__grid {
+    position: relative;
+    height: calc(var(--cal-hours) * var(--cal-hour-height));
+    border-top: 1px solid var(--hub-border);
+}
+
+.cal-day__hours {
+    position: relative;
+}
+
+.cal-day__hour {
+    position: absolute;
+    top: calc(var(--row) * var(--cal-hour-height));
+    right: var(--hub-space-3);
+    color: var(--hub-text-subtle);
+    font-size: var(--hub-text-xs);
+    font-weight: var(--hub-weight-medium);
+    transform: translateY(-50%);
+}
+
+.cal-day__hour:first-child {
+    transform: none;
+}
+
+/* Hour lines are drawn by the column background – no extra elements. */
+.cal-day__col {
+    position: relative;
+    min-width: 0;
+    border-left: 1px solid var(--hub-border);
+    background-image: repeating-linear-gradient(to bottom, var(--hub-border) 0 1px, transparent 1px var(--cal-hour-height));
+}
+
+.cal-day__block {
+    position: absolute;
+    top: calc(var(--start) * var(--cal-hour-height) / 60);
+    left: calc(var(--lane) * 100% / var(--lanes));
+    width: calc(100% / var(--lanes));
+    height: max(calc(var(--len) * var(--cal-hour-height) / 60), var(--hub-touch-min));
+    padding: 1px var(--hub-space-1) 2px;
+}
+
+.cal-day__block ::deep .hub-pressable {
+    height: 100%;
+}
+
+.cal-day__now {
+    position: absolute;
+    top: calc(var(--at) * var(--cal-hour-height) / 60);
+    left: var(--cal-gutter);
+    right: 0;
+    z-index: 1;
+    height: 2px;
+    background: var(--hub-accent);
+    pointer-events: none;
+}
+
+.cal-day__now-label {
+    position: absolute;
+    top: 50%;
+    right: 100%;
+    padding: 0.125rem var(--hub-space-2);
+    border-radius: var(--hub-radius-pill);
+    background: var(--hub-accent);
+    color: var(--hub-text-on-accent);
+    font-size: var(--hub-text-xs);
+    font-weight: var(--hub-weight-bold);
+    transform: translate(0, -50%);
+}

@@ -1,0 +1,58 @@
+@*
+    One appointment, tinted in the owner's colour. Colour never stands alone: the owner's name is shown too
+    (except in the day view, where the column header says whose it is).
+*@
+<HubPressable OnClick="() => OnSelect.InvokeAsync(Event)" AriaLabel="@AriaText">
+    <div class="cal-event cal-event--@Look.ToString().ToLowerInvariant() @(Past ? "cal-event--past" : null)"
+         style="--cal-color:@MemberColors.CssVariable(Calendar?.Color ?? MemberColor.Stone)">
+        @if (Look == EventLook.AllDay)
+        {
+            <span class="cal-event__title">@Event.Title</span>
+            @if (ShowOwner && Calendar is not null)
+            {
+                <span class="cal-event__owner">@Owner</span>
+            }
+        }
+        else
+        {
+            <span class="cal-event__time hub-numeric">@CalendarLayout.TimeLabel(Event, Day)</span>
+            <span class="cal-event__title">@Event.Title</span>
+            @if (Meta is { Length: > 0 } meta)
+            {
+                <span class="cal-event__meta">@meta</span>
+            }
+        }
+    </div>
+</HubPressable>
+
+@code {
+    [Parameter, EditorRequired]
+    public CalendarEvent Event { get; set; } = null!;
+
+    [Parameter]
+    public CalendarEntry? Calendar { get; set; }
+
+    /// <summary>The day the card is shown on – decides "Fra 20:00" / "Til 10:00" for events spanning days.</summary>
+    [Parameter]
+    public DateOnly Day { get; set; }
+
+    [Parameter]
+    public EventLook Look { get; set; } = EventLook.Agenda;
+
+    /// <summary>Show whose calendar it is (not needed where a column header says it).</summary>
+    [Parameter]
+    public bool ShowOwner { get; set; } = true;
+
+    /// <summary>Already over – shown dimmed.</summary>
+    [Parameter]
+    public bool Past { get; set; }
+
+    [Parameter]
+    public EventCallback<CalendarEvent> OnSelect { get; set; }
+
+    private string Owner => Calendar?.Member?.Name ?? Calendar?.Name ?? "";
+
+    private string? Meta => string.Join(" · ", new[] { ShowOwner ? Owner : null, Event.Location }.Where(s => !string.IsNullOrWhiteSpace(s)));
+
+    private string AriaText => $"{Event.Title}, {CalendarLayout.TimeLabel(Event, Day)}{(Owner.Length > 0 ? $", {Owner}" : "")}";
+}

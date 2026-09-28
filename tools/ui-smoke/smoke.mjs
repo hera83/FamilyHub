@@ -5,7 +5,9 @@
 //   npm install                       (first time – installs playwright-core, no browser download)
 //   node smoke.mjs [screenshot-folder]
 //
-// The app must be running (dotnet run --project src/FamilyHub.Web). Environment variables:
+// The app must be running (dotnet run --project src/FamilyHub.Web). To test the calendar with appointments,
+// start it on demo data first:  node demo-data.mjs; $env:FamilyHub__DataDirectory = (Resolve-Path ./demo-data)
+// Environment variables:
 //   FAMILYHUB_URL   default http://localhost:5080
 //   BROWSER_PATH    default: installed Chrome, else Edge
 import { existsSync, mkdirSync } from 'node:fs';
@@ -224,6 +226,63 @@ async function open(page, path) {
   await context.close();
 }
 
+// ---------------------------------------------------------------- calendar (best with demo data: node demo-data.mjs)
+{
+  const { context, page } = await newPage();
+  await open(page, '/kalender');
+  if (await page.locator('.cal-week').count() === 0) {
+    log('calendar: without accounts it offers to get started', (await page.locator('.hub-empty', { hasText: 'Forbind jeres Google-kalender' }).count()) === 1);
+    await page.screenshot({ path: `${OUT}/17-calendar-empty.png` });
+  } else {
+    log('calendar: week view has seven days', (await page.locator('.cal-week__day').count()) === 7);
+    log('calendar: today is marked', (await page.locator('.cal-week__day--today').count()) === 1);
+    await page.screenshot({ path: `${OUT}/17-calendar-week.png` });
+
+    await page.locator('.hub-choice__option', { hasText: 'Dag' }).tap();
+    await page.waitForTimeout(600);
+    log('calendar: day view with a column per person', (await page.locator('.cal-day__colhead').count()) >= 1, `${await page.locator('.cal-day__colhead').count()} columns`);
+    log('calendar: view is kept in the address', page.url().includes('visning=dag'));
+    await page.screenshot({ path: `${OUT}/18-calendar-day.png` });
+
+    await page.locator('.hub-choice__option', { hasText: 'Måned' }).tap();
+    await page.waitForTimeout(600);
+    log('calendar: month view', (await page.locator('.cal-month__row').count()) >= 5);
+    await page.screenshot({ path: `${OUT}/19-calendar-month.png` });
+
+    await page.locator('.cal-month__cell--today').tap();
+    await page.waitForTimeout(600);
+    log('calendar: tapping a day opens it', (await page.locator('.cal-day').count()) === 1);
+
+    await open(page, '/kalender');
+    const event = page.locator('.cal-event--agenda').first();
+    const title = (await event.locator('.cal-event__title').innerText()).trim();
+    await event.tap();
+    await page.waitForTimeout(600);
+    log('calendar: tapping an event shows its details', (await page.locator('.hub-dialog__title', { hasText: title }).count()) === 1, title);
+    await page.locator('.hub-dialog .hub-btn[aria-label="Luk"]').tap();
+    await page.waitForTimeout(400);
+
+    const add = page.locator('.hub-btn', { hasText: 'Tilføj aftale' });
+    if (await add.count()) {
+      await add.tap();
+      await page.waitForTimeout(900);
+      log('calendar: add dialog opens with the keyboard for the title', (await page.locator('.hub-osk[data-visibility="expanded"]').count()) === 1);
+      await page.locator('h2.hub-dialog__title').tap();
+      await page.waitForTimeout(600);
+      await page.locator('.hub-dialog .hub-btn', { hasText: 'Tilføj' }).last().tap();
+      await page.waitForTimeout(400);
+      log('calendar: a title is required', (await page.locator('.hub-field__error', { hasText: 'Skriv en titel' }).count()) === 1);
+      await page.screenshot({ path: `${OUT}/20-calendar-add.png` });
+      await page.locator('.hub-dialog .hub-btn', { hasText: 'Annuller' }).tap();
+    }
+
+    await open(page, '/kalender/indstillinger');
+    log('calendar: settings list the calendars', (await page.locator('.hub-list__row').count()) >= 1);
+    await page.screenshot({ path: `${OUT}/21-calendar-settings.png`, fullPage: true });
+  }
+  await context.close();
+}
+
 // ---------------------------------------------------------------- laptop with mouse (no touch interaction)
 {
   const { context, page } = await newPage({ hasTouch: true });
@@ -261,6 +320,10 @@ async function open(page, path) {
   await page.evaluate(() => document.documentElement.dataset.theme = 'dark');
   await page.waitForTimeout(400);
   await page.screenshot({ path: `${OUT}/12-guide-dark.png` });
+  await open(page, '/kalender');
+  await page.evaluate(() => document.documentElement.dataset.theme = 'dark');
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: `${OUT}/22-calendar-dark.png` });
   await context.close();
 }
 {

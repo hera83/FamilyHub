@@ -1,0 +1,9 @@
+@* A quiet line that says where "now" is in today's list. *@
+<div class="cal-now">
+    <span class="cal-now__label hub-numeric">Nu · @DanishFormat.Time(TimeOnly.FromDateTime(Now.DateTime))</span>
+</div>
+
+@code {
+    [Parameter]
+    public DateTimeOffset Now { get; set; }
+}

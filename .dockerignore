@@ -1,0 +1,36 @@
+# Kun det, imaget skal bruge, sendes til Docker. Hemmeligheder og data kommer aldrig med.
+
+# Kompileret output og værktøjer
+**/bin/
+**/obj/
+**/node_modules/
+artifacts/
+publish/
+**/TestResults/
+
+# Git, editorer, Claude
+.git/
+.vs/
+.vscode/
+.idea/
+.claude/
+**/*.user
+
+# Hemmeligheder og lokale data
+.env
+.env.*
+!.env.example
+secrets/
+data/
+**/client_secret*.json
+**/google-client.json
+**/*.db
+**/*.db-shm
+**/*.db-wal
+**/*.sqlite
+
+# Ikke nødvendigt for at bygge serveren
+tests/
+tools/
+docs/
+deploy/

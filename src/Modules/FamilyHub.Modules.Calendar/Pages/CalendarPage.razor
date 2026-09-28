@@ -1,7 +1,296 @@
 @attribute [Microsoft.AspNetCore.Components.Route(CalendarModule.Path)]
+@implements IDisposable
+@inject CalendarService Calendar
+@inject IHubClock Clock
+@inject NavigationManager Navigation
+@inject IToastService Toasts
 
 <HubPage Title="Kalender" Width="PageWidth.Full">
-    <EmptyState Icon="IconName.Calendar" Title="Kalenderen er på vej">
-        Her kommer familiens fælles Google-kalender, så alle kan se ugens aftaler i køkkenet.
-    </EmptyState>
+    <Actions>
+        <HubButton Variant="ButtonVariant.Quiet" Icon="IconName.Settings" Href="@CalendarModule.SettingsPath.TrimStart('/')" AriaLabel="Kalenderindstillinger" />
+        @if (writable.Count > 0)
+        {
+            <HubButton Variant="ButtonVariant.Primary" Icon="IconName.Plus" OnClick="() => adding = true">Tilføj aftale</HubButton>
+        }
+    </Actions>
+    <ChildContent>
+        @if (Calendar.Accounts.Count == 0)
+        {
+            <EmptyState Icon="IconName.Calendar" Title="Forbind jeres Google-kalender">
+                <ChildContent>Så kan hele familien se ugens aftaler her i køkkenet – også børnenes og de fælles kalendere.</ChildContent>
+                <Actions>
+                    <HubButton Variant="ButtonVariant.Primary" Icon="IconName.Link" Href="@CalendarModule.SettingsPath.TrimStart('/')">Kom i gang</HubButton>
+                </Actions>
+            </EmptyState>
+        }
+        else
+        {
+            @if (reconnect is { } account)
+            {
+                <InfoBox Tone="HubTone.Warning" Title="Google-kontoen skal forbindes igen">
+                    <ChildContent>Aftalerne fra @account.Email bliver ikke opdateret, før kontoen er forbundet igen.</ChildContent>
+                    <Actions>
+                        <HubButton Variant="ButtonVariant.Primary" Size="ButtonSize.Small" Href="@CalendarModule.SettingsPath.TrimStart('/')">Forbind igen</HubButton>
+                    </Actions>
+                </InfoBox>
+            }
+            else if (IsStale)
+            {
+                <InfoBox Tone="HubTone.Warning" Title="Kalenderen kunne ikke opdateres" Icon="IconName.WifiOff">
+                    @StaleText Den prøver igen af sig selv.
+                </InfoBox>
+            }
+
+            @if (loadFailed)
+            {
+                <InfoBox Tone="HubTone.Info" Title="Aftalerne for perioden kunne ikke hentes">Prøv igen om lidt.</InfoBox>
+            }
+
+            <div class="cal-toolbar">
+                <div class="cal-toolbar__nav">
+                    <HubButton Icon="IconName.ChevronLeft" AriaLabel="@StepLabel("Forrige")" OnClick="() => Step(-1)" />
+                    <HubButton OnClick="GoToToday" Disabled="ShowsToday">I dag</HubButton>
+                    <HubButton Icon="IconName.ChevronRight" AriaLabel="@StepLabel("Næste")" OnClick="() => Step(1)" />
+                </div>
+                <div class="cal-toolbar__period">
+                    <h2 class="cal-toolbar__title">@CalendarLayout.PeriodTitle(view, date, today)</h2>
+                    @if (CalendarLayout.PeriodDetail(view, date, today) is { } detail)
+                    {
+                        <p class="cal-toolbar__detail">@detail</p>
+                    }
+                </div>
+                <HubChoice TValue="CalendarView" Options="ViewOptions" Value="view" ValueChanged="ChangeView" Class="cal-toolbar__views" />
+            </div>
+
+            @if (ownerOptions.Count > 2)
+            {
+                <HubChoice TValue="string" Appearance="ChoiceAppearance.Chips" Options="ownerOptions" Value="owner" ValueChanged="ChangeOwner" Class="cal-filter" />
+            }
+
+            @if (!Calendar.HasData)
+            {
+                <div class="cal-loading"><HubSkeleton Lines="8" /></div>
+            }
+            else if (calendarsById.Count == 0)
+            {
+                <EmptyState Icon="IconName.Calendar" Title="Ingen kalendere er valgt">
+                    <ChildContent>Vælg, hvilke af jeres kalendere der skal vises her.</ChildContent>
+                    <Actions>
+                        <HubButton Variant="ButtonVariant.Primary" Href="@CalendarModule.SettingsPath.TrimStart('/')">Vælg kalendere</HubButton>
+                    </Actions>
+                </EmptyState>
+            }
+            else
+            {
+                @switch (view)
+                {
+                    case CalendarView.Day:
+                        <DayView Day="date" Columns="columns" Calendars="calendarsById" Now="now" OnSelect="Select" />
+                        break;
+                    case CalendarView.Month:
+                        <MonthView Month="date" Today="today" Events="events" Calendars="calendarsById" OnDaySelected="ShowDay" />
+                        break;
+                    default:
+                        <WeekView Days="CalendarLayout.WeekDays(date)" Events="events" Calendars="calendarsById" Now="now" OnSelect="Select" OnDaySelected="ShowDay" />
+                        break;
+                }
+            }
+        }
+    </ChildContent>
 </HubPage>
+
+<EventDetailsDialog Event="selected" Calendar="@(selected is null ? null : calendarsById.GetValueOrDefault(selected.CalendarId))" OnClose="() => selected = null" />
+<AddEventDialog @bind-Open="adding" Calendars="writable" InitialDate="date" InitialCalendarId="@SuggestedCalendarId" OnAdded="OnAdded" />
+
+@code {
+    private const string AllOwners = "alle";
+    private const string SharedOwner = "faelles";
+
+    private static readonly IReadOnlyList<ChoiceOption<CalendarView>> ViewOptions =
+    [
+        new(CalendarView.Day, "Dag"),
+        new(CalendarView.Week, "Uge"),
+        new(CalendarView.Month, "Måned"),
+    ];
+
+    private CalendarView view = CalendarView.Week;
+    private DateOnly date;
+    private DateOnly today;
+    private DateTimeOffset now;
+    private string owner = AllOwners;
+
+    private IReadOnlyList<CalendarEvent> events = [];
+    private IReadOnlyDictionary<string, CalendarEntry> calendarsById = new Dictionary<string, CalendarEntry>();
+    private IReadOnlyList<CalendarEntry> writable = [];
+    private IReadOnlyList<ChoiceOption<string>> ownerOptions = [];
+    private IReadOnlyList<DayColumn> columns = [];
+    private GoogleAccount? reconnect;
+    private bool loadFailed;
+
+    private CalendarEvent? selected;
+    private bool adding;
+    private IDisposable? tick;
+
+    /// <summary>"dag", "uge" (default) or "maaned".</summary>
+    [SupplyParameterFromQuery(Name = "visning")]
+    public string? ViewParameter { get; set; }
+
+    /// <summary>yyyy-MM-dd. Missing = today (and follows the clock past midnight).</summary>
+    [SupplyParameterFromQuery(Name = "dato")]
+    public string? DateParameter { get; set; }
+
+    private bool ShowsToday => CalendarLayout.Contains(view, date, today);
+
+    private bool IsStale =>
+        Calendar.Status.Problem is SyncProblem.Offline or SyncProblem.Failed
+        && (Calendar.Status.LastSuccess is not { } last || now - last > TimeSpan.FromMinutes(15));
+
+    private string StaleText => Calendar.Status.LastSuccess is { } last
+        ? $"Viser aftalerne fra {DanishFormat.RelativeDay(DateOnly.FromDateTime(last.DateTime), today).ToLower(DanishFormat.Culture)} kl. {DanishFormat.Time(TimeOnly.FromDateTime(last.DateTime))}."
+        : "";
+
+    private string? SuggestedCalendarId => owner switch
+    {
+        AllOwners => null,
+        SharedOwner => writable.FirstOrDefault(c => c.Member is null)?.Id,
+        _ => writable.FirstOrDefault(c => c.Member?.Id.ToString() == owner)?.Id,
+    };
+
+    protected override void OnInitialized()
+    {
+        Calendar.Changed += OnCalendarChanged;
+        tick = Clock.SubscribeMinuteTick(time => OnCalendarChanged());
+    }
+
+    protected override void OnParametersSet()
+    {
+        view = ViewParameter switch
+        {
+            "dag" => CalendarView.Day,
+            "maaned" or "måned" => CalendarView.Month,
+            _ => CalendarView.Week,
+        };
+        Refresh();
+    }
+
+    private void Refresh()
+    {
+        now = Clock.Now;
+        today = DateOnly.FromDateTime(now.DateTime);
+        date = DateOnly.TryParseExact(DateParameter, "yyyy-MM-dd", out var parsed) ? parsed : today;
+
+        var visible = Calendar.VisibleCalendars;
+        writable = [.. visible.Where(c => c.CanWrite)];
+        reconnect = Calendar.Accounts.FirstOrDefault(a => a.NeedsReconnect);
+
+        // The filter chips: Alle + each family member with a calendar + Fælles.
+        var members = visible.Where(c => c.Member is not null).Select(c => c.Member!).DistinctBy(m => m.Id).ToList();
+        var hasShared = visible.Any(c => c.Member is null);
+        ownerOptions =
+        [
+            new(AllOwners, "Alle"),
+            .. members.Select(m => new ChoiceOption<string>(m.Id.ToString(), m.Name)),
+            .. hasShared ? [new ChoiceOption<string>(SharedOwner, "Fælles")] : Array.Empty<ChoiceOption<string>>(),
+        ];
+        if (ownerOptions.All(o => o.Value != owner))
+        {
+            owner = AllOwners;
+        }
+
+        var shown = visible.Where(c => owner switch
+        {
+            AllOwners => true,
+            SharedOwner => c.Member is null,
+            _ => c.Member?.Id.ToString() == owner,
+        }).ToList();
+        calendarsById = shown.ToDictionary(c => c.Id);
+
+        var (from, to) = CalendarLayout.Range(view, date);
+        events = Calendar.GetEvents(from, to).Where(e => calendarsById.ContainsKey(e.CalendarId)).ToList();
+
+        columns =
+        [
+            .. shown.GroupBy(c => c.Member?.Id.ToString() ?? SharedOwner)
+                .Select(g =>
+                {
+                    var ids = g.Select(c => c.Id).ToHashSet();
+                    var first = g.First();
+                    return new DayColumn(g.Key, first.Member?.Name ?? "Fælles", first.Member, first.Color, [.. events.Where(e => ids.Contains(e.CalendarId))]);
+                }),
+        ];
+
+        _ = EnsureLoadedAsync(from, to);
+    }
+
+    private async Task EnsureLoadedAsync(DateOnly from, DateOnly to)
+    {
+        var ok = await Calendar.EnsureLoadedAsync(from, to);
+        if (ok == loadFailed)
+        {
+            loadFailed = !ok;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void OnCalendarChanged() => _ = InvokeAsync(() =>
+    {
+        Refresh();
+        StateHasChanged();
+    });
+
+    private string StepLabel(string prefix) => view switch
+    {
+        CalendarView.Day => $"{prefix} dag",
+        CalendarView.Week => $"{prefix} uge",
+        _ => $"{prefix} måned",
+    };
+
+    private void Step(int direction) => NavigateTo(view, CalendarLayout.Shift(view, date, direction));
+
+    private void GoToToday() => NavigateTo(view, today);
+
+    private void ChangeView(CalendarView value) => NavigateTo(value, date);
+
+    private void ShowDay(DateOnly day) => NavigateTo(CalendarView.Day, day);
+
+    private void ChangeOwner(string value)
+    {
+        owner = value;
+        Refresh();
+    }
+
+    private void Select(CalendarEvent e) => selected = e;
+
+    private void NavigateTo(CalendarView target, DateOnly day)
+    {
+        var slug = target switch
+        {
+            CalendarView.Day => "dag",
+            CalendarView.Month => "maaned",
+            _ => null,
+        };
+        var uri = Navigation.GetUriWithQueryParameters(new Dictionary<string, object?>
+        {
+            ["visning"] = slug,
+            ["dato"] = day == today ? null : day.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
+        });
+        Navigation.NavigateTo(uri, replace: true);
+    }
+
+    // Visible where it landed → no message. Otherwise say where it went.
+    private void OnAdded(CalendarEvent created)
+    {
+        var (from, to) = CalendarLayout.Range(view, date);
+        var inView = calendarsById.ContainsKey(created.CalendarId) && created.StartDate < to && created.EndDate > from;
+        if (!inView)
+        {
+            Toasts.Success("Aftalen er tilføjet", CalendarLayout.WhenLabel(created));
+        }
+    }
+
+    public void Dispose()
+    {
+        Calendar.Changed -= OnCalendarChanged;
+        tick?.Dispose();
+    }
+}

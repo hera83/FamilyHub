@@ -1,0 +1,86 @@
+@*
+    The week as seven columns – a planner on the wall. All-day first, then the day in time order,
+    with a quiet "Nu" line in today's column. Tapping a day opens it in the day view.
+*@
+<div class="cal-week">
+    @foreach (var day in Days)
+    {
+        var today = DateOnly.FromDateTime(Now.DateTime);
+        var onDay = Events.Where(e => e.OccursOn(day)).ToList();
+        var allDay = onDay.Where(e => CalendarLayout.IsAllDayOn(e, day)).ToList();
+        var timed = onDay.Where(e => !CalendarLayout.IsAllDayOn(e, day))
+            .OrderBy(e => CalendarLayout.MinutesOn(e, day).Start)
+            .ThenBy(e => e.Title)
+            .ToList();
+        var nowShown = day != today || timed.Count == 0;
+
+        <section class="cal-week__day @DayClass(day, today)" aria-label="@DanishFormat.LongDate(day)">
+            <HubPressable OnClick="() => OnDaySelected.InvokeAsync(day)" AriaLabel="@($"Vis {DanishFormat.LongDate(day)}")">
+                <div class="cal-week__head">
+                    <span class="cal-week__weekday">@DanishFormat.WeekdayShort(day.DayOfWeek)</span>
+                    <span class="cal-week__date hub-numeric">@day.Day</span>
+                </div>
+            </HubPressable>
+
+            <div class="cal-week__events">
+                @foreach (var e in allDay)
+                {
+                    <EventCard Event="e" Calendar="Find(e)" Day="day" Look="EventLook.AllDay" Past="day < today" OnSelect="OnSelect" />
+                }
+
+                @foreach (var e in timed)
+                {
+                    if (!nowShown && e.Start > Now)
+                    {
+                        nowShown = true;
+                        <NowMarker Now="Now" />
+                    }
+
+                    <EventCard Event="e" Calendar="Find(e)" Day="day" Past="e.End <= Now" OnSelect="OnSelect" />
+                }
+
+                @if (!nowShown)
+                {
+                    <NowMarker Now="Now" />
+                }
+            </div>
+        </section>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public IReadOnlyList<DateOnly> Days { get; set; } = [];
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<CalendarEvent> Events { get; set; } = [];
+
+    [Parameter, EditorRequired]
+    public IReadOnlyDictionary<string, CalendarEntry> Calendars { get; set; } = new Dictionary<string, CalendarEntry>();
+
+    [Parameter]
+    public DateTimeOffset Now { get; set; }
+
+    [Parameter]
+    public EventCallback<CalendarEvent> OnSelect { get; set; }
+
+    [Parameter]
+    public EventCallback<DateOnly> OnDaySelected { get; set; }
+
+    private CalendarEntry? Find(CalendarEvent e) => Calendars.GetValueOrDefault(e.CalendarId);
+
+    private static string DayClass(DateOnly day, DateOnly today)
+    {
+        var css = day.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday ? "cal-week__day--weekend" : "";
+        if (day == today)
+        {
+            css += " cal-week__day--today";
+        }
+        else if (day < today)
+        {
+            css += " cal-week__day--past";
+        }
+
+        return css;
+    }
+}

@@ -1,0 +1,171 @@
+@inject CalendarService Calendar
+@inject IHubClock Clock
+
+@*
+    "Tilføj aftale": only the title is typed. Calendar, day and time are picked with chips and steppers,
+    so the keyboard is only up while the title is written.
+*@
+<HubDialog Open="Open" OpenChanged="OpenChanged" Title="Tilføj aftale" CloseOnBackdrop="false">
+    <ChildContent>
+        <HubTextField Label="Titel" Placeholder="Fx Tandlæge" Kind="InputKind.Text" AutoFocus="true"
+                      MaxLength="CalendarEvent.MaxTitleLength" Error="@titleError" @bind-Value="title" />
+
+        @if (Calendars.Count > 1)
+        {
+            <HubChoice TValue="string" Label="Kalender" Appearance="ChoiceAppearance.Chips" Options="calendarOptions" @bind-Value="calendarId" />
+        }
+        else if (Calendars.Count == 1)
+        {
+            <p class="hub-muted">Tilføjes i @ChoiceLabel(Calendars[0]).</p>
+        }
+
+        <NumberStepper TValue="int" Label="Dag" @bind-Value="dayOffset" Min="0" Max="MaxDaysAhead"
+                       Format="DayText" Help="@DanishFormat.LongDate(today.AddDays(dayOffset))"
+                       DecreaseLabel="Dagen før" IncreaseLabel="Dagen efter" />
+        <HubSwitch Label="Hele dagen" @bind-Value="allDay" />
+
+        @if (allDay)
+        {
+            <NumberStepper TValue="int" Label="Antal dage" @bind-Value="days" Min="1" Max="14"
+                           Format="@(d => d == 1 ? "1 dag" : $"{d} dage")" DecreaseLabel="Færre dage" IncreaseLabel="Flere dage" />
+        }
+        else
+        {
+            <NumberStepper TValue="int" Label="Starter" @bind-Value="startMinutes" Min="0" Max="LastStart" Step="15"
+                           Format="ClockText" DecreaseLabel="Tidligere" IncreaseLabel="Senere" Help="@EndsText" />
+            <HubChoice TValue="int" Label="Varighed" Appearance="ChoiceAppearance.Chips" Options="DurationOptions" @bind-Value="durationMinutes" />
+        }
+    </ChildContent>
+    <Footer>
+        <HubButton Variant="ButtonVariant.Quiet" OnClick="CloseAsync">Annuller</HubButton>
+        <HubButton Variant="ButtonVariant.Primary" Icon="IconName.Plus" OnClick="AddAsync" ErrorMessage="Aftalen blev ikke tilføjet">Tilføj</HubButton>
+    </Footer>
+</HubDialog>
+
+@code {
+    private const int MaxDaysAhead = 400;
+    private const int LastStart = 23 * 60 + 45;
+
+    private static readonly IReadOnlyList<ChoiceOption<int>> DurationOptions =
+        [.. new[] { 15, 30, 60, 90, 120, 180 }.Select(m => new ChoiceOption<int>(m, DanishFormat.Duration(TimeSpan.FromMinutes(m))))];
+
+    private bool wasOpen;
+    private DateOnly today;
+    private string title = "";
+    private string? titleError;
+    private string calendarId = "";
+    private IReadOnlyList<ChoiceOption<string>> calendarOptions = [];
+    private int dayOffset;
+    private bool allDay;
+    private int days = 1;
+    private int startMinutes;
+    private int durationMinutes = 60;
+
+    [Parameter]
+    public bool Open { get; set; }
+
+    [Parameter]
+    public EventCallback<bool> OpenChanged { get; set; }
+
+    /// <summary>Calendars that may get new appointments.</summary>
+    [Parameter, EditorRequired]
+    public IReadOnlyList<CalendarEntry> Calendars { get; set; } = [];
+
+    /// <summary>Suggested day – the day the user is looking at.</summary>
+    [Parameter]
+    public DateOnly InitialDate { get; set; }
+
+    /// <summary>Suggested calendar, e.g. the family member the view is filtered on.</summary>
+    [Parameter]
+    public string? InitialCalendarId { get; set; }
+
+    [Parameter]
+    public EventCallback<CalendarEvent> OnAdded { get; set; }
+
+    private string EndsText
+    {
+        get
+        {
+            var end = startMinutes + durationMinutes;
+            var text = $"Slutter {ClockText(end % CalendarLayout.MinutesPerDay)}";
+            return end >= CalendarLayout.MinutesPerDay ? $"{text} dagen efter" : text;
+        }
+    }
+
+    protected override void OnParametersSet()
+    {
+        // Fresh form every time the dialog opens.
+        if (Open && !wasOpen)
+        {
+            Reset();
+        }
+
+        wasOpen = Open;
+    }
+
+    private void Reset()
+    {
+        today = Clock.Today;
+        title = "";
+        titleError = null;
+        allDay = false;
+        days = 1;
+        durationMinutes = 60;
+        dayOffset = Math.Clamp(InitialDate.DayNumber - today.DayNumber, 0, MaxDaysAhead);
+
+        // Today: the next whole hour. Another day: 10:00.
+        var now = Clock.Now;
+        startMinutes = dayOffset == 0 ? Math.Min((now.Hour + 1) * 60, 23 * 60) : 10 * 60;
+
+        calendarOptions = [.. Calendars.Select(c => new ChoiceOption<string>(c.Id, ChoiceLabel(c)))];
+        calendarId = Calendars.FirstOrDefault(c => c.Id == InitialCalendarId)?.Id
+            ?? Calendars.FirstOrDefault(c => c.Source.IsPrimary)?.Id
+            ?? Calendars.FirstOrDefault()?.Id
+            ?? "";
+    }
+
+    // Short in the stepper ("I dag", "Man. 28. sep."); the full date is written under it.
+    private string DayText(int offset) => offset switch
+    {
+        0 => "I dag",
+        1 => "I morgen",
+        _ => DanishFormat.Capitalize(DanishFormat.ShortDate(today.AddDays(offset))),
+    };
+
+    // A family member's only calendar is simply called by their name ("Mette" rather than "mette@gmail.com").
+    private string ChoiceLabel(CalendarEntry calendar) =>
+        calendar.Member is { } member && Calendars.Count(c => c.Member?.Id == member.Id) == 1 ? member.Name : calendar.Name;
+
+    private static string ClockText(int minutes) => $"{minutes / 60:00}:{minutes % 60:00}";
+
+    private async Task AddAsync()
+    {
+        if (string.IsNullOrWhiteSpace(title))
+        {
+            titleError = "Skriv en titel";
+            return;
+        }
+
+        titleError = null;
+        var created = await Calendar.AddEventAsync(new NewCalendarEvent
+        {
+            CalendarId = calendarId,
+            Title = title.Trim(),
+            Date = today.AddDays(dayOffset),
+            IsAllDay = allDay,
+            StartTime = TimeOnly.FromTimeSpan(TimeSpan.FromMinutes(startMinutes)),
+            Duration = TimeSpan.FromMinutes(durationMinutes),
+            Days = days,
+        });
+
+        await CloseAsync();
+        await OnAdded.InvokeAsync(created);
+    }
+
+    private async Task CloseAsync()
+    {
+        Open = false;
+        wasOpen = false;
+        await OpenChanged.InvokeAsync(false);
+    }
+}

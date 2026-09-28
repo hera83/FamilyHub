@@ -1,0 +1,33 @@
+.cal-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--hub-space-4) var(--hub-space-6);
+}
+
+.cal-toolbar__nav {
+    display: flex;
+    gap: var(--hub-space-2);
+}
+
+.cal-toolbar__period {
+    flex: 1;
+    min-width: 14rem;
+}
+
+.cal-toolbar__title {
+    font-size: var(--hub-text-xl);
+    line-height: var(--hub-leading-tight);
+}
+
+.cal-toolbar__detail {
+    margin-top: 0.125rem;
+    color: var(--hub-text-muted);
+}
+
+.cal-loading {
+    padding: var(--hub-space-6);
+    border: 1px solid var(--hub-border);
+    border-radius: var(--hub-radius-lg);
+    background: var(--hub-surface);
+}

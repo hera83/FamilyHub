@@ -1,8 +1,13 @@
-# Normalise line endings; scripts for the Raspberry Pi must keep LF or bash fails.
+# Normalise line endings; files used on Linux (server and Raspberry Pi) must keep LF or bash/Docker fails.
 * text=auto
 *.sh text eol=lf
 *.service text eol=lf
 *.desktop text eol=lf
+Dockerfile text eol=lf
+.dockerignore text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+.env.example text eol=lf
 *.ps1 text eol=crlf
 *.woff2 binary
 *.png binary

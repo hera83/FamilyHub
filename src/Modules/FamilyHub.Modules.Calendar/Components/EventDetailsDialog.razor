@@ -1,0 +1,63 @@
+@* Everything about one appointment. Read-only – changes are made in Google Calendar. *@
+<HubDialog Open="Event is not null" OpenChanged="OnOpenChanged" Title="@(Event?.Title ?? "")" Size="DialogSize.Small">
+    @if (Event is { } e)
+    {
+        <div class="cal-details">
+            <p class="cal-details__row">
+                <Icon Name="IconName.Clock" />
+                <span>@CalendarLayout.WhenLabel(e)</span>
+            </p>
+            @if (Calendar is { } calendar)
+            {
+                <p class="cal-details__row">
+                    @if (calendar.Member is { } member)
+                    {
+                        <HubAvatar Member="member" Size="AvatarSize.Small" />
+                    }
+                    else
+                    {
+                        <HubAvatar Name="@calendar.Name" Color="calendar.Color" Size="AvatarSize.Small" />
+                    }
+                    <span>
+                        @calendar.OwnerLabel
+                        @if (calendar.Member is null || calendar.Name != calendar.Member.Name)
+                        {
+                            <span class="hub-muted"> · @calendar.Name</span>
+                        }
+                    </span>
+                </p>
+            }
+            @if (e.Location is { } location)
+            {
+                <p class="cal-details__row">
+                    <Icon Name="IconName.MapPin" />
+                    <span>@location</span>
+                </p>
+            }
+            @if (e.Description is { } description)
+            {
+                <p class="cal-details__description">@description</p>
+            }
+        </div>
+    }
+</HubDialog>
+
+@code {
+    /// <summary>The appointment to show. Null closes the dialog.</summary>
+    [Parameter]
+    public CalendarEvent? Event { get; set; }
+
+    [Parameter]
+    public CalendarEntry? Calendar { get; set; }
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    private async Task OnOpenChanged(bool open)
+    {
+        if (!open)
+        {
+            await OnClose.InvokeAsync();
+        }
+    }
+}

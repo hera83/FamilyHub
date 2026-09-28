@@ -43,6 +43,46 @@ public static class DanishFormat
         _ => Capitalize(ShortDate(date)),
     };
 
+    /// <summary>"Man", "Tir" … – column headers in week and month views.</summary>
+    public static string WeekdayShort(DayOfWeek day) =>
+        Capitalize(Culture.DateTimeFormat.GetAbbreviatedDayName(day).TrimEnd('.'));
+
+    /// <summary>"September 2026".</summary>
+    public static string MonthYear(DateOnly date) => Capitalize(date.ToString("MMMM yyyy", Culture));
+
+    /// <summary>"21.–27. september", "28. september – 4. oktober", "28. december 2026 – 3. januar 2027".</summary>
+    public static string DayRange(DateOnly first, DateOnly last)
+    {
+        if (first.Year != last.Year)
+        {
+            return $"{first.ToString("d. MMMM yyyy", Culture)} – {last.ToString("d. MMMM yyyy", Culture)}";
+        }
+
+        return first.Month == last.Month
+            ? $"{first.Day}.–{last.ToString("d. MMMM", Culture)}"
+            : $"{first.ToString("d. MMMM", Culture)} – {last.ToString("d. MMMM", Culture)}";
+    }
+
+    /// <summary>"15:30–17:00".</summary>
+    public static string TimeRange(TimeOnly start, TimeOnly end) => $"{Time(start)}–{Time(end)}";
+
+    /// <summary>"15 min", "1 time", "1½ time", "2 timer", "2 t 15 min".</summary>
+    public static string Duration(TimeSpan duration)
+    {
+        var minutes = (int)Math.Round(duration.TotalMinutes);
+        var hours = minutes / 60;
+        var rest = minutes % 60;
+        return (hours, rest) switch
+        {
+            (0, _) => $"{rest} min",
+            (1, 0) => "1 time",
+            (1, 30) => "1½ time",
+            (_, 0) => $"{hours} timer",
+            (_, 30) => $"{hours}½ time",
+            _ => $"{hours} t {rest} min",
+        };
+    }
+
     public static string Capitalize(string text) =>
         string.IsNullOrEmpty(text) ? text : char.ToUpper(text[0], Culture) + text[1..];
 }

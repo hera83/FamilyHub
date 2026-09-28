@@ -1,0 +1,14 @@
+.cal-connect {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--hub-space-3);
+}
+
+.cal-path {
+    display: block;
+    margin: var(--hub-space-2) 0;
+    font-family: ui-monospace, "Cascadia Mono", "DejaVu Sans Mono", monospace;
+    font-size: var(--hub-text-sm);
+    overflow-wrap: anywhere;
+}

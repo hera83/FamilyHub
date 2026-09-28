@@ -9,7 +9,7 @@ namespace FamilyHub.Core.Storage;
 /// </summary>
 public interface IAppDataPaths
 {
-    /// <summary>Root folder, e.g. <c>/var/lib/familyhub</c> on the Raspberry Pi.</summary>
+    /// <summary>Root folder, e.g. <c>/data</c> in the Docker container.</summary>
     string Root { get; }
 
     /// <summary>Full path to a file under <see cref="Root"/>. Parent folders are created.</summary>

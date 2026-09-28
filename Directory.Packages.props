@@ -4,10 +4,6 @@
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
   </PropertyGroup>
 
-  <ItemGroup Label="App">
-    <PackageVersion Include="Microsoft.Extensions.Hosting.Systemd" Version="10.0.9" />
-  </ItemGroup>
-
   <ItemGroup Label="Test">
     <PackageVersion Include="bunit" Version="2.11.3" />
     <PackageVersion Include="coverlet.collector" Version="6.0.4" />

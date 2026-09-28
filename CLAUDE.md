@@ -1,6 +1,6 @@
 # Family Hub – projektinstruktioner til Claude
 
-Familiens køkkenskærm på en Raspberry Pi 5 (16 GB) med 19" touchskærm, centralt placeret i huset.
+Familiens køkkenskærm: serveren kører i Docker i homelab'en, og en Raspberry Pi 5 med 19" touchskærm viser den i kiosktilstand.
 Kommunikér med brugeren på dansk. Brugerfladen er på dansk.
 
 ## Kommandoer
@@ -11,8 +11,11 @@ Kommunikér med brugeren på dansk. Brugerfladen er på dansk.
 | Kør | `dotnet run --project src/FamilyHub.Web` → http://localhost:5080 |
 | Test | `dotnet test FamilyHub.slnx` (xUnit, bUnit, WebApplicationFactory) |
 | UI-røgtest | Kør appen, derefter `cd tools/ui-smoke; npm install; node smoke.mjs` – tjekker touch/tastatur og gemmer skærmbilleder, som du skal se på |
-| Pi-pakke | `.\deploy\publish-pi.ps1 -SkipDeploy` |
-| Deploy til Pi | `.\deploy\publish-pi.ps1 -PiHost familyhub.local` |
+| Demodata (kalender uden Google) | `cd tools/ui-smoke; node demo-data.mjs`, start appen med `$env:FamilyHub__DataDirectory = (Resolve-Path ./demo-data)` |
+| Kildepakke til serveren | `.\deploy\publish-server.ps1 -SkipDeploy` |
+| Deploy til serveren (Docker) | `.\deploy\publish-server.ps1 -Server homelab.local -User <bruger>` |
+| Kiosk på Pi'en | `.\deploy\opsaet-kiosk.ps1 -ServerUrl http://homelab.local:8080` |
+| Google-login (tunnel) | `.\deploy\forbind-google.ps1 -Server homelab.local -User <bruger>` |
 
 Kører appen allerede, låser den DLL'erne – stop processen på port 5080, før du bygger igen.
 
@@ -34,7 +37,7 @@ Læs `docs/standarder/` før en ny menu bygges. Det vigtigste:
    Skallen i `FamilyHub.Web` ændres kun for at registrere modulet (projektreference + `.Add<…>()` i `Program.cs`).
 2. **Kun komponenter fra FamilyHub.UI:** `HubPage`, `HubSection`, `HubGrid`, `HubCard`, `HubList`/`HubListItem`,
    `HubButton`, `HubTextField`, `NumberStepper`, `HubChoice`, `HubSwitch`, `InfoBox`, `HubDialog`, `EmptyState`,
-   `HubAvatar`, `HubBadge`, `Icon`. Ingen rå `<button>`, `<input>` eller hjemmelavede dialoger.
+   `HubAvatar`, `HubBadge`, `HubPressable`, `Icon`. Ingen rå `<button>`, `<input>` eller hjemmelavede dialoger.
 3. **Kun design-tokens** (`var(--hub-…)` fra `tokens.css`). Modul-CSS i `.razor.css`. Ingen hårdkodede farver
    eller px-tekststørrelser – ellers virker nattilstand og visningsstørrelse ikke.
 4. **Vælg frem for at skrive.** Små tal → `NumberStepper`; få valg → `HubChoice`; til/fra → `HubSwitch`;
@@ -72,4 +75,6 @@ Læs `docs/standarder/` før en ny menu bygges. Det vigtigste:
 | `src/FamilyHub.UI/Modules/` | Modul-kontrakten (`HubModule`, `DashboardWidget`, `ModuleCatalog`) |
 | `src/FamilyHub.Web/Program.cs` | Registrering af moduler |
 | `src/FamilyHub.Web/Components/Pages/Settings/DesignGuide.razor` | Levende komponentoversigt – også kodeeksempel |
-| `deploy/` + `docs/raspberry-pi.md` | Installation og opdatering på Pi'en |
+| `Dockerfile`, `docker-compose.yml`, `.env.example` | Serveren i Docker; indstillinger og hemmeligheder kun i `.env` (aldrig i git eller imaget) |
+| `deploy/` + `docs/raspberry-pi.md` | Scripts til server og kiosk; opsætning af køkkenskærmen |
+| `docs/google-kalender.md` | Google-opsætning til kalenderen (nøgler i `.env`, login via SSH-tunnel) |

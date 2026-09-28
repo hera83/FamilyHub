@@ -1,0 +1,30 @@
+.cal-details {
+    display: flex;
+    flex-direction: column;
+    gap: var(--hub-space-4);
+}
+
+.cal-details__row {
+    display: flex;
+    align-items: center;
+    gap: var(--hub-space-3);
+    font-size: var(--hub-text-md);
+}
+
+.cal-details__row ::deep .hub-icon {
+    flex: none;
+    width: 1.5rem;
+    height: 1.5rem;
+    color: var(--hub-text-muted);
+}
+
+.cal-details__description {
+    max-height: 16rem;
+    overflow-y: auto;
+    padding: var(--hub-space-4);
+    border-radius: var(--hub-radius-md);
+    background: var(--hub-surface-muted);
+    color: var(--hub-text-muted);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}

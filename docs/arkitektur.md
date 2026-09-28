@@ -3,15 +3,26 @@
 ## Overblik
 
 ```
+Homelab-server (Docker, x64 eller arm64)
+└─ container "familyhub" ──► FamilyHub.Web (ASP.NET Core / Blazor Server, .NET 10)
+     restart: unless-stopped    port 8080 (fast)    volumen: /data
+     indstillinger + Google-nøgler fra .env
+                    ▲
+                    │ http + WebSocket (SignalR) over hjemmenettet
+                    │
 Raspberry Pi 5 (Raspberry Pi OS, 64-bit)
-├─ systemd: familyhub.service ──► FamilyHub.Web (ASP.NET Core / Blazor Server, .NET 10)
-│                                  http://localhost:5000   data: /var/lib/familyhub
-└─ skrivebord (labwc) ──► Chromium i kiosktilstand ──► http://localhost:5000
+└─ skrivebord (labwc) ──► Chromium i kiosktilstand ──► http://homelab.local:8080
                            (19" touchskærm, dansk skærmtastatur i appen)
 ```
 
 Al logik er C#. Chromium står kun for visning og touch. Blazor Server holder én forbindelse (SignalR)
-pr. skærm; på localhost er det hurtigt og uden ventetid.
+pr. skærm. På et kablet hjemmenet er ventetiden umærkelig; Pi'en bør derfor sidde på kabel.
+
+Konsekvenser af at server og skærm er adskilt:
+
+- Er serveren nede, er skærmen det også. Kiosken venter på `/health`, og appen genforbinder selv.
+- Google-login kræver `localhost` – det sker fra den bærbare gennem en SSH-tunnel (`deploy/forbind-google.ps1`).
+- Appen har ingen login endnu. Adgangen til porten begrænses i netværket (VLAN, reverse proxy), ikke i appen.
 
 ## Hvorfor Blazor Server + Chromium-kiosk?
 
@@ -20,8 +31,8 @@ pr. skærm; på localhost er det hurtigt og uden ventetid.
 | C# og .NET 10 | Blazor – komponenter, services og logik i C#. |
 | Pålidelig touch, skrift og grafik på Pi'en | Chromium: moden touch-håndtering og GPU-rendering på Raspberry Pi. |
 | Roligt, fleksibelt design | HTML/CSS med design-tokens – nemt at holde ensartet og få nattilstand. |
-| Robusthed | systemd genstarter appen; kiosken venter på `/health` og genindlæser selv efter opdateringer. |
-| Senere: brug fra telefonen | Samme app kan åbnes fra telefoner på hjemmenettet (kræver én linje i servicen). |
+| Robusthed | Docker genstarter containeren; kiosken venter på `/health` og genindlæser selv efter opdateringer. |
+| Brug fra flere skærme | Samme server kan åbnes fra flere skærme og telefoner på hjemmenettet. |
 
 Alternativer, der blev fravalgt: **Avalonia** (native, men sværere touch-/tastaturhåndtering og design på Pi'en),
 **.NET MAUI** (understøtter ikke Linux).
@@ -57,6 +68,7 @@ FamilyHub.Web       værten: Program.cs, layout, navigation, forside, indstillin
 | `IHouseholdService` | Singleton | Familiens indstillinger, `Changed`-event til alle skærme |
 | `IAppDataPaths` | Singleton | Datamappen og undermapper pr. modul |
 | `ModuleCatalog` | Singleton | Registrerede moduler, navigation og widgets |
+| `CalendarService` (Kalender) | Singleton | Google-konti, kalendere, lokal kopi af aftaler; `CalendarSyncWorker` synkroniserer i baggrunden |
 | `IToastService` | Scoped | Toasts på denne skærm |
 | `DeviceService` | Scoped | Skærmens egenskaber og egne indstillinger |
 | `KeyboardService` | Scoped | Skærmtastaturets tilstand |
@@ -70,7 +82,7 @@ FamilyHub.Web       værten: Program.cs, layout, navigation, forside, indstillin
 - **Fejl i en side:** `ErrorBoundary` i layoutet viser en venlig besked; navigation og resten virker.
 - **Knapper:** deaktiveres mens de arbejder og laver fejl om til toasts.
 - **Forbindelse:** genforbinder selv; genindlæser først, når `/health` svarer (så Chromium aldrig ender på en fejlside).
-- **Proces:** systemd `Restart=always`; kiosk-scriptet genstarter Chromium, hvis den lukkes.
+- **Proces:** Docker `restart: unless-stopped` + healthcheck på `/health`; kiosk-scriptet genstarter Chromium, hvis den lukkes.
 - **Inaktivitet:** skærmen kan vende tilbage til forsiden efter X minutter (indstilles pr. skærm).
 
 ## Beslutninger
@@ -82,4 +94,7 @@ FamilyHub.Web       værten: Program.cs, layout, navigation, forside, indstillin
 | 2026-09-25 | Eget skærmtastatur i appen (dansk, touch-bevidst) frem for styresystemets. |
 | 2026-09-25 | Én menu = ét modul-projekt med en `HubModule`-klasse. |
 | 2026-09-25 | Data: JSON-filer til indstillinger; EF Core + SQLite pr. modul, når der kommer rigtige data. |
-| 2026-09-25 | Appen lytter kun på localhost, indtil der er login. |
+| 2026-09-25 | Appen lytter kun på localhost, indtil der er login. *Erstattet 2026-09-28.* |
+| 2026-09-26 | Kalender: Google via OAuth for installerede apps (kode + PKCE, loopback-redirect). Login på skærmen eller fra den bærbare via SSH-tunnel – så appen kan blive på localhost. Se `docs/google-kalender.md`. |
+| 2026-09-26 | Kalender: ingen Google-SDK – få HTTP-kald. Lokal kopi af aftalerne på disk, så skærmen virker uden net. |
+| 2026-09-28 | Serveren kører i Docker i homelab'en; Raspberry Pi'en er kun kiosk. Indstillinger og Google-nøgler i `.env` (skabelon `.env.example`), data på en volumen (`/data`). Appen lytter på hjemmenettet; adgangen begrænses i netværket, indtil der er login. Google-login via SSH-tunnel til serveren. |

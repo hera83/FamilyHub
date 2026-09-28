@@ -38,6 +38,22 @@ public sealed class AppStartupTests : IDisposable
     }
 
     [Fact]
+    public async Task Privacy_policy_is_served_as_plain_html_for_google()
+    {
+        using var factory = CreateFactory();
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/privacypolicy");
+        var html = await response.Content.ReadAsStringAsync();
+
+        response.EnsureSuccessStatusCode();
+        Assert.Equal("text/html", response.Content.Headers.ContentType?.MediaType);
+        Assert.Contains("Privacy Policy", html);
+        Assert.Contains("Limited Use", html);
+        Assert.DoesNotContain("blazor.web", html);
+    }
+
+    [Fact]
     public async Task Start_page_serves_the_danish_app_shell()
     {
         using var factory = CreateFactory();
@@ -59,5 +75,18 @@ public sealed class AppStartupTests : IDisposable
         var error = Assert.ThrowsAny<Exception>(() => factory.CreateClient());
 
         Assert.Contains("tidszone", error.ToString());
+    }
+
+    [Theory]
+    [InlineData("/kalender")]
+    [InlineData("/kalender/indstillinger")]
+    public async Task Calendar_pages_are_served(string path)
+    {
+        using var factory = CreateFactory();
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync(path);
+
+        Assert.True(response.IsSuccessStatusCode, $"{path} gav {(int)response.StatusCode}");
     }
 }

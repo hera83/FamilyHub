@@ -1,0 +1,87 @@
+@implements IDisposable
+@inject CalendarService Calendar
+@inject IHubClock Clock
+
+@*
+    Home screen card: what's left of today – readable from across the kitchen.
+    When the day is done, it shows the next appointment instead.
+*@
+<HubCard Title="I dag" Icon="IconName.Calendar" Href="@CalendarModule.Path.TrimStart('/')" Class="cal-today">
+    @if (Calendar.Accounts.Count == 0)
+    {
+        <p class="hub-muted">Forbind jeres Google-kalender, så kommer dagens aftaler her.</p>
+    }
+    else if (!Calendar.HasData)
+    {
+        <HubSkeleton Lines="3" />
+    }
+    else if (upcoming.Count > 0)
+    {
+        <ul class="cal-today__list">
+            @foreach (var e in upcoming.Take(MaxItems))
+            {
+                var calendar = calendars.GetValueOrDefault(e.CalendarId);
+                <li class="cal-today__item" style="--cal-color:@MemberColors.CssVariable(calendar?.Color ?? MemberColor.Stone)">
+                    <span class="cal-today__time hub-numeric">@CalendarLayout.TimeLabel(e, today).Split('–')[0]</span>
+                    <span class="cal-today__title">@e.Title</span>
+                    @if (calendar is not null)
+                    {
+                        <span class="cal-today__owner">@(calendar.Member?.Name ?? calendar.Name)</span>
+                    }
+                </li>
+            }
+        </ul>
+        @if (upcoming.Count > MaxItems)
+        {
+            <p class="hub-muted hub-small">+@(upcoming.Count - MaxItems) mere i dag</p>
+        }
+    }
+    else
+    {
+        <p class="cal-today__free">Ikke flere aftaler i dag</p>
+        @if (next is { } n)
+        {
+            <p class="hub-muted">
+                Næste: @DanishFormat.RelativeDay(n.StartDate, today)@(n.IsAllDay ? "" : $" {DanishFormat.Time(TimeOnly.FromDateTime(n.Start.DateTime))}") · @n.Title
+            </p>
+        }
+    }
+</HubCard>
+
+@code {
+    private const int MaxItems = 4;
+
+    private DateOnly today;
+    private IReadOnlyList<CalendarEvent> upcoming = [];
+    private CalendarEvent? next;
+    private IReadOnlyDictionary<string, CalendarEntry> calendars = new Dictionary<string, CalendarEntry>();
+    private IDisposable? tick;
+
+    protected override void OnInitialized()
+    {
+        Refresh();
+        Calendar.Changed += OnChanged;
+        tick = Clock.SubscribeMinuteTick(time => OnChanged());
+    }
+
+    private void Refresh()
+    {
+        var now = Clock.Now;
+        today = DateOnly.FromDateTime(now.DateTime);
+        calendars = Calendar.VisibleCalendars.ToDictionary(c => c.Id);
+        upcoming = [.. Calendar.GetEvents(today, today.AddDays(1)).Where(e => e.End > now)];
+        next = upcoming.Count > 0 ? null : Calendar.GetEvents(today.AddDays(1), today.AddDays(15)).FirstOrDefault();
+    }
+
+    private void OnChanged() => _ = InvokeAsync(() =>
+    {
+        Refresh();
+        StateHasChanged();
+    });
+
+    public void Dispose()
+    {
+        Calendar.Changed -= OnChanged;
+        tick?.Dispose();
+    }
+}

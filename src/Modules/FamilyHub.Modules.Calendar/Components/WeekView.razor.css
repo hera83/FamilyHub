@@ -1,0 +1,89 @@
+.cal-week {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: var(--hub-space-3);
+    align-items: stretch;
+}
+
+.cal-week__day {
+    display: flex;
+    flex-direction: column;
+    gap: var(--hub-space-2);
+    min-width: 0;
+    min-height: 26rem;
+    padding: var(--hub-space-2) var(--hub-space-2) var(--hub-space-3);
+    border: 1px solid var(--hub-border);
+    border-radius: var(--hub-radius-lg);
+    background: var(--hub-surface);
+}
+
+.cal-week__day--weekend {
+    background: var(--hub-surface-muted);
+}
+
+.cal-week__day--today {
+    border-color: var(--hub-accent);
+    box-shadow: 0 0 0 1px var(--hub-accent);
+}
+
+.cal-week__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--hub-space-2);
+    min-height: var(--hub-touch-min);
+    padding: 0 var(--hub-space-2);
+    border-radius: var(--hub-radius-md);
+}
+
+.cal-week__weekday {
+    color: var(--hub-text-muted);
+    font-size: var(--hub-text-sm);
+    font-weight: var(--hub-weight-bold);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.cal-week__date {
+    display: inline-grid;
+    place-items: center;
+    min-width: 2.5rem;
+    height: 2.5rem;
+    padding: 0 var(--hub-space-1);
+    border-radius: var(--hub-radius-pill);
+    font-size: var(--hub-text-xl);
+    font-weight: var(--hub-weight-bold);
+}
+
+.cal-week__day--today .cal-week__weekday {
+    color: var(--hub-accent-strong);
+}
+
+.cal-week__day--today .cal-week__date {
+    background: var(--hub-accent);
+    color: var(--hub-text-on-accent);
+}
+
+.cal-week__day--past .cal-week__head {
+    opacity: 0.6;
+}
+
+.cal-week__events {
+    display: flex;
+    flex-direction: column;
+    gap: var(--hub-space-2);
+}
+
+@media (max-width: 100rem) {
+    .cal-week {
+        gap: var(--hub-space-2);
+    }
+
+    .cal-week__day {
+        padding: var(--hub-space-1) var(--hub-space-1) var(--hub-space-2);
+    }
+
+    .cal-week__head {
+        padding: 0 var(--hub-space-1);
+    }
+}

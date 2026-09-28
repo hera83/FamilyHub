@@ -53,6 +53,8 @@ public enum IconName
     Sun,
     Moon,
     Clock,
+    MapPin,
+    Link,
     Monitor,
     Smartphone,
     Server,

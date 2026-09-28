@@ -13,9 +13,6 @@ CultureInfo.DefaultThreadCurrentUICulture = danish;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Under systemd on the Raspberry Pi: proper start-up notification and journald logging. No-op elsewhere.
-builder.Services.AddSystemd();
-
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents(options => options.DetailedErrors = builder.Environment.IsDevelopment());
 builder.Services.AddHealthChecks();
@@ -46,6 +43,11 @@ app.UseAntiforgery();
 
 app.MapStaticAssets();
 app.MapHealthChecks("/health");
+
+// Public privacy policy required by Google's OAuth consent screen. Plain HTML (not Blazor), so it can be read
+// without JavaScript. Intentionally not linked from the app.
+app.MapGet("/privacypolicy", (IWebHostEnvironment env) =>
+    Results.Stream(env.WebRootFileProvider.GetFileInfo("privacypolicy.html").CreateReadStream(), "text/html; charset=utf-8"));
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode()
     .AddAdditionalAssemblies([.. modules.Assemblies.Where(a => a != typeof(Program).Assembly)]);

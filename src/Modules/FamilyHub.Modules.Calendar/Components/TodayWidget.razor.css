@@ -1,0 +1,43 @@
+.cal-today__list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--hub-space-3);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.cal-today__item {
+    display: grid;
+    grid-template-columns: 4.25rem minmax(0, 1fr);
+    column-gap: var(--hub-space-3);
+    padding-left: var(--hub-space-3);
+    border-left: 0.3125rem solid var(--cal-color);
+    line-height: var(--hub-leading-tight);
+}
+
+.cal-today__time {
+    grid-row: span 2;
+    padding-top: 0.125rem;
+    color: var(--hub-text-muted);
+    font-size: var(--hub-text-sm);
+    font-weight: var(--hub-weight-bold);
+}
+
+.cal-today__title {
+    overflow: hidden;
+    font-size: var(--hub-text-lg);
+    font-weight: var(--hub-weight-bold);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.cal-today__owner {
+    color: var(--hub-text-muted);
+    font-size: var(--hub-text-sm);
+}
+
+.cal-today__free {
+    font-size: var(--hub-text-lg);
+    font-weight: var(--hub-weight-medium);
+}

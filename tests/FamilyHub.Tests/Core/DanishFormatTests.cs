@@ -99,4 +99,34 @@ public class DanishFormatTests
 
         Assert.Equal(3, calls);
     }
+
+    [Fact]
+    public void Calendar_headings_are_written_the_danish_way()
+    {
+        Assert.Equal("Man", DanishFormat.WeekdayShort(DayOfWeek.Monday));
+        Assert.Equal("Søn", DanishFormat.WeekdayShort(DayOfWeek.Sunday));
+        Assert.Equal("September 2026", DanishFormat.MonthYear(new DateOnly(2026, 9, 26)));
+        Assert.Equal("15:30–17:00", DanishFormat.TimeRange(new TimeOnly(15, 30), new TimeOnly(17, 0)));
+    }
+
+    [Theory]
+    [InlineData("2026-09-21", "2026-09-27", "21.–27. september")]
+    [InlineData("2026-09-28", "2026-10-04", "28. september – 4. oktober")]
+    [InlineData("2026-12-28", "2027-01-03", "28. december 2026 – 3. januar 2027")]
+    public void Day_ranges_only_repeat_what_changes(string first, string last, string expected)
+    {
+        Assert.Equal(expected, DanishFormat.DayRange(DateOnly.Parse(first), DateOnly.Parse(last)));
+    }
+
+    [Theory]
+    [InlineData(15, "15 min")]
+    [InlineData(60, "1 time")]
+    [InlineData(90, "1½ time")]
+    [InlineData(120, "2 timer")]
+    [InlineData(150, "2½ time")]
+    [InlineData(135, "2 t 15 min")]
+    public void Durations_read_naturally(int minutes, string expected)
+    {
+        Assert.Equal(expected, DanishFormat.Duration(TimeSpan.FromMinutes(minutes)));
+    }
 }

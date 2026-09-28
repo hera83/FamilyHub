@@ -1,0 +1,138 @@
+.cal-month {
+    display: flex;
+    flex-direction: column;
+    gap: var(--hub-space-2);
+}
+
+.cal-month__row {
+    display: grid;
+    grid-template-columns: 3rem repeat(7, minmax(0, 1fr));
+    gap: var(--hub-space-2);
+}
+
+.cal-month__row--head {
+    padding: 0 0 var(--hub-space-1);
+}
+
+.cal-month__weekday,
+.cal-month__week {
+    color: var(--hub-text-muted);
+    font-size: var(--hub-text-xs);
+    font-weight: var(--hub-weight-bold);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.cal-month__weekday {
+    padding: 0 var(--hub-space-3);
+}
+
+.cal-month__week {
+    align-self: start;
+    padding-top: var(--hub-space-3);
+    color: var(--hub-text-subtle);
+    text-align: center;
+    text-transform: none;
+    letter-spacing: 0;
+}
+
+.cal-month__cell {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1875rem;
+    height: 100%;
+    min-height: 8.25rem;
+    padding: var(--hub-space-2);
+    border: 1px solid var(--hub-border);
+    border-radius: var(--hub-radius-md);
+    background: var(--hub-surface);
+    overflow: hidden;
+    transition: border-color var(--hub-duration-fast);
+}
+
+.cal-month__cell--weekend {
+    background: var(--hub-surface-muted);
+}
+
+.cal-month__cell--outside {
+    background: transparent;
+    border-style: dashed;
+    opacity: 0.55;
+}
+
+.cal-month__cell--past .cal-month__date {
+    color: var(--hub-text-subtle);
+}
+
+.cal-month__cell--today {
+    border-color: var(--hub-accent);
+    box-shadow: 0 0 0 1px var(--hub-accent);
+}
+
+.cal-month__date {
+    display: inline-grid;
+    place-items: center;
+    align-self: flex-start;
+    min-width: 2rem;
+    height: 2rem;
+    margin-bottom: 0.125rem;
+    padding: 0 var(--hub-space-1);
+    border-radius: var(--hub-radius-pill);
+    font-size: var(--hub-text-md);
+    font-weight: var(--hub-weight-bold);
+}
+
+.cal-month__cell--today .cal-month__date {
+    background: var(--hub-accent);
+    color: var(--hub-text-on-accent);
+}
+
+.cal-month__item {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    min-width: 0;
+    font-size: var(--hub-text-xs);
+    line-height: 1.35;
+    white-space: nowrap;
+}
+
+.cal-month__item--allday {
+    display: block;
+    overflow: hidden;
+    padding: 0 var(--hub-space-2);
+    border-radius: var(--hub-radius-pill);
+    background: color-mix(in srgb, var(--cal-color) 24%, var(--hub-surface));
+    font-weight: var(--hub-weight-bold);
+    text-overflow: ellipsis;
+}
+
+.cal-month__dot {
+    flex: none;
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+    background: var(--cal-color);
+}
+
+.cal-month__time {
+    flex: none;
+    color: var(--hub-text-muted);
+    font-weight: var(--hub-weight-medium);
+}
+
+.cal-month__title {
+    overflow: hidden;
+    font-weight: var(--hub-weight-medium);
+    text-overflow: ellipsis;
+}
+
+.cal-month__more {
+    color: var(--hub-text-muted);
+    font-size: var(--hub-text-xs);
+    font-weight: var(--hub-weight-bold);
+}
+
+::deep .hub-pressable {
+    height: 100%;
+}

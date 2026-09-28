@@ -1,0 +1,88 @@
+.cal-event {
+    --cal-tint: color-mix(in srgb, var(--cal-color) 14%, var(--hub-surface));
+    --cal-tint-strong: color-mix(in srgb, var(--cal-color) 24%, var(--hub-surface));
+
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    min-width: 0;
+    padding: var(--hub-space-2) var(--hub-space-3);
+    border-left: 0.3125rem solid var(--cal-color);
+    border-radius: var(--hub-radius-sm);
+    background: var(--cal-tint);
+    color: var(--hub-text);
+    line-height: var(--hub-leading-tight);
+    transition: background-color var(--hub-duration-fast), opacity var(--hub-duration);
+}
+
+.cal-event:active {
+    background: var(--cal-tint-strong);
+}
+
+.cal-event__time {
+    color: var(--hub-text-muted);
+    font-size: var(--hub-text-xs);
+    font-weight: var(--hub-weight-bold);
+    letter-spacing: 0.01em;
+}
+
+.cal-event__title {
+    display: -webkit-box;
+    overflow: hidden;
+    font-size: var(--hub-text-sm);
+    font-weight: var(--hub-weight-bold);
+    overflow-wrap: break-word;
+    hyphens: auto; /* Danish hyphenation (html lang="da") – "Fodbold-kamp" instead of "Fodboldkam p" */
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+}
+
+.cal-event__meta,
+.cal-event__owner {
+    overflow: hidden;
+    color: var(--hub-text-muted);
+    font-size: var(--hub-text-xs);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Already over: still readable, but steps back. */
+.cal-event--past {
+    opacity: 0.62;
+}
+
+/* Block in the time grid: fills its slot; a short block shows as much as fits. */
+.cal-event--block {
+    height: 100%;
+    overflow: hidden;
+    padding: var(--hub-space-1) var(--hub-space-2) var(--hub-space-1) var(--hub-space-3);
+    box-shadow: 0 0 0 1px var(--hub-surface);
+}
+
+.cal-event--block .cal-event__title {
+    -webkit-line-clamp: 4;
+}
+
+/* All-day: stronger tint so it reads as "the whole day". Title may take two lines; the owner follows. */
+.cal-event--allday {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: baseline;
+    column-gap: var(--hub-space-2);
+    padding: var(--hub-space-1) var(--hub-space-3);
+    border-left-width: 0;
+    border-radius: var(--hub-radius-sm);
+    background: var(--cal-tint-strong);
+}
+
+.cal-event--allday .cal-event__title {
+    -webkit-line-clamp: 2;
+}
+
+/* Narrow columns (e.g. a 1280 px screen): a little less padding, more room for the words. */
+@media (max-width: 100rem) {
+    .cal-event {
+        padding: var(--hub-space-1) var(--hub-space-2);
+        border-left-width: 0.25rem;
+    }
+}

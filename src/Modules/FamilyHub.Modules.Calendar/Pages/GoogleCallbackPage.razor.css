@@ -1,0 +1,7 @@
+.cal-callback {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--hub-space-4);
+    padding: var(--hub-space-12) 0;
+}

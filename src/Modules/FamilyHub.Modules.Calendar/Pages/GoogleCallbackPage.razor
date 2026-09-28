@@ -1,0 +1,54 @@
+@attribute [Microsoft.AspNetCore.Components.Route(CalendarModule.CallbackPath)]
+@inject CalendarService Calendar
+@inject NavigationManager Navigation
+@inject IToastService Toasts
+@inject ILogger<GoogleCallbackPage> Logger
+
+@* Google sends the browser back here after sign-in. Finish quietly and return to the settings. *@
+<HubPage Title="Google-konto" Width="PageWidth.Narrow">
+    <div class="cal-callback">
+        <HubSpinner Label="Forbinder …" />
+        <p class="hub-muted">Forbinder Google-kontoen …</p>
+    </div>
+</HubPage>
+
+@code {
+    [SupplyParameterFromQuery(Name = "code")]
+    public string? Code { get; set; }
+
+    [SupplyParameterFromQuery(Name = "state")]
+    public string? State { get; set; }
+
+    [SupplyParameterFromQuery(Name = "error")]
+    public string? Error { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Error is not null)
+        {
+            // "access_denied" = the user pressed Annuller at Google.
+            Logger.LogInformation("Google sign-in was not completed: {Error}", Error);
+            Toasts.Warning("Google-kontoen blev ikke forbundet", Error == "access_denied" ? "Du kan prøve igen, når du er klar." : "Prøv igen om lidt.");
+        }
+        else if (string.IsNullOrEmpty(Code) || string.IsNullOrEmpty(State))
+        {
+            Toasts.Error("Google-kontoen blev ikke forbundet", "Prøv igen om lidt.");
+        }
+        else
+        {
+            try
+            {
+                var account = await Calendar.CompleteSignInAsync(State, Code);
+                Toasts.Success($"{account.Email} er forbundet", "Kalenderne hentes nu.");
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "Google sign-in failed");
+                Toasts.Error("Google-kontoen blev ikke forbundet", "Prøv igen om lidt.");
+            }
+        }
+
+        // Replace, so the one-time code never ends up in the history.
+        Navigation.NavigateTo(CalendarModule.SettingsPath.TrimStart('/'), replace: true);
+    }
+}

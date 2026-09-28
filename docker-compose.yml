@@ -1,0 +1,44 @@
+# Family Hub – serveren i homelab'en.
+#
+#   1. cp .env.example .env    og udfyld .env (port, data, Google-nøgler)
+#   2. docker compose up -d --build
+#
+# Køkkenskærmen (Raspberry Pi i kiosktilstand) åbner derefter http://<server>:8080.
+# Værdierne ${…} kommer fra .env i samme mappe. Se README.md.
+
+name: familyhub
+
+services:
+  familyhub:
+    build: .
+    image: familyhub:latest
+    container_name: familyhub
+    restart: unless-stopped
+
+    # Fast: containerens port 8080 udstilles som 8080 på alle serverens netkort. Ikke til at ændre i .env.
+    ports:
+      - "8080:8080"
+
+    environment:
+      TZ: ${FAMILYHUB_TIMEZONE:-Europe/Copenhagen}
+      FamilyHub__TimeZone: ${FAMILYHUB_TIMEZONE:-Europe/Copenhagen}
+      # Tom = ikke sat op endnu. Kalenderen viser så, hvad der mangler.
+      FamilyHub__Calendar__Google__ClientId: ${GOOGLE_CLIENT_ID:-}
+      FamilyHub__Calendar__Google__ClientSecret: ${GOOGLE_CLIENT_SECRET:-}
+
+    volumes:
+      # Et navn = Docker-volumen. En sti (./data, /mnt/ssd/familyhub) = mappe på serveren.
+      - ${FAMILYHUB_DATA:-familyhub-data}:/data
+
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 20s
+
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+volumes:
+  familyhub-data:

@@ -1,0 +1,17 @@
+.cal-now {
+    display: flex;
+    align-items: center;
+    gap: var(--hub-space-2);
+    margin: var(--hub-space-1) 0;
+    color: var(--hub-accent-strong);
+    font-size: var(--hub-text-xs);
+    font-weight: var(--hub-weight-bold);
+}
+
+.cal-now::after {
+    content: "";
+    flex: 1;
+    height: 2px;
+    border-radius: var(--hub-radius-pill);
+    background: var(--hub-accent);
+}

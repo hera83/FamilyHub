@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk.Razor">
 
-  <!-- Modul: Familiens kalender (Google Kalender). Kun skelet indtil videre – se README.md. -->
+  <!-- Modul: Familiens kalender. Henter jeres Google-kalendere og viser dag, uge og måned. Se README.md. -->
 
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
@@ -9,6 +9,10 @@
   <ItemGroup>
     <ProjectReference Include="..\..\FamilyHub.Core\FamilyHub.Core.csproj" />
     <ProjectReference Include="..\..\FamilyHub.UI\FamilyHub.UI.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="FamilyHub.Tests" />
   </ItemGroup>
 
 </Project>

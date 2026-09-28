@@ -1,0 +1,100 @@
+@*
+    One day as a time grid with a column per family member (and one for shared calendars),
+    so the kitchen can see at a glance who has what, and when. Overlapping events share the width.
+*@
+@{
+    var laidOut = Columns
+        .Select(c => (Column: c,
+                      AllDay: c.Events.Where(e => CalendarLayout.IsAllDayOn(e, Day)).ToList(),
+                      Blocks: CalendarLayout.LayoutDay(c.Events, Day)))
+        .ToList();
+    var (startHour, endHour) = CalendarLayout.HourRange(laidOut.SelectMany(x => x.Blocks));
+    var hasAllDay = laidOut.Any(x => x.AllDay.Count > 0);
+    var isToday = DateOnly.FromDateTime(Now.DateTime) == Day;
+    var nowMinute = Now.Hour * 60 + Now.Minute - startHour * 60;
+    var showNow = isToday && nowMinute >= 0 && nowMinute <= (endHour - startHour) * 60;
+}
+<div class="cal-day" style="--cal-cols:@laidOut.Count;--cal-hours:@(endHour - startHour)">
+    <div class="cal-day__row cal-day__row--head">
+        <span></span>
+        @foreach (var (column, _, _) in laidOut)
+        {
+            <div class="cal-day__colhead">
+                @if (column.Member is { } member)
+                {
+                    <HubAvatar Member="member" Size="AvatarSize.Small" />
+                }
+                else
+                {
+                    <HubAvatar Name="@column.Label" Color="column.Color" Size="AvatarSize.Small" />
+                }
+                <span class="cal-day__name">@column.Label</span>
+            </div>
+        }
+    </div>
+
+    @if (hasAllDay)
+    {
+        <div class="cal-day__row cal-day__row--allday">
+            <span class="cal-day__gutter-label">Hele dagen</span>
+            @foreach (var (column, allDay, _) in laidOut)
+            {
+                <div class="cal-day__allday">
+                    @foreach (var e in allDay)
+                    {
+                        <EventCard Event="e" Calendar="Find(e)" Day="Day" Look="EventLook.AllDay" ShowOwner="false" OnSelect="OnSelect" />
+                    }
+                </div>
+            }
+        </div>
+    }
+
+    <div class="cal-day__grid">
+        <div class="cal-day__hours" aria-hidden="true">
+            @for (var hour = startHour; hour < endHour; hour++)
+            {
+                <span class="cal-day__hour hub-numeric" style="--row:@(hour - startHour)">@($"{hour:00}:00")</span>
+            }
+        </div>
+
+        @foreach (var (column, _, blocks) in laidOut)
+        {
+            <div class="cal-day__col" aria-label="@column.Label">
+                @foreach (var block in blocks)
+                {
+                    <div class="cal-day__block"
+                         style="--start:@(block.StartMinute - startHour * 60);--len:@(block.EndMinute - block.StartMinute);--lane:@block.Lane;--lanes:@block.Lanes">
+                        <EventCard Event="block.Event" Calendar="Find(block.Event)" Day="Day" Look="EventLook.Block" ShowOwner="false"
+                                   Past="block.Event.End <= Now" OnSelect="OnSelect" />
+                    </div>
+                }
+            </div>
+        }
+
+        @if (showNow)
+        {
+            <div class="cal-day__now" style="--at:@nowMinute" aria-hidden="true">
+                <span class="cal-day__now-label hub-numeric">@DanishFormat.Time(TimeOnly.FromDateTime(Now.DateTime))</span>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public DateOnly Day { get; set; }
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<DayColumn> Columns { get; set; } = [];
+
+    [Parameter, EditorRequired]
+    public IReadOnlyDictionary<string, CalendarEntry> Calendars { get; set; } = new Dictionary<string, CalendarEntry>();
+
+    [Parameter]
+    public DateTimeOffset Now { get; set; }
+
+    [Parameter]
+    public EventCallback<CalendarEvent> OnSelect { get; set; }
+
+    private CalendarEntry? Find(CalendarEvent e) => Calendars.GetValueOrDefault(e.CalendarId);
+}

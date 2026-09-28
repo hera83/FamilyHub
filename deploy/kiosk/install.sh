@@ -2,7 +2,7 @@
 # Family Hub – gør en Raspberry Pi til køkkenskærm (kun kiosk; serveren kører i Docker et andet sted).
 #
 #   sudo bash install.sh <server-adresse> [bruger]
-#   sudo bash install.sh http://homelab.local:5000 pi
+#   sudo bash install.sh http://homelab.local:8080 pi
 #
 # Raspberry Pi OS (64-bit, med skrivebord; Bookworm eller nyere). <bruger> er den bruger, der er logget ind på
 # skærmen (standard: den der kører sudo). Scriptet kan køres igen uden skade – fx for at skifte serveradresse.
@@ -20,7 +20,7 @@ fi
 
 SERVER_URL="${1:-}"
 if [[ ! "$SERVER_URL" =~ ^https?:// ]]; then
-  echo "Angiv serverens adresse, fx: sudo bash install.sh http://homelab.local:5000" >&2
+  echo "Angiv serverens adresse, fx: sudo bash install.sh http://homelab.local:8080" >&2
   exit 1
 fi
 SERVER_URL="${SERVER_URL%/}"

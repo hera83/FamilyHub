@@ -1,0 +1,43 @@
+@namespace FamilyHub.UI.Components
+
+@*
+    An unstyled touch target around custom content – e.g. an event in the calendar or a day in a month grid.
+    Gives press feedback, keyboard focus and the correct element (button or link); the look comes from the content.
+    Use HubButton, HubCard or HubListItem when one of them fits – this is for layouts they can't express.
+*@
+@if (Href is not null)
+{
+    <a class="@CssClass" href="@Href" aria-label="@AriaLabel" @attributes="AdditionalAttributes">@ChildContent</a>
+}
+else
+{
+    <button type="button" class="@CssClass" aria-label="@AriaLabel" disabled="@Disabled" @onclick="OnClick"
+            @attributes="AdditionalAttributes">@ChildContent</button>
+}
+
+@code {
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter]
+    public EventCallback<MouseEventArgs> OnClick { get; set; }
+
+    /// <summary>Renders a link instead of a button.</summary>
+    [Parameter]
+    public string? Href { get; set; }
+
+    /// <summary>Needed when the content doesn't read well on its own (e.g. only a number).</summary>
+    [Parameter]
+    public string? AriaLabel { get; set; }
+
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    [Parameter]
+    public string? Class { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string CssClass => Class is null ? "hub-pressable" : $"hub-pressable {Class}";
+}
