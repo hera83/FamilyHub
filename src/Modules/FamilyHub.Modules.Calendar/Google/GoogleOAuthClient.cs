@@ -17,10 +17,10 @@ public sealed record GoogleSignIn(string AccountId, string Email, string Refresh
 public sealed record GoogleAccessToken(string Value, DateTimeOffset ExpiresAt);
 
 /// <summary>
-/// Google sign-in for an installed app: authorization code + PKCE with a loopback redirect
-/// (http://localhost:…/kalender/google/callback). The browser that opened Family Hub on localhost
-/// does the sign-in – the kitchen screen itself or a laptop through an SSH tunnel.
-/// See https://developers.google.com/identity/protocols/oauth2/native-app.
+/// Google sign-in: authorization code + PKCE, redirected back to …/kalender/google/callback on the address
+/// the browser opened Family Hub on. Either https on the family's own domain (a "Web application" client with
+/// that redirect URI registered) or a loopback address (a "Desktop app" client – e.g. a laptop through an SSH tunnel).
+/// See https://developers.google.com/identity/protocols/oauth2/web-server and …/oauth2/native-app.
 /// </summary>
 public sealed class GoogleOAuthClient(IHttpClientFactory httpClients, GoogleCredentialsProvider credentials, TimeProvider time)
 {
@@ -45,10 +45,9 @@ public sealed class GoogleOAuthClient(IHttpClientFactory httpClients, GoogleCred
     public bool IsConfigured => credentials.Get() is not null;
 
     /// <summary>
-    /// Only a loopback address can receive Google's answer (Google allows http only for localhost),
-    /// and Family Hub only listens on localhost anyway.
+    /// Google only redirects to https or to a loopback address (http is allowed for localhost only).
     /// </summary>
-    public static bool CanSignInFrom(Uri baseUri) => baseUri.IsLoopback;
+    public static bool CanSignInFrom(Uri baseUri) => baseUri.IsLoopback || baseUri.Scheme == Uri.UriSchemeHttps;
 
     /// <summary>Starts a sign-in and returns the Google page to send the browser to.</summary>
     public Uri CreateSignInUrl(Uri redirectUri)

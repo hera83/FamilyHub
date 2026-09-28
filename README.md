@@ -86,7 +86,9 @@ cd ~/familyhub && docker compose up -d
 
 ### 3. Forbind Google-kontoen
 
-Google sender kun login-svaret tilbage til `localhost`. Derfor logger du ind fra den bærbare gennem en SSH-tunnel:
+Google sender kun login-svaret tilbage til en https-adresse eller `localhost`. Har Family Hub sit eget domæne med
+https (reverse proxy), så åbn `https://<domæne>/kalender/indstillinger` og tryk **Forbind Google-konto** – se
+[docs/google-kalender.md](docs/google-kalender.md). Ellers logger du ind fra den bærbare gennem en SSH-tunnel:
 
 ```powershell
 .\deploy\forbind-google.ps1 -Server homelab.local -User heine

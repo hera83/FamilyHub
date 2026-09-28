@@ -70,7 +70,7 @@
                             }
                             else
                             {
-                                @:Login virker kun, når Family Hub er åbnet som localhost. Forbind fra den bærbare med scriptet deploy/forbind-google.ps1.
+                                @:Login virker kun, når Family Hub er åbnet via https eller localhost. Åbn Family Hub på jeres https-adresse, eller brug scriptet deploy/forbind-google.ps1.
                             }
                         </p>
                     </div>
@@ -182,13 +182,13 @@
 @code {
     private const string SharedOwner = "faelles";
 
-    private bool isLoopback;
+    private bool isSignInAddress;
     private CalendarEntry? editing;
     private IReadOnlyList<ChoiceOption<string>> ownerOptions = [];
     private IDisposable? tick;
 
     // The key file is picked up without a restart, so this is checked on every render.
-    private bool canSignIn => isLoopback && Calendar.IsConfigured;
+    private bool canSignIn => isSignInAddress && Calendar.IsConfigured;
 
     private string SyncText
     {
@@ -209,7 +209,7 @@
 
     protected override void OnInitialized()
     {
-        isLoopback = GoogleOAuthClient.CanSignInFrom(new Uri(Navigation.BaseUri));
+        isSignInAddress = GoogleOAuthClient.CanSignInFrom(new Uri(Navigation.BaseUri));
         BuildOwnerOptions();
         Calendar.Changed += OnChanged;
         Household.Changed += OnHouseholdChanged;

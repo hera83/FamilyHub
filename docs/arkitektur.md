@@ -21,7 +21,8 @@ pr. skærm. På et kablet hjemmenet er ventetiden umærkelig; Pi'en bør derfor 
 Konsekvenser af at server og skærm er adskilt:
 
 - Er serveren nede, er skærmen det også. Kiosken venter på `/health`, og appen genforbinder selv.
-- Google-login kræver `localhost` – det sker fra den bærbare gennem en SSH-tunnel (`deploy/forbind-google.ps1`).
+- Google-login kræver https eller `localhost` – enten via jeres https-domæne (reverse proxy) eller fra den bærbare
+  gennem en SSH-tunnel (`deploy/forbind-google.ps1`).
 - Appen har ingen login endnu. Adgangen til porten begrænses i netværket (VLAN, reverse proxy), ikke i appen.
 
 ## Hvorfor Blazor Server + Chromium-kiosk?
@@ -98,3 +99,4 @@ FamilyHub.Web       værten: Program.cs, layout, navigation, forside, indstillin
 | 2026-09-26 | Kalender: Google via OAuth for installerede apps (kode + PKCE, loopback-redirect). Login på skærmen eller fra den bærbare via SSH-tunnel – så appen kan blive på localhost. Se `docs/google-kalender.md`. |
 | 2026-09-26 | Kalender: ingen Google-SDK – få HTTP-kald. Lokal kopi af aftalerne på disk, så skærmen virker uden net. |
 | 2026-09-28 | Serveren kører i Docker i homelab'en; Raspberry Pi'en er kun kiosk. Indstillinger og Google-nøgler i `.env` (skabelon `.env.example`), data på en volumen (`/data`). Appen lytter på hjemmenettet; adgangen begrænses i netværket, indtil der er login. Google-login via SSH-tunnel til serveren. |
+| 2026-09-28 | Google-login er også tilladt fra en https-adresse (reverse proxy med eget domæne) med en »Webapplikation«-klient. Tunnelen er stadig muligheden uden https. |

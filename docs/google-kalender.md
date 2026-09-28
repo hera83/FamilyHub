@@ -10,7 +10,7 @@ Google Cloud (jeres eget lille projekt)  →  nøglefil: client_secret_….json
              │
 client_id + client_secret  →  .env på serveren  →  docker compose up -d
              │
-forbind-google.ps1 → »Forbind Google-konto«  →  log ind hos Google (én gang pr. konto)
+https://jeres-domæne eller forbind-google.ps1 → »Forbind Google-konto«  →  log ind hos Google (én gang pr. konto)
              │
 Family Hub gemmer en krypteret adgang og henter kalenderne hvert 5. minut
              │
@@ -19,8 +19,10 @@ Serveren har en lokal kopi – køkkenskærmen virker, også når internettet dr
 
 - **Hvad Family Hub må:** se listen over jeres kalendere og se/tilføje aftaler
   (`calendar.calendarlist.readonly` + `calendar.events`). Ikke slette kalendere, ændre deling eller læse mail.
-- **Hvor login sker:** Google sender kun svaret tilbage til `localhost`. Derfor logger man ind fra den bærbare
-  gennem en SSH-tunnel til serveren (scriptet ordner det). Så ser browseren Family Hub som `localhost`.
+- **Hvor login sker:** Google sender kun svaret tilbage til en **https-adresse** eller til **`localhost`** – aldrig
+  til `http://homelab.local` eller en IP-adresse. Har Family Hub sit eget domæne med https bag en reverse proxy
+  (fx `https://hub.ramskov.pro`), logger man ind direkte derfra. Ellers logger man ind fra den bærbare gennem en
+  SSH-tunnel til serveren (scriptet ordner det), så browseren ser Family Hub som `localhost`.
 - **Én konto er nok,** hvis de andre kalendere er delt med den. Man kan også forbinde flere konti;
   en kalender, der ses fra to konti, vises kun én gang.
 
@@ -47,14 +49,20 @@ Under **Google Auth Platform** (hed tidligere »OAuth-samtykkeskærm«):
 ## 3. Opret klient-id og hent nøglefilen
 
 1. **Google Auth Platform → Klienter → Opret klient**.
-2. Programtype: **Computerprogram** (Desktop app). Navn: `Family Hub`.
+2. Programtype – vælg efter, hvordan I logger ind:
+   - **Med eget https-domæne:** **Webapplikation**. Navn: `Family Hub`. Under **Autoriserede omdirigerings-URI'er**
+     tilføjes `https://hub.ramskov.pro/kalender/google/callback` (jeres domæne). Vil I også kunne bruge tunnelen,
+     så tilføj desuden `http://localhost:5099/kalender/google/callback`.
+   - **Kun via tunnel:** **Computerprogram** (Desktop app). Navn: `Family Hub`. Ingen omdirigerings-URI'er.
 3. **Download JSON** – filen hedder noget i retning af `client_secret_1234….json`.
+
+Skifter I klienttype senere, skal kontiene forbindes igen, fordi adgangen hører til klienten.
 
 Filen er en hemmelighed. Den må ikke ligge i git (`.gitignore` afviser `client_secret*.json` og `google-client.json`).
 
 ## 4. Læg nøglerne i `.env`
 
-Åbn den downloadede fil i Notesblok. Den ser nogenlunde sådan ud:
+Åbn den downloadede fil i Notesblok. Den ser nogenlunde sådan ud (`"web"` i stedet for `"installed"` ved en webapplikation):
 
 ```json
 {"installed":{"client_id":"1234-abcd.apps.googleusercontent.com","project_id":"family-hub", … ,"client_secret":"GOCSPX-…", …}}
@@ -98,7 +106,11 @@ En nøglefil opdages af sig selv – ingen genstart.
 
 ## 5. Forbind en Google-konto
 
-Fra projektmappen på den bærbare:
+**Med eget https-domæne:** Åbn <https://hub.ramskov.pro/kalender/indstillinger> i browseren på den bærbare eller
+telefonen → **Forbind Google-konto** → log ind → **Tillad**. Du kommer tilbage til indstillingerne, og kalenderne dukker
+op efter få sekunder.
+
+**Via tunnel** – fra projektmappen på den bærbare:
 
 ```powershell
 .\deploy\forbind-google.ps1 -Server homelab.local -User heine
@@ -134,7 +146,8 @@ Alternativt kan Charlotte forbinde sin egen konto.
 | »… skal forbindes igen« | Adgangen er udløbet eller trukket tilbage (appen stod i »Test«, adgangskode skiftet, adgang fjernet). Kør `forbind-google.ps1`, og tryk **Forbind igen**. |
 | »Kalenderen kunne ikke opdateres« | Google kan ikke nås. Skærmen viser den seneste kopi og prøver selv igen hvert 5. minut. |
 | »Google-forbindelsen er ikke sat op endnu« | `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` mangler i `.env`, eller containeren er ikke startet igen (`docker compose up -d`). Loggen siger mere: `docker compose logs`. |
-| Knappen »Forbind« er grå | Family Hub er åbnet via et navn (fx `homelab.local`) i stedet for `localhost` – det gælder også køkkenskærmen. Brug `forbind-google.ps1`. |
+| Knappen »Forbind« er grå | Family Hub er åbnet via http med et navn eller en IP (fx `homelab.local:8080`) – det gælder også køkkenskærmen. Åbn https-adressen, eller brug `forbind-google.ps1`. |
+| Google siger »redirect_uri_mismatch« | Adressen er ikke registreret på klienten. Tilføj præcis `https://<domæne>/kalender/google/callback` under klientens omdirigerings-URI'er (kun muligt for en **Webapplikation** – en Desktop-klient tager kun localhost). |
 | Tunnelen svarer ikke | Kører containeren (`docker compose ps`), og svarer den på port 8080 på serveren? |
 | En kalender mangler | Er den delt med kontoen? Er den skjult i Google, vises den som »Skjult« – slå den til. Tryk **Opdatér nu**. |
 | »Kun visning« | Kontoen må kun se kalenderen. Del den med »Foretag ændringer i begivenheder« for at kunne tilføje aftaler. |
@@ -142,9 +155,11 @@ Alternativt kan Charlotte forbinde sin egen konto.
 
 ## Teknik (til udviklere)
 
-- Login: OAuth 2.0 for installerede apps – autorisationskode + PKCE (S256) med loopback-redirect
-  `http://localhost:<port>/kalender/google/callback`. Google tillader ikke kalenderadgang via »TV/enheds«-flowet,
-  og http-redirects kun til localhost – deraf tunnelen. `GoogleOAuthClient`.
+- Login: OAuth 2.0 autorisationskode + PKCE (S256). Redirect til `<adressen i browseren>/kalender/google/callback` –
+  https (webklient med registreret URI) eller loopback `http://localhost:<port>/…` (Desktop-klient eller webklient
+  med registreret port). Google tillader ikke kalenderadgang via »TV/enheds«-flowet og kun http-redirects til
+  localhost – deraf tunnelen, når der ikke er https. Adressen læses fra `NavigationManager.BaseUri`, dvs. browserens
+  adresse, så en reverse proxy med https virker uden videre. `GoogleOAuthClient.CanSignInFrom`.
 - Nøgler: `FamilyHub:Calendar:Google:ClientId`/`ClientSecret` (i Docker fra `.env` via `docker-compose.yml`) eller en
   nøglefil (`KeyFile`, ellers `kalender/google-client.json` i datamappen). `GoogleCredentialsProvider`.
 - Adgang: refresh token krypteres med ASP.NET Data Protection (nøglerne ligger i datamappens `keys`) og gemmes i

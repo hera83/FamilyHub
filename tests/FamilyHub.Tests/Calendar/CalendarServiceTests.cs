@@ -102,8 +102,10 @@ public sealed class CalendarServiceTests : IDisposable
     [Theory]
     [InlineData("http://localhost:5000/", true)]
     [InlineData("http://127.0.0.1:5080/", true)]
+    [InlineData("https://hub.example.com/", true)]
     [InlineData("http://familyhub.local:5000/", false)]
-    public void Sign_in_only_works_on_a_loopback_address(string baseUri, bool allowed)
+    [InlineData("http://10.64.70.46:8080/", false)]
+    public void Sign_in_only_works_on_https_or_a_loopback_address(string baseUri, bool allowed)
     {
         Assert.Equal(allowed, GoogleOAuthClient.CanSignInFrom(new Uri(baseUri)));
     }
