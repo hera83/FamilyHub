@@ -1,8 +1,15 @@
 #!/usr/bin/env bash
 # Family Hub – starter Chromium i fuldskærm (kiosk), når serveren svarer.
 # Startes automatisk ved login. Genstarter browseren, hvis den lukkes eller går ned.
+#
+# Adressen på serveren står i /etc/familyhub-kiosk.conf (FAMILYHUB_URL=http://homelab:5000),
+# som install.sh skriver. Den kan også gives som miljøvariabel.
 
+CONFIG=/etc/familyhub-kiosk.conf
+# shellcheck source=/dev/null
+[[ -z "${FAMILYHUB_URL:-}" && -f "$CONFIG" ]] && source "$CONFIG"
 URL="${FAMILYHUB_URL:-http://localhost:5000}"
+URL="${URL%/}"
 PROFILE="$HOME/.config/familyhub-kiosk"   # egen profil: bevarer skærmens indstillinger (localStorage)
 
 # Kun én kiosk ad gangen, selvom flere autostart-mekanismer skulle starte scriptet.
@@ -15,13 +22,17 @@ if [[ -z "$BROWSER" ]]; then
   exit 1
 fi
 
-# Vent på Family Hub (op til to minutter efter opstart), så Chromium ikke viser en fejlside.
-for _ in $(seq 1 120); do
-  curl -fsS "$URL/health" >/dev/null 2>&1 && break
-  sleep 1
-done
+# Serveren kører et andet sted (homelab'en) og kan være længere om at starte end Pi'en – eller være nede.
+# Vent, til den svarer, så Chromium aldrig står med en fejlside. Appen genforbinder selv, når den først er åbnet.
+wait_for_server() {
+  until curl -fsS --max-time 3 "$URL/health" >/dev/null 2>&1; do
+    sleep 2
+  done
+}
 
 while true; do
+  wait_for_server
+
   # Undgå "Gendan sider?"-boblen efter strømsvigt.
   PREFS="$PROFILE/Default/Preferences"
   if [[ -f "$PREFS" ]]; then
