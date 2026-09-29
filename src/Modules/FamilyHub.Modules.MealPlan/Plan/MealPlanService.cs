@@ -239,6 +239,15 @@ public static class MealPlanRules
         return [.. Enumerable.Range(0, 7).Select(monday.AddDays)];
     }
 
+    /// <summary>Tonight's dinner shows on the home screen from this time in the morning …</summary>
+    public static readonly TimeOnly TonightFrom = new(6, 0);
+
+    /// <summary>… until this time, when the family has eaten.</summary>
+    public static readonly TimeOnly TonightUntil = new(19, 0);
+
+    /// <summary>The home screen shows today's dinner between 06:00 and 19:00.</summary>
+    public static bool ShowTonight(TimeOnly now) => now >= TonightFrom && now < TonightUntil;
+
     /// <summary>"Uge 40".</summary>
     public static string WeekTitle(DateOnly date) => $"Uge {DanishFormat.WeekNumber(date)}";
 

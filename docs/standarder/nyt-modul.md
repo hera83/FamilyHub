@@ -73,6 +73,8 @@ Brug `@attribute [Route(...)]` med modulets konstant, så ruten og navigationen 
 - Et `HubCard` med titel, ikon og `Href` til modulet – hele kortet fører videre.
 - Læsbart på afstand: 1–5 linjer, det vigtigste stort. Ingen knapper indeni.
 - `WidgetSize`: `Small`/`Medium` (én kolonne), `Large` (to kolonner), `Full` (hele bredden).
+- Har widget'en intet at sige lige nu, renderer den ingenting – så fylder den heller ikke på forsiden.
+  Eksempel: Madplanens »I aften« vises kun kl. 06–19, og kun når der er en ret.
 
 ## 7. Regler for livscyklus og tid
 

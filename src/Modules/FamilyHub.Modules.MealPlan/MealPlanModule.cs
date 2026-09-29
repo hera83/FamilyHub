@@ -1,4 +1,5 @@
 using FamilyHub.Core.Storage;
+using FamilyHub.Modules.MealPlan.Components;
 using FamilyHub.Modules.MealPlan.Plan;
 using FamilyHub.Modules.MealPlan.Recipes;
 using FamilyHub.UI.Components;
@@ -26,6 +27,10 @@ public sealed class MealPlanModule : HubModule
     public override string Route => Path;
 
     public override int Order => 20;
+
+    /// <summary>"I aften" – today's dinner, from 06:00 until 19:00.</summary>
+    public override IReadOnlyList<DashboardWidget> Widgets =>
+        [DashboardWidget.For<TonightWidget>(WidgetSize.Medium, order: 20)];
 
     public override void ConfigureServices(IServiceCollection services, IConfiguration configuration)
     {

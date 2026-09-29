@@ -35,6 +35,11 @@
     min-width: 0;
 }
 
+/* A widget with nothing to say renders nothing – then it takes no room either (e.g. "I aften" after dinner). */
+.home-widget:empty {
+    display: none;
+}
+
 .home-widget--full {
     grid-column: 1 / -1;
 }

@@ -1,6 +1,6 @@
 # Modul: Madplan
 
-**Status:** ugens aftensmad er bygget (2026-09-29). Indkøbsliste, antal personer og widget på forsiden mangler.
+**Status:** ugens aftensmad og »I aften« på forsiden er bygget (2026-09-29). Indkøbsliste og antal personer mangler.
 
 Madplanen handler **kun om aftensmad** – én ret pr. dag. Andre måltider planlægges ikke her.
 
@@ -16,6 +16,7 @@ Madplanen handler **kun om aftensmad** – én ret pr. dag. Andre måltider plan
 | Skift ret | »Skift ret« i dialogen → vælgeren (den nuværende ret er markeret »Valgt«). |
 | Flyt ret | **Hold fingeren** på retten og træk den til en anden dag (med mus: bare træk). Står der en ret, bytter de plads. Uden fagter: »Flyt til en anden dag« i dialogen. |
 | Fjern ret | »Fjern« i dialogen – med »Fortryd« i toasten. |
+| »I aften« på forsiden | Dagens ret fra kl. 06:00 til 19:00 (så har vi spist). Uden ret – eller uden for tidsrummet – vises intet kort. Tider: `MealPlanRules.TonightFrom/TonightUntil`. |
 
 Swipe og træk er genveje. Alt kan også gøres med tryk alene (standarderne: ingen skjulte fagter som eneste vej).
 
@@ -27,6 +28,7 @@ Swipe og træk er genveje. Alt kan også gøres med tryk alene (standarderne: in
 | `Components/MealPlanWeek.razor` (+ `.razor.js`) | De syv dage. JS-modulet står for swipe og træk-og-slip (pointer events – finger og mus) |
 | `Components/RecipePickerDialog.razor` | Vælg ret: søgning, kategori-chips, egen ret |
 | `Components/DinnerDialog.razor` | En planlagt ret: vis den, flyt, skift, fjern |
+| `Components/TonightWidget.razor` | »I aften« på forsiden |
 | `Components/DinnerLook.cs` | Titel, ikon og faktalinje (»35 min · Aftensmad«) |
 | `Plan/MealPlanService.cs` | Familiens plan: planlæg, flyt/byt, fjern/fortryd, `Changed` til alle skærme. `MealPlanRules`: uger og flyt-reglen |
 | `Plan/MealPlanDbContext.cs` + `Plan/Migrations/` | SQLite: `madplan/madplan.db` i datamappen. Tabellen `Dinners` (dato → opskrift-id eller egen tekst) |
@@ -62,6 +64,5 @@ Omdøbes en opskrift i bogen, viser madplanen det nye navn.
 - Antal personer pr. ret med `NumberStepper` (skalering findes allerede i `RecipeMath`).
 - Indkøbsliste ud fra ugens retter (`RecipeMath.CombineForShopping`) plus manuelle varer.
 - Opskriftsvisning i køkkenet: fremgangsmåden trin for trin med stor tekst.
-- Widget på forsiden: »I aften«.
 
 Byg videre efter [docs/standarder/nyt-modul.md](../../../docs/standarder/nyt-modul.md).

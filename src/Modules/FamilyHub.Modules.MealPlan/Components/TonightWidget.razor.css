@@ -1,0 +1,27 @@
+.mp-tonight__dish {
+    display: flex;
+    align-items: center;
+    gap: var(--hub-space-4);
+}
+
+.mp-tonight__image {
+    flex: none;
+    width: 5.5rem;
+    height: 5.5rem;
+    border-radius: var(--hub-radius-md);
+    object-fit: cover;
+}
+
+.mp-tonight__text {
+    display: flex;
+    flex-direction: column;
+    gap: var(--hub-space-1);
+    min-width: 0;
+}
+
+.mp-tonight__title {
+    font-size: var(--hub-text-xl);
+    font-weight: var(--hub-weight-bold);
+    line-height: var(--hub-leading-tight);
+    overflow-wrap: anywhere;
+}
