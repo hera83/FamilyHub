@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk.Razor">
 
-  <!-- Modul: Madplan og indkøbsliste. Kun skelet indtil videre – se README.md. -->
+  <!-- Modul: Madplan og indkøbsliste. Opskrifterne kommer fra familiens opskriftsbog (API) – se README.md. -->
 
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
@@ -9,6 +9,10 @@
   <ItemGroup>
     <ProjectReference Include="..\..\FamilyHub.Core\FamilyHub.Core.csproj" />
     <ProjectReference Include="..\..\FamilyHub.UI\FamilyHub.UI.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="FamilyHub.Tests" />
   </ItemGroup>
 
 </Project>

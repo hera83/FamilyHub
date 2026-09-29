@@ -70,6 +70,7 @@ FamilyHub.Web       værten: Program.cs, layout, navigation, forside, indstillin
 | `IAppDataPaths` | Singleton | Datamappen og undermapper pr. modul |
 | `ModuleCatalog` | Singleton | Registrerede moduler, navigation og widgets |
 | `CalendarService` (Kalender) | Singleton | Google-konti, kalendere, lokal kopi af aftaler; `CalendarSyncWorker` synkroniserer i baggrunden |
+| `RecipeService` (Madplan) | Singleton | Kopi af familiens opskriftsbog (API) i hukommelsen og på disk; søgning og skrivninger. Se `docs/opskrifter-api.md` |
 | `IToastService` | Scoped | Toasts på denne skærm |
 | `DeviceService` | Scoped | Skærmens egenskaber og egne indstillinger |
 | `KeyboardService` | Scoped | Skærmtastaturets tilstand |
@@ -100,3 +101,4 @@ FamilyHub.Web       værten: Program.cs, layout, navigation, forside, indstillin
 | 2026-09-26 | Kalender: ingen Google-SDK – få HTTP-kald. Lokal kopi af aftalerne på disk, så skærmen virker uden net. |
 | 2026-09-28 | Serveren kører i Docker i homelab'en; Raspberry Pi'en er kun kiosk. Indstillinger og Google-nøgler i `.env` (skabelon `.env.example`), data på en volumen (`/data`). Appen lytter på hjemmenettet; adgangen begrænses i netværket, indtil der er login. Google-login via SSH-tunnel til serveren. |
 | 2026-09-28 | Google-login er også tilladt fra en https-adresse (reverse proxy med eget domæne) med en »Webapplikation«-klient. Tunnelen er stadig muligheden uden https. |
+| 2026-09-29 | Madplan: opskrifterne ejes af familiens opskriftsbog (separat app med API, nøgle i `.env`). Family Hub holder en kopi af hele bogen (lille) på disk, søger lokalt og skriver direkte til API'et. Madplanen gemmer kun opskrifternes id. Se `docs/opskrifter-api.md`. |

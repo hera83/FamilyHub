@@ -25,6 +25,9 @@ services:
       # Tom = ikke sat op endnu. Kalenderen viser så, hvad der mangler.
       FamilyHub__Calendar__Google__ClientId: ${GOOGLE_CLIENT_ID:-}
       FamilyHub__Calendar__Google__ClientSecret: ${GOOGLE_CLIENT_SECRET:-}
+      # Madplanens opskrifter. Tom nøgle = ikke sat op endnu. Se docs/opskrifter-api.md.
+      FamilyHub__MealPlan__Recipes__BaseUrl: ${RECIPES_API_URL:-https://opskriftsbog.ramskov.pro/api/v1}
+      FamilyHub__MealPlan__Recipes__ApiKey: ${RECIPES_API_KEY:-}
 
     volumes:
       # Et navn = Docker-volumen. En sti (./data, /mnt/ssd/familyhub) = mappe på serveren.

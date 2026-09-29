@@ -4,6 +4,8 @@
 
   <PropertyGroup>
     <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
+    <!-- Hemmeligheder under udvikling (fx opskriftsbogens API-nøgle): dotnet user-secrets – ligger uden for repo'et. -->
+    <UserSecretsId>familyhub-web-dev</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>

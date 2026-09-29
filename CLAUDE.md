@@ -78,3 +78,4 @@ Læs `docs/standarder/` før en ny menu bygges. Det vigtigste:
 | `Dockerfile`, `docker-compose.yml`, `.env.example` | Serveren i Docker; indstillinger og hemmeligheder kun i `.env` (aldrig i git eller imaget) |
 | `deploy/` + `docs/raspberry-pi.md` | Scripts til server og kiosk; opsætning af køkkenskærmen |
 | `docs/google-kalender.md` | Google-opsætning til kalenderen (nøgler i `.env`, login via SSH-tunnel) |
+| `docs/opskrifter-api.md` | Madplanens opskrifter: opskriftsbogens API, `RecipeService` og muligheder til UI'et – læs før madplanens UI |

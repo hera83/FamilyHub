@@ -16,7 +16,7 @@ Homelab-server (Docker)                          Raspberry Pi 5 + touchskærm
 │  Blazor Server (.NET 10)     │ ◄────────────── │  (kun visning og touch)      │
 │  volumen: /data              │   hjemmenettet  │                              │
 └──────────────────────────────┘                 └──────────────────────────────┘
-        ▲ .env: port, tidszone, Google-nøgler
+        ▲ .env: tidszone, Google- og opskriftsnøgler
 ```
 
 ## Installation
@@ -70,6 +70,8 @@ nano ~/familyhub/.env
 | `FAMILYHUB_DATA` | `familyhub-data` | Docker-volumen eller en sti på serveren (se [Data og backup](#data-og-backup)). |
 | `GOOGLE_CLIENT_ID` | – | `client_id` fra Googles nøglefil. |
 | `GOOGLE_CLIENT_SECRET` | – | `client_secret` fra Googles nøglefil. |
+| `RECIPES_API_KEY` | – | Nøglen til familiens opskriftsbog (madplanen). Se [docs/opskrifter-api.md](docs/opskrifter-api.md). |
+| `RECIPES_API_URL` | `https://opskriftsbog.ramskov.pro/api/v1` | Opskriftsbogens adresse – skal kun ændres, hvis den flytter. |
 
 Porten kan ikke ændres: Family Hub svarer altid på **port 8080** på alle serverens netkort.
 
