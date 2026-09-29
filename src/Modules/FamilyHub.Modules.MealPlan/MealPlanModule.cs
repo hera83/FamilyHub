@@ -1,6 +1,10 @@
+using FamilyHub.Core.Storage;
+using FamilyHub.Modules.MealPlan.Plan;
 using FamilyHub.Modules.MealPlan.Recipes;
 using FamilyHub.UI.Components;
 using FamilyHub.UI.Modules;
+using Microsoft.Data.Sqlite;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -33,5 +37,11 @@ public sealed class MealPlanModule : HubModule
         services.AddHttpClient(RecipeApiClient.HttpClientName);
         services.AddSingleton<RecipeApiClient>();
         services.AddSingleton<RecipeService>();
+        services.AddHostedService<RecipeSyncWorker>();
+
+        // The family's plan: SQLite in the data folder (madplan/madplan.db).
+        services.AddDbContextFactory<MealPlanDbContext>((provider, options) => options.UseSqlite(
+            new SqliteConnectionStringBuilder { DataSource = provider.GetRequiredService<IAppDataPaths>().GetFilePath("madplan/madplan.db") }.ToString()));
+        services.AddSingleton<MealPlanService>();
     }
 }

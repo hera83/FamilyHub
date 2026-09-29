@@ -1,0 +1,163 @@
+@*
+    Choose the dinner for a day: the recipe book as a list, narrowed by category chips and search.
+    What is typed in the search can also be used as the family's own dish ("Rester", "Pizza ude").
+    Searching is local (the copy of the recipe book) – instant, and it works without internet.
+*@
+@inject RecipeService Recipes
+
+<HubDialog Open="Day is not null" OpenChanged="OnOpenChanged" Title="@DialogTitle" Size="DialogSize.Large">
+    <div class="mp-picker">
+        @if (!Recipes.IsConfigured)
+        {
+            <InfoBox Tone="HubTone.Warning" Title="Opskriftsbogen er ikke sat op">
+                Skriv retten i søgefeltet, så kan den bruges alligevel.
+            </InfoBox>
+        }
+
+        <HubTextField Label="Søg" Kind="InputKind.Search" Placeholder="Fx lasagne eller kylling" MaxLength="MealPlanService.MaxTitleLength"
+                      Value="@search" ValueChanged="OnSearchChanged" OnEnter="UseTypedAsync"
+                      Help="Findes retten ikke i opskriftsbogen, kan du skrive den selv." />
+
+        @if (categoryOptions.Count > 2)
+        {
+            <HubChoice TValue="int?" Appearance="ChoiceAppearance.Chips" Options="categoryOptions" Value="categoryId" ValueChanged="OnCategoryChanged" />
+        }
+
+        <div class="mp-picker__results">
+            @if (Recipes.IsConfigured && !Recipes.HasData)
+            {
+                <HubSkeleton Lines="6" />
+            }
+            else
+            {
+                @if (results.Count > 0 || Typed is not null)
+                {
+                    <HubList>
+                        @foreach (var recipe in results)
+                        {
+                            <HubListItem Title="@recipe.Title" Subtitle="@NullIfEmpty(DinnerLook.Summary(recipe))" OnClick="() => OnPickRecipe.InvokeAsync(recipe)">
+                                <Leading>
+                                    @if (recipe.ImageUrl is { } image)
+                                    {
+                                        <img class="mp-picker__thumb" src="@image" alt="" loading="lazy" onerror="this.remove()" />
+                                    }
+                                    else
+                                    {
+                                        <span class="mp-picker__icon"><Icon Name="DinnerLook.Icon(recipe)" /></span>
+                                    }
+                                </Leading>
+                                <Trailing>
+                                    @if (recipe.Id == CurrentRecipeId)
+                                    {
+                                        <HubBadge Tone="HubTone.Success">Valgt</HubBadge>
+                                    }
+                                </Trailing>
+                            </HubListItem>
+                        }
+
+                        @if (Typed is { } typed)
+                        {
+                            <HubListItem Title="@($"Brug »{typed}«")" Subtitle="Egen ret – kommer ikke i opskriftsbogen" Icon="IconName.Edit" OnClick="UseTypedAsync" />
+                        }
+                    </HubList>
+                }
+                else
+                {
+                    <EmptyState Icon="IconName.Search" Title="Ingen retter her" Compact="true">
+                        <ChildContent>Vælg en anden kategori, eller skriv retten selv.</ChildContent>
+                        <Actions>
+                            <HubButton OnClick="() => OnCategoryChanged(null)">Vis alle</HubButton>
+                        </Actions>
+                    </EmptyState>
+                }
+            }
+        </div>
+    </div>
+</HubDialog>
+
+@code {
+    private string search = "";
+    private int? categoryId;
+    private DateOnly? shownDay;
+    private IReadOnlyList<Recipe> results = [];
+    private IReadOnlyList<ChoiceOption<int?>> categoryOptions = [];
+
+    /// <summary>The day to choose a dinner for. Null = closed.</summary>
+    [Parameter]
+    public DateOnly? Day { get; set; }
+
+    /// <summary>The recipe already planned for the day (marked "Valgt").</summary>
+    [Parameter]
+    public int? CurrentRecipeId { get; set; }
+
+    [Parameter]
+    public EventCallback<Recipe> OnPickRecipe { get; set; }
+
+    /// <summary>The family's own dish, typed in the search field.</summary>
+    [Parameter]
+    public EventCallback<string> OnPickText { get; set; }
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    private string DialogTitle => Day is { } day ? $"Aftensmad {DanishFormat.LongDate(day).ToLower(DanishFormat.Culture)}" : "";
+
+    /// <summary>The search text, cleaned – offered as the family's own dish.</summary>
+    private string? Typed => MealPlanService.CleanTitle(search);
+
+    protected override void OnParametersSet()
+    {
+        if (Day != shownDay)
+        {
+            // A new day starts fresh: whole book, no search.
+            shownDay = Day;
+            search = "";
+            categoryId = null;
+        }
+
+        categoryOptions =
+        [
+            new(null, "Alle"),
+            .. Recipes.Categories.Where(c => c.RecipeCount > 0).Select(c => new ChoiceOption<int?>(c.Id, c.Name)),
+        ];
+        if (categoryId is { } id && categoryOptions.All(o => o.Value != id))
+        {
+            categoryId = null;
+        }
+
+        Filter();
+    }
+
+    private void OnSearchChanged(string? value)
+    {
+        search = value ?? "";
+        Filter();
+    }
+
+    private void OnCategoryChanged(int? value)
+    {
+        categoryId = value;
+        Filter();
+    }
+
+    private void Filter() =>
+        results = Recipes.Search(new RecipeQuery { Search = search, CategoryId = categoryId });
+
+    private async Task UseTypedAsync()
+    {
+        if (Typed is { } typed)
+        {
+            await OnPickText.InvokeAsync(typed);
+        }
+    }
+
+    private async Task OnOpenChanged(bool open)
+    {
+        if (!open)
+        {
+            await OnClose.InvokeAsync();
+        }
+    }
+
+    private static string? NullIfEmpty(string text) => text.Length == 0 ? null : text;
+}

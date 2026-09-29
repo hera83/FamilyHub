@@ -12,6 +12,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Madplanen gemmes i SQLite (madplan/madplan.db i datamappen). Design kun til "dotnet ef migrations". -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
     <InternalsVisibleTo Include="FamilyHub.Tests" />
   </ItemGroup>
 

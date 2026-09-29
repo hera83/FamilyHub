@@ -1,0 +1,27 @@
+.mp-picker {
+    display: flex;
+    flex-direction: column;
+    gap: var(--hub-space-4);
+}
+
+.mp-picker__results {
+    min-height: 16rem;
+}
+
+.mp-picker__thumb {
+    display: block;
+    width: 3rem;
+    height: 3rem;
+    border-radius: var(--hub-radius-sm);
+    object-fit: cover;
+}
+
+.mp-picker__icon {
+    display: inline-grid;
+    place-items: center;
+    width: 3rem;
+    height: 3rem;
+    border-radius: var(--hub-radius-sm);
+    background: var(--hub-accent-softer);
+    color: var(--hub-accent-strong);
+}

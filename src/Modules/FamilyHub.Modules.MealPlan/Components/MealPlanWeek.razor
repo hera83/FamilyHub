@@ -1,0 +1,168 @@
+@*
+    The week's dinners as seven columns, Monday to Sunday – like the calendar's week.
+    Tap a day to plan or see its dinner. Swipe sideways for the previous/next week. Hold a dinner and drag it
+    to another day to move it (if that day has a dinner, they swap). Swipe and drag are shortcuts: the arrows
+    and "Flyt til" in the dinner dialog do the same. The gestures live in MealPlanWeek.razor.js.
+*@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<div class="mp-week" @ref="root">
+    @foreach (var day in Days)
+    {
+        var dinner = Dinners.GetValueOrDefault(day);
+        var recipe = dinner?.RecipeId is { } id ? FindRecipe(id) : null;
+
+        <section class="mp-day @DayClass(day)" data-day="@Iso(day)">
+            <HubPressable Class="mp-day__press" OnClick="() => OnDaySelected.InvokeAsync(day)" AriaLabel="@AriaLabel(day, dinner, recipe)">
+                <span class="mp-day__head">
+                    <span class="mp-day__weekday">@DanishFormat.WeekdayShort(day.DayOfWeek)</span>
+                    <span class="mp-day__date hub-numeric">@day.Day</span>
+                </span>
+
+                <span class="mp-day__body">
+                    @if (Loading)
+                    {
+                        <HubSkeleton Lines="2" />
+                    }
+                    else if (dinner is not null)
+                    {
+                        <span class="mp-dinner" data-dinner="@Iso(day)">
+                            @if (recipe?.ImageUrl is { } image)
+                            {
+                                <img class="mp-dinner__image" src="@image" alt="" loading="lazy" draggable="false" onerror="this.remove()" />
+                            }
+                            <span class="mp-dinner__title">@DinnerLook.Title(dinner, recipe)</span>
+                            @if (recipe is not null)
+                            {
+                                @if (DinnerLook.Summary(recipe) is { Length: > 0 } summary)
+                                {
+                                    <span class="mp-dinner__meta">@summary</span>
+                                }
+                            }
+                            else if (!dinner.IsFromRecipeBook)
+                            {
+                                <span class="mp-dinner__meta">Egen ret</span>
+                            }
+                        </span>
+                    }
+                    else if (day >= Today)
+                    {
+                        <span class="mp-day__empty">
+                            <Icon Name="IconName.Plus" />
+                            <span>Tilføj ret</span>
+                        </span>
+                    }
+                </span>
+            </HubPressable>
+        </section>
+    }
+</div>
+
+@code {
+    private ElementReference root;
+    private IJSObjectReference? module;
+    private IJSObjectReference? gestures;
+    private DotNetObjectReference<MealPlanWeek>? self;
+
+    /// <summary>Monday to Sunday.</summary>
+    [Parameter, EditorRequired]
+    public IReadOnlyList<DateOnly> Days { get; set; } = [];
+
+    [Parameter, EditorRequired]
+    public IReadOnlyDictionary<DateOnly, PlannedDinner> Dinners { get; set; } = new Dictionary<DateOnly, PlannedDinner>();
+
+    /// <summary>Looks a recipe up in the local copy of the recipe book.</summary>
+    [Parameter, EditorRequired]
+    public Func<int, Recipe?> FindRecipe { get; set; } = _ => null;
+
+    [Parameter]
+    public DateOnly Today { get; set; }
+
+    /// <summary>The week's dinners are still being read – shows placeholders.</summary>
+    [Parameter]
+    public bool Loading { get; set; }
+
+    [Parameter]
+    public EventCallback<DateOnly> OnDaySelected { get; set; }
+
+    /// <summary>A dinner was dragged to another day.</summary>
+    [Parameter]
+    public EventCallback<DinnerMove> OnMove { get; set; }
+
+    /// <summary>Swiped: -1 = previous week, 1 = next week.</summary>
+    [Parameter]
+    public EventCallback<int> OnSwipe { get; set; }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        try
+        {
+            module = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/FamilyHub.Modules.MealPlan/Components/MealPlanWeek.razor.js");
+            self = DotNetObjectReference.Create(this);
+            gestures = await module.InvokeAsync<IJSObjectReference>("attach", root, self);
+        }
+        catch (JSDisconnectedException)
+        {
+            // The screen went away while starting.
+        }
+    }
+
+    [JSInvokable]
+    public Task Swipe(int direction) => OnSwipe.InvokeAsync(Math.Sign(direction));
+
+    [JSInvokable]
+    public Task Move(string from, string to) =>
+        DateOnly.TryParseExact(from, "yyyy-MM-dd", out var fromDate) && DateOnly.TryParseExact(to, "yyyy-MM-dd", out var toDate) && fromDate != toDate
+            ? OnMove.InvokeAsync(new DinnerMove(fromDate, toDate))
+            : Task.CompletedTask;
+
+    private string DayClass(DateOnly day)
+    {
+        var css = day.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday ? "mp-day--weekend" : "";
+        if (day == Today)
+        {
+            css += " mp-day--today";
+        }
+        else if (day < Today)
+        {
+            css += " mp-day--past";
+        }
+
+        return Dinners.ContainsKey(day) ? css + " mp-day--planned" : css;
+    }
+
+    private static string AriaLabel(DateOnly day, PlannedDinner? dinner, Recipe? recipe) => dinner is null
+        ? $"{DanishFormat.LongDate(day)}: tilføj aftensmad"
+        : $"{DanishFormat.LongDate(day)}: {DinnerLook.Title(dinner, recipe)}";
+
+    private static string Iso(DateOnly day) => day.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            if (gestures is not null)
+            {
+                await gestures.InvokeVoidAsync("dispose");
+                await gestures.DisposeAsync();
+            }
+
+            if (module is not null)
+            {
+                await module.DisposeAsync();
+            }
+        }
+        catch (JSDisconnectedException)
+        {
+            // The circuit is gone – nothing to clean up in the browser.
+        }
+
+        self?.Dispose();
+    }
+}

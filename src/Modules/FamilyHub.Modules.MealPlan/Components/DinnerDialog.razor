@@ -1,0 +1,153 @@
+@*
+    A planned dinner: the dish first (photo, time, ingredients), then what can be done –
+    move it to another day (swaps with a planned day), change it, or remove it (with "Fortryd").
+*@
+<HubDialog Open="Dinner is not null" OpenChanged="OnOpenChanged" Title="@DialogTitle">
+    <ChildContent>
+        @if (Dinner is { } dinner)
+        {
+            <div class="mp-details">
+                <p class="mp-details__row">
+                    <Icon Name="IconName.Calendar" />
+                    <span>Aftensmad · @DayLabel(dinner.Date)</span>
+                </p>
+
+                @if (Recipe is { } recipe)
+                {
+                    @if (recipe.ImageUrl is { } image)
+                    {
+                        <img class="mp-details__image" src="@image" alt="" onerror="this.remove()" />
+                    }
+
+                    @if (Facts(recipe) is { Count: > 0 } facts)
+                    {
+                        <p class="mp-details__facts">
+                            @foreach (var (icon, text) in facts)
+                            {
+                                <span class="mp-details__fact"><Icon Name="icon" /><span>@text</span></span>
+                            }
+                        </p>
+                    }
+
+                    @if (recipe.Ingredients.Count > 0)
+                    {
+                        <section class="mp-details__section">
+                            <h3 class="mp-details__heading">Ingredienser</h3>
+                            <ul class="mp-details__ingredients">
+                                @foreach (var line in RecipeMath.Scale(recipe.Ingredients, 1))
+                                {
+                                    @if (line.IsHeading)
+                                    {
+                                        <li class="mp-details__subheading">@line.Name.TrimEnd(':')</li>
+                                    }
+                                    else
+                                    {
+                                        <li>@line.Text</li>
+                                    }
+                                }
+                            </ul>
+                        </section>
+                    }
+
+                    @if (recipe.Notes.Length > 0)
+                    {
+                        <p class="mp-details__notes">@recipe.Notes</p>
+                    }
+                }
+                else if (dinner.IsFromRecipeBook)
+                {
+                    <InfoBox Tone="HubTone.Neutral" Title="Opskriften kan ikke vises lige nu">
+                        Den findes ikke i opskriftsbogen – eller opskriftsbogen kan ikke nås.
+                    </InfoBox>
+                }
+                else
+                {
+                    <p class="hub-muted">Egen ret – den findes ikke i opskriftsbogen.</p>
+                }
+
+                <HubChoice TValue="DateOnly" Label="Flyt til en anden dag" Appearance="ChoiceAppearance.Chips" Options="MoveOptions"
+                           Value="dinner.Date" ValueChanged="OnMove" Help="Står der allerede en ret, bytter de plads." />
+            </div>
+        }
+    </ChildContent>
+    <Footer>
+        <HubButton Variant="ButtonVariant.Quiet" Icon="IconName.Trash" OnClick="OnRemove" ErrorMessage="Retten blev ikke fjernet">Fjern</HubButton>
+        <HubButton Variant="ButtonVariant.Primary" Icon="IconName.Refresh" OnClick="OnChange">Skift ret</HubButton>
+    </Footer>
+</HubDialog>
+
+@code {
+    /// <summary>The dinner to show. Null closes the dialog.</summary>
+    [Parameter]
+    public PlannedDinner? Dinner { get; set; }
+
+    /// <summary>The dinner's recipe from the local copy of the recipe book, if it has one (and it still exists).</summary>
+    [Parameter]
+    public Recipe? Recipe { get; set; }
+
+    /// <summary>The shown week, Monday to Sunday – the days the dinner can be moved to.</summary>
+    [Parameter, EditorRequired]
+    public IReadOnlyList<DateOnly> Days { get; set; } = [];
+
+    [Parameter]
+    public DateOnly Today { get; set; }
+
+    /// <summary>"Skift ret" – choose another dish for the day.</summary>
+    [Parameter]
+    public EventCallback OnChange { get; set; }
+
+    /// <summary>"Fjern" – the page removes it and offers "Fortryd".</summary>
+    [Parameter]
+    public EventCallback OnRemove { get; set; }
+
+    /// <summary>Move to this day (swaps with a planned day).</summary>
+    [Parameter]
+    public EventCallback<DateOnly> OnMove { get; set; }
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    private string DialogTitle => Dinner is { } dinner ? DinnerLook.Title(dinner, Recipe) : "";
+
+    private IReadOnlyList<ChoiceOption<DateOnly>> MoveOptions =>
+        [.. Days.Select(d => new ChoiceOption<DateOnly>(d, $"{DanishFormat.WeekdayShort(d.DayOfWeek)} {d.Day}."))];
+
+    private string DayLabel(DateOnly day) =>
+        Math.Abs(day.DayNumber - Today.DayNumber) <= 1
+            ? $"{DanishFormat.RelativeDay(day, Today).ToLower(DanishFormat.Culture)}, {DanishFormat.LongDate(day).ToLower(DanishFormat.Culture)}"
+            : DanishFormat.LongDate(day).ToLower(DanishFormat.Culture);
+
+    private static IReadOnlyList<(IconName Icon, string Text)> Facts(Recipe recipe)
+    {
+        var facts = new List<(IconName, string)>();
+        if (DinnerLook.Time(recipe) is { } time)
+        {
+            facts.Add((IconName.Clock, time));
+        }
+
+        if (DinnerLook.Servings(recipe) is { } servings)
+        {
+            facts.Add((IconName.Users, servings));
+        }
+
+        if (recipe.Difficulty is { } difficulty)
+        {
+            facts.Add((IconName.Star, difficulty.Label()));
+        }
+
+        if (recipe.HasCategory)
+        {
+            facts.Add((DinnerLook.Icon(recipe), recipe.Category));
+        }
+
+        return facts;
+    }
+
+    private async Task OnOpenChanged(bool open)
+    {
+        if (!open)
+        {
+            await OnClose.InvokeAsync();
+        }
+    }
+}

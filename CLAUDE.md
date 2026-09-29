@@ -12,6 +12,7 @@ Kommunikér med brugeren på dansk. Brugerfladen er på dansk.
 | Test | `dotnet test FamilyHub.slnx` (xUnit, bUnit, WebApplicationFactory) |
 | UI-røgtest | Kør appen, derefter `cd tools/ui-smoke; npm install; node smoke.mjs` – tjekker touch/tastatur og gemmer skærmbilleder, som du skal se på |
 | Demodata (kalender uden Google) | `cd tools/ui-smoke; node demo-data.mjs`, start appen med `$env:FamilyHub__DataDirectory = (Resolve-Path ./demo-data)` |
+| Ny EF-migration (madplan) | `dotnet ef migrations add <Navn> --project src/Modules/FamilyHub.Modules.MealPlan --output-dir Plan/Migrations` |
 | Kildepakke til serveren | `.\deploy\publish-server.ps1 -SkipDeploy` |
 | Deploy til serveren (Docker) | `.\deploy\publish-server.ps1 -Server homelab.local -User <bruger>` |
 | Kiosk på Pi'en | `.\deploy\opsaet-kiosk.ps1 -ServerUrl http://homelab.local:8080` |

@@ -37,10 +37,10 @@ offline og fanger også opskrifter, der er slettet i bogen.
 @inject RecipeService Recipes
 @implements IDisposable
 
-protected override async Task OnInitializedAsync()
+protected override void OnInitialized()
 {
+    // RecipeSyncWorker holder kopien frisk i baggrunden – siden viser bare kopien og lytter efter ændringer.
     Recipes.Changed += OnRecipesChanged;
-    await Recipes.EnsureFreshAsync();          // henter kun, hvis kopien er ældre end 15 min
 }
 
 private void OnRecipesChanged() => InvokeAsync(StateHasChanged);   // kan komme fra en anden tråd
@@ -58,7 +58,8 @@ public void Dispose() => Recipes.Changed -= OnRecipesChanged;
 
 | Opdatering | |
 |---|---|
-| `EnsureFreshAsync()` | Kald når en side åbner. Returnerer `false`, hvis kopien kan være gammel. |
+| `RecipeSyncWorker` | Baggrundsjob: henter hele bogen ved start og hvert 15. minut (efter 2 min, hvis det fejlede). Siderne skal ikke selv hente. |
+| `EnsureFreshAsync()` | Henter kun, hvis kopien er ældre end 15 min. Sjældent nødvendigt pga. baggrundsjobbet. |
 | `RefreshAsync()` | "Opdater nu". Ved fejl bevares den gamle kopi, og `Status.Problem` siger hvorfor. |
 | `ReloadRecipeAsync(id)` | Hent én opskrift igen (fx når detaljesiden åbner). `null` = slettet – den forsvinder så også fra kopien. |
 

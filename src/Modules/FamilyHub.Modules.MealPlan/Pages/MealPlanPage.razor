@@ -1,7 +1,254 @@
 @attribute [Microsoft.AspNetCore.Components.Route(MealPlanModule.Path)]
+@implements IDisposable
+@inject MealPlanService MealPlan
+@inject RecipeService Recipes
+@inject IHubClock Clock
+@inject NavigationManager Navigation
+@inject IToastService Toasts
+@inject ILogger<MealPlanPage> Logger
 
 <HubPage Title="Madplan" Width="PageWidth.Full">
-    <EmptyState Icon="IconName.Utensils" Title="Madplanen er på vej">
-        Her kommer ugens madplan – og en indkøbsliste, der laver sig selv ud fra retterne.
-    </EmptyState>
+    @if (!Recipes.IsConfigured)
+    {
+        <InfoBox Tone="HubTone.Warning" Title="Opskriftsbogen er ikke sat op">
+            Madplanen virker, men retterne skal skrives selv, indtil nøglen til opskriftsbogen er sat ind på serveren.
+        </InfoBox>
+    }
+    else if (Recipes.Status.Problem == RecipeApiError.Unauthorized)
+    {
+        <InfoBox Tone="HubTone.Danger" Title="Opskriftsbogen afviste nøglen">
+            Opskrifterne kan ikke hentes. Tjek nøglen til opskriftsbogen på serveren.
+        </InfoBox>
+    }
+    else if (IsStale)
+    {
+        <InfoBox Tone="HubTone.Warning" Title="Opskriftsbogen kan ikke nås" Icon="IconName.WifiOff">
+            @StaleText Den prøver igen af sig selv.
+        </InfoBox>
+    }
+
+    @if (loadFailed)
+    {
+        <InfoBox Tone="HubTone.Danger" Title="Madplanen kunne ikke vises">Prøv igen om lidt.</InfoBox>
+    }
+
+    <div class="mp-toolbar">
+        <div class="mp-toolbar__nav">
+            <HubButton Icon="IconName.ChevronLeft" AriaLabel="Forrige uge" OnClick="() => Step(-1)" />
+            <HubButton OnClick="GoToThisWeek" Disabled="ShowsThisWeek">Denne uge</HubButton>
+            <HubButton Icon="IconName.ChevronRight" AriaLabel="Næste uge" OnClick="() => Step(1)" />
+        </div>
+        <div class="mp-toolbar__period">
+            <h2 class="mp-toolbar__title">@MealPlanRules.WeekTitle(monday)</h2>
+            <p class="mp-toolbar__detail">@MealPlanRules.WeekDetail(monday, today)</p>
+        </div>
+    </div>
+
+    <MealPlanWeek Days="days" Dinners="dinners" FindRecipe="Recipes.Find" Today="today" Loading="loading"
+                  OnDaySelected="ShowDay" OnMove="MoveAsync" OnSwipe="Step" />
+
+    @if (dinners.Count > 0)
+    {
+        <p class="mp-hint">Hold fingeren på en ret, og træk den til en anden dag for at flytte den. Står der en ret i forvejen, bytter de plads.</p>
+    }
 </HubPage>
+
+<RecipePickerDialog Day="pickerDay" CurrentRecipeId="@(pickerDay is { } d ? dinners.GetValueOrDefault(d)?.RecipeId : null)"
+                    OnPickRecipe="PickRecipeAsync" OnPickText="PickTextAsync" OnClose="() => pickerDay = null" />
+
+<DinnerDialog Dinner="Shown" Recipe="@(Shown?.RecipeId is { } id ? Recipes.Find(id) : null)" Days="days" Today="today"
+              OnChange="ChangeDinner" OnRemove="RemoveAsync" OnMove="MoveShownAsync" OnClose="() => shownDay = null" />
+
+@code {
+    private DateOnly today;
+    private DateOnly monday;
+    private IReadOnlyList<DateOnly> days = [];
+    private IReadOnlyDictionary<DateOnly, PlannedDinner> dinners = new Dictionary<DateOnly, PlannedDinner>();
+    private bool loading = true;
+    private bool loadFailed;
+    private int loadVersion;
+
+    private DateOnly? pickerDay;
+    private DateOnly? shownDay;
+    private IDisposable? tick;
+
+    /// <summary>Any date in the week to show (yyyy-MM-dd). Missing = this week (and follows the clock into the next).</summary>
+    [SupplyParameterFromQuery(Name = "dato")]
+    public string? DateParameter { get; set; }
+
+    private PlannedDinner? Shown => shownDay is { } day ? dinners.GetValueOrDefault(day) : null;
+
+    private bool ShowsThisWeek => monday == MealPlanRules.WeekStart(today);
+
+    // The worker refreshes every 15 minutes; warn when the copy is clearly older than that.
+    private bool IsStale =>
+        Recipes.Status.Problem is RecipeApiError.Offline or RecipeApiError.Failed
+        && (Recipes.Status.LastSuccess is not { } last || Clock.Now - last > TimeSpan.FromMinutes(30));
+
+    private string StaleText => Recipes.Status.LastSuccess is { } last
+        ? $"Viser opskrifterne fra {DanishFormat.RelativeDay(DateOnly.FromDateTime(last.DateTime), today).ToLower(DanishFormat.Culture)} kl. {DanishFormat.Time(TimeOnly.FromDateTime(last.DateTime))}."
+        : "Opskrifterne er ikke hentet endnu.";
+
+    protected override void OnInitialized()
+    {
+        MealPlan.Changed += OnMealPlanChanged;
+        Recipes.Changed += OnRecipesChanged;
+        tick = Clock.SubscribeMinuteTick(time => OnDayMaybeChanged());
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        today = Clock.Today;
+        var date = DateOnly.TryParseExact(DateParameter, "yyyy-MM-dd", out var parsed) ? parsed : today;
+        var week = MealPlanRules.WeekStart(date);
+        if (week != monday || days.Count == 0)
+        {
+            monday = week;
+            days = MealPlanRules.WeekDays(monday);
+            pickerDay = null;
+            shownDay = null;
+            loading = true;
+        }
+
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        var version = ++loadVersion;
+        try
+        {
+            var result = await MealPlan.GetDinnersAsync(monday, monday.AddDays(7));
+            if (version == loadVersion)
+            {
+                dinners = result;
+                loadFailed = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Could not read the meal plan for the week of {Monday}", monday);
+            loadFailed = version == loadVersion;
+        }
+        finally
+        {
+            if (version == loadVersion)
+            {
+                loading = false;
+            }
+        }
+    }
+
+    private void OnMealPlanChanged() => _ = InvokeAsync(async () =>
+    {
+        await LoadAsync();
+        StateHasChanged();
+    });
+
+    private void OnRecipesChanged() => _ = InvokeAsync(StateHasChanged);
+
+    // At midnight "today" moves; on Monday a screen showing "this week" follows along.
+    private void OnDayMaybeChanged() => _ = InvokeAsync(async () =>
+    {
+        if (Clock.Today == today)
+        {
+            return;
+        }
+
+        await OnParametersSetAsync();
+        StateHasChanged();
+    });
+
+    private void ShowDay(DateOnly day)
+    {
+        if (dinners.ContainsKey(day))
+        {
+            shownDay = day;
+        }
+        else
+        {
+            pickerDay = day;
+        }
+    }
+
+    private void ChangeDinner()
+    {
+        pickerDay = shownDay;
+        shownDay = null;
+    }
+
+    // The dish shows up on the day – no message needed (docs/standarder/feedback.md).
+    private async Task PickRecipeAsync(Recipe recipe)
+    {
+        if (pickerDay is not { } day)
+        {
+            return;
+        }
+
+        pickerDay = null;
+        await Toasts.TryAsync(() => MealPlan.PlanRecipeAsync(day, recipe), "Retten blev ikke gemt", Logger);
+    }
+
+    private async Task PickTextAsync(string title)
+    {
+        if (pickerDay is not { } day)
+        {
+            return;
+        }
+
+        pickerDay = null;
+        await Toasts.TryAsync(() => MealPlan.PlanTextAsync(day, title), "Retten blev ikke gemt", Logger);
+    }
+
+    // Called by the dialog's HubButton, which shows the error toast if it fails.
+    private async Task RemoveAsync()
+    {
+        if (shownDay is not { } day)
+        {
+            return;
+        }
+
+        var title = Shown is { } dinner ? DinnerLook.Title(dinner, dinner.RecipeId is { } id ? Recipes.Find(id) : null) : "Retten";
+        var removed = await MealPlan.RemoveAsync(day);
+        shownDay = null;
+        if (removed is not null)
+        {
+            Toasts.Undoable($"{title} er fjernet", () => MealPlan.RestoreAsync(removed));
+        }
+    }
+
+    private async Task MoveShownAsync(DateOnly to)
+    {
+        if (shownDay is not { } from)
+        {
+            return;
+        }
+
+        shownDay = null;
+        await Toasts.TryAsync(() => MealPlan.MoveAsync(from, to), "Retten blev ikke flyttet", Logger);
+    }
+
+    private Task MoveAsync(DinnerMove move) =>
+        Toasts.TryAsync(() => MealPlan.MoveAsync(move.From, move.To), "Retten blev ikke flyttet", Logger);
+
+    private void Step(int direction) => NavigateTo(monday.AddDays(7 * direction));
+
+    private void GoToThisWeek() => NavigateTo(today);
+
+    private void NavigateTo(DateOnly day)
+    {
+        var week = MealPlanRules.WeekStart(day);
+        var uri = Navigation.GetUriWithQueryParameters(new Dictionary<string, object?>
+        {
+            ["dato"] = week == MealPlanRules.WeekStart(today) ? null : week.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
+        });
+        Navigation.NavigateTo(uri, replace: true);
+    }
+
+    public void Dispose()
+    {
+        MealPlan.Changed -= OnMealPlanChanged;
+        Recipes.Changed -= OnRecipesChanged;
+        tick?.Dispose();
+    }
+}

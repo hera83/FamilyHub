@@ -1,5 +1,6 @@
 // Family Hub – UI smoke test in real Chrome/Edge, emulating the 1920x1080 kitchen touch screen.
-// Checks the on-screen keyboard end-to-end (finger taps, typing, number pad, dialogs) and saves screenshots.
+// Checks the on-screen keyboard end-to-end (finger taps, typing, number pad, dialogs), the calendar and the meal plan
+// (pick, own dish, drag and drop, swipe, undo) and saves screenshots.
 //
 //   cd tools/ui-smoke
 //   npm install                       (first time – installs playwright-core, no browser download)
@@ -280,6 +281,147 @@ async function open(page, path) {
     log('calendar: settings list the calendars', (await page.locator('.hub-list__row').count()) >= 1);
     await page.screenshot({ path: `${OUT}/21-calendar-settings.png`, fullPage: true });
   }
+  await context.close();
+}
+
+// ---------------------------------------------------------------- meal plan
+// Plays in a week far ahead (January 2030), so a real plan is never touched – and removes what it added.
+{
+  const { context, page } = await newPage();
+  const cdp = await context.newCDPSession(page);
+  const touch = (type, x, y) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x, y }] });
+  const center = async locator => { const b = await locator.boundingBox(); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; };
+  const day = iso => page.locator(`.mp-day[data-day="${iso}"]`);
+  const dinnerTitle = async iso => (await day(iso).locator('.mp-dinner__title').count()) ? (await day(iso).locator('.mp-dinner__title').innerText()).trim() : null;
+
+  await open(page, '/madplan');
+  log('meal plan: seven days, Monday to Sunday', (await page.locator('.mp-day').count()) === 7);
+  log('meal plan: today is marked', (await page.locator('.mp-day--today').count()) === 1);
+  await page.screenshot({ path: `${OUT}/23-madplan-week.png` });
+
+  // Remove anything left over from an interrupted run (and, at the end, what this run planned).
+  const cleanTestWeek = async () => {
+    for (const iso of ['2030-01-07', '2030-01-08', '2030-01-09', '2030-01-10', '2030-01-11', '2030-01-12', '2030-01-13']) {
+      if (await dinnerTitle(iso)) {
+        await day(iso).locator('.mp-day__press').tap();
+        await page.waitForTimeout(600);
+        await page.locator('.hub-dialog .hub-btn', { hasText: 'Fjern' }).tap();
+        await page.waitForTimeout(600);
+      }
+    }
+  };
+
+  await open(page, '/madplan?dato=2030-01-07');
+  await cleanTestWeek();
+  log('meal plan: week title', /Uge 2/.test(await page.locator('.mp-toolbar__title').innerText()));
+
+  // An empty day opens the picker with the recipe book.
+  await day('2030-01-07').locator('.mp-day__press').tap();
+  await page.waitForTimeout(700);
+  const recipes = await page.locator('.hub-dialog .hub-list__row').count();
+  log('meal plan: tapping an empty day opens the picker', (await page.locator('.hub-dialog__title', { hasText: 'Aftensmad mandag 7. januar' }).count()) === 1);
+  log('meal plan: picker lists the recipe book', recipes > 1, `${recipes} rows`);
+  log('meal plan: no keyboard until the search is tapped', (await page.locator('.hub-osk[data-visibility="expanded"]').count()) === 0);
+  await page.screenshot({ path: `${OUT}/24-madplan-picker.png` });
+
+  const chips = page.locator('.hub-dialog .hub-choice--chips .hub-choice__option');
+  if (await chips.count() > 2) {
+    await chips.nth(1).tap();
+    await page.waitForTimeout(400);
+    const filtered = await page.locator('.hub-dialog .hub-list__row').count();
+    log('meal plan: a category narrows the list', filtered < recipes, `${filtered} of ${recipes}`);
+    await chips.nth(0).tap();
+    await page.waitForTimeout(400);
+  }
+
+  const first = page.locator('.hub-dialog .hub-list__row').first();
+  const chosen = (await first.locator('.hub-list__title').innerText()).trim();
+  await first.tap();
+  await page.waitForTimeout(700);
+  log('meal plan: the chosen recipe shows on the day', (await dinnerTitle('2030-01-07')) === chosen, chosen);
+
+  // The family's own dish, typed with the on-screen keyboard.
+  await day('2030-01-08').locator('.mp-day__press').tap();
+  await page.waitForTimeout(700);
+  await page.getByLabel('Søg').tap();
+  await page.waitForTimeout(500);
+  log('meal plan: the keyboard opens for the search', (await page.locator('.hub-osk[data-visibility="expanded"]').count()) === 1);
+  const key = t => page.locator(`.hub-osk__layer[data-layer-name="letters"] [data-key="char"][data-text="${t}"]`).tap();
+  for (const ch of 'rester') await key(ch);
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: `${OUT}/25-madplan-own-dish.png` });
+  await page.locator('.hub-dialog .hub-list__row', { hasText: 'Brug »Rester«' }).tap();
+  await page.waitForTimeout(700);
+  log('meal plan: own dish from the search text', (await dinnerTitle('2030-01-08')) === 'Rester');
+
+  // Hold a dinner with a finger and drag it onto the other planned day: they swap.
+  const from = await center(day('2030-01-07').locator('.mp-dinner'));
+  const to = await center(day('2030-01-08'));
+  await touch('touchStart', from.x, from.y);
+  await page.waitForTimeout(600);
+  const lifted = await page.locator('.mp-dinner--ghost').count();
+  for (let i = 1; i <= 8; i++) await touch('touchMove', from.x + (to.x - from.x) * i / 8, from.y + (to.y - from.y) * i / 8);
+  await page.screenshot({ path: `${OUT}/26-madplan-drag.png` });
+  await touch('touchEnd');
+  await page.waitForTimeout(900);
+  log('meal plan: holding a dinner lifts it', lifted === 1);
+  log('meal plan: drag and drop swaps two dinners', (await dinnerTitle('2030-01-07')) === 'Rester' && (await dinnerTitle('2030-01-08')) === chosen);
+  log('meal plan: the drop did not open a dialog', (await page.locator('.hub-dialog').count()) === 0);
+
+  // Mouse drag to an empty day moves it.
+  const mouseFrom = await center(day('2030-01-08').locator('.mp-dinner'));
+  const mouseTo = await center(day('2030-01-10'));
+  await page.mouse.move(mouseFrom.x, mouseFrom.y);
+  await page.mouse.down();
+  for (let i = 1; i <= 10; i++) await page.mouse.move(mouseFrom.x + (mouseTo.x - mouseFrom.x) * i / 10, mouseFrom.y + (mouseTo.y - mouseFrom.y) * i / 10);
+  await page.mouse.up();
+  await page.waitForTimeout(900);
+  log('meal plan: mouse drag moves a dinner to an empty day', (await dinnerTitle('2030-01-10')) === chosen && (await dinnerTitle('2030-01-08')) === null);
+
+  // A planned day shows the dish first.
+  await day('2030-01-10').locator('.mp-day__press').tap();
+  await page.waitForTimeout(700);
+  log('meal plan: a planned day shows the dish', (await page.locator('.hub-dialog__title', { hasText: chosen }).count()) === 1);
+  log('meal plan: the dish dialog offers change and move', (await page.locator('.hub-dialog .hub-btn', { hasText: 'Skift ret' }).count()) === 1 && (await page.locator('.hub-dialog .hub-choice__option').count()) === 7);
+  await page.screenshot({ path: `${OUT}/27-madplan-dinner.png` });
+
+  // "Flyt til" in the dialog – the way without gestures.
+  await page.locator('.hub-dialog .hub-choice__option', { hasText: 'Fre 11.' }).tap();
+  await page.waitForTimeout(800);
+  log('meal plan: "Flyt til" moves the dinner', (await dinnerTitle('2030-01-11')) === chosen && (await dinnerTitle('2030-01-10')) === null);
+
+  // Remove, then undo.
+  await day('2030-01-11').locator('.mp-day__press').tap();
+  await page.waitForTimeout(700);
+  await page.locator('.hub-dialog .hub-btn', { hasText: 'Fjern' }).tap();
+  await page.waitForTimeout(700);
+  log('meal plan: removing offers Fortryd', (await page.locator('.hub-toast', { hasText: 'er fjernet' }).count()) === 1 && (await dinnerTitle('2030-01-11')) === null);
+  await page.locator('.hub-toast__action', { hasText: 'Fortryd' }).tap();
+  await page.waitForTimeout(800);
+  log('meal plan: Fortryd puts it back', (await dinnerTitle('2030-01-11')) === chosen);
+
+  // Swipe left with a finger: next week.
+  const week = await center(page.locator('.mp-week'));
+  await touch('touchStart', week.x + 200, week.y);
+  for (let i = 1; i <= 6; i++) await touch('touchMove', week.x + 200 - i * 60, week.y + i * 2);
+  await touch('touchEnd');
+  await page.waitForTimeout(900);
+  log('meal plan: swiping shows the next week', page.url().includes('dato=2030-01-14'), page.url());
+
+  await open(page, '/madplan?dato=2030-01-07');
+  await page.evaluate(() => document.documentElement.dataset.theme = 'dark');
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: `${OUT}/28-madplan-dark.png` });
+  await page.evaluate(() => document.documentElement.dataset.theme = 'light');
+
+  await cleanTestWeek();
+  log('meal plan: test week cleaned up', (await page.locator('.mp-dinner').count()) === 0);
+  await context.close();
+}
+{
+  const { context, page } = await newPage({ viewport: { width: 1280, height: 1024 } });
+  await open(page, '/madplan');
+  await page.screenshot({ path: `${OUT}/29-madplan-1280x1024.png` });
   await context.close();
 }
 

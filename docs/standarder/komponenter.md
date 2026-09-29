@@ -30,7 +30,7 @@ Moduler bruger kun disse. Se dem live under **Indstillinger → Komponentoversig
 |---|---|
 | `IToastService` | Korte beskeder: `Toasts.Success("Gemt")`, `Toasts.Undoable("Mælk er fjernet", UndoAsync)`. |
 | `InfoBox` | Varig tilstand på siden. `Tone`, `Title`, tekst, `Actions`, evt. `OnDismiss`. |
-| `HubDialog` | Kort opgave i en dialog: `<HubDialog @bind-Open="open" Title="…">…<Footer>…</Footer></HubDialog>`. |
+| `HubDialog` | Kort opgave i en dialog: `<HubDialog @bind-Open="open" Title="…">…<Footer>…</Footer></HubDialog>`. Titel og knaprække bliver stående, når indholdet er langt og ruller. |
 | `DialogService` | Bekræftelse: `if (await Dialogs.ConfirmAsync(new() { … })) { … }`. |
 
 Se [feedback.md](feedback.md) for hvornår hvad bruges.

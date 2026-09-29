@@ -1,0 +1,200 @@
+.mp-week {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: var(--hub-space-3);
+    align-items: stretch;
+    /* Vertical scrolling stays with the browser; sideways movements are ours (swipe to change week). */
+    touch-action: pan-y;
+}
+
+.mp-week--dragging {
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.mp-day {
+    display: flex;
+    min-width: 0;
+    min-height: 18rem;
+    border: 1px solid var(--hub-border);
+    border-radius: var(--hub-radius-lg);
+    background: var(--hub-surface);
+    transition: border-color var(--hub-duration-fast) var(--hub-ease), background-color var(--hub-duration-fast) var(--hub-ease);
+}
+
+.mp-day--weekend {
+    background: var(--hub-surface-muted);
+}
+
+.mp-day--today {
+    border-color: var(--hub-accent);
+    box-shadow: 0 0 0 1px var(--hub-accent);
+}
+
+.mp-day ::deep .mp-day__press {
+    display: flex;
+    flex-direction: column;
+    gap: var(--hub-space-3);
+    height: 100%;
+    padding: var(--hub-space-2) var(--hub-space-2) var(--hub-space-3);
+    border-radius: var(--hub-radius-lg);
+}
+
+.mp-day__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--hub-space-2);
+    min-height: var(--hub-touch-min);
+    padding: 0 var(--hub-space-2);
+}
+
+.mp-day__weekday {
+    color: var(--hub-text-muted);
+    font-size: var(--hub-text-sm);
+    font-weight: var(--hub-weight-bold);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.mp-day__date {
+    display: inline-grid;
+    place-items: center;
+    min-width: 2.5rem;
+    height: 2.5rem;
+    padding: 0 var(--hub-space-1);
+    border-radius: var(--hub-radius-pill);
+    font-size: var(--hub-text-xl);
+    font-weight: var(--hub-weight-bold);
+}
+
+.mp-day--today .mp-day__weekday {
+    color: var(--hub-accent-strong);
+}
+
+.mp-day--today .mp-day__date {
+    background: var(--hub-accent);
+    color: var(--hub-text-on-accent);
+}
+
+.mp-day--past .mp-day__head,
+.mp-day--past .mp-dinner {
+    opacity: 0.6;
+}
+
+.mp-day__body {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.mp-day__empty {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--hub-space-2);
+    min-height: 8rem;
+    border: 2px dashed var(--hub-border);
+    border-radius: var(--hub-radius-md);
+    color: var(--hub-text-subtle);
+    font-size: var(--hub-text-sm);
+    font-weight: var(--hub-weight-medium);
+}
+
+.mp-day__empty ::deep .hub-icon {
+    width: 1.75rem;
+    height: 1.75rem;
+}
+
+/* ------------------------------------------------------------------ the dinner */
+
+.mp-dinner {
+    display: flex;
+    flex-direction: column;
+    gap: var(--hub-space-2);
+    padding: var(--hub-space-3);
+    border: 1px solid var(--hub-accent-soft);
+    border-radius: var(--hub-radius-md);
+    background: var(--hub-accent-softer);
+    overflow: hidden;
+    /* The long-press to drag must not select text or open the browser's menu. */
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+}
+
+.mp-dinner__image {
+    display: block;
+    width: calc(100% + 2 * var(--hub-space-3));
+    max-width: none;
+    aspect-ratio: 4 / 3;
+    margin: calc(-1 * var(--hub-space-3)) calc(-1 * var(--hub-space-3)) 0;
+    object-fit: cover;
+    pointer-events: none;
+}
+
+.mp-dinner__title {
+    display: -webkit-box;
+    overflow: hidden;
+    font-size: var(--hub-text-lg);
+    font-weight: var(--hub-weight-bold);
+    line-height: var(--hub-leading-tight);
+    overflow-wrap: anywhere;
+    hyphens: auto;
+    -webkit-line-clamp: 4;
+    -webkit-box-orient: vertical;
+}
+
+.mp-dinner__meta {
+    color: var(--hub-text-muted);
+    font-size: var(--hub-text-sm);
+}
+
+/* ------------------------------------------------------------------ drag and drop (classes set by MealPlanWeek.razor.js) */
+
+.mp-day--dragging .mp-dinner {
+    opacity: 0.3;
+}
+
+.mp-day--target {
+    border-color: var(--hub-accent);
+    background: var(--hub-accent-softer);
+    box-shadow: 0 0 0 2px var(--hub-accent);
+}
+
+.mp-dinner--ghost {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: var(--hub-z-dialog);
+    box-shadow: var(--hub-shadow-lg);
+    opacity: 0.95;
+    pointer-events: none;
+    will-change: transform;
+}
+
+@media (max-width: 100rem) {
+    .mp-week {
+        gap: var(--hub-space-2);
+    }
+
+    .mp-day ::deep .mp-day__press {
+        padding: var(--hub-space-1) var(--hub-space-1) var(--hub-space-2);
+    }
+
+    .mp-day__head {
+        padding: 0 var(--hub-space-1);
+    }
+
+    .mp-dinner {
+        padding: var(--hub-space-2);
+    }
+
+    .mp-dinner__image {
+        width: calc(100% + 2 * var(--hub-space-2));
+        margin: calc(-1 * var(--hub-space-2)) calc(-1 * var(--hub-space-2)) 0;
+    }
+}

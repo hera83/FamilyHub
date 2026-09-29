@@ -1,0 +1,32 @@
+.mp-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--hub-space-4) var(--hub-space-6);
+}
+
+.mp-toolbar__nav {
+    display: flex;
+    gap: var(--hub-space-2);
+}
+
+.mp-toolbar__period {
+    flex: 1;
+    min-width: 14rem;
+}
+
+.mp-toolbar__title {
+    font-size: var(--hub-text-xl);
+    line-height: var(--hub-leading-tight);
+}
+
+.mp-toolbar__detail {
+    margin-top: 0.125rem;
+    color: var(--hub-text-muted);
+}
+
+.mp-hint {
+    color: var(--hub-text-subtle);
+    font-size: var(--hub-text-sm);
+    text-align: center;
+}
