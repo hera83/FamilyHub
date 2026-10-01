@@ -1,3 +1,8 @@
+/* "Print" stands alone on the left of the footer; Fjern and Skift ret stay on the right. */
+.mp-details__print {
+    margin-inline-end: auto;
+}
+
 .mp-details {
     display: flex;
     flex-direction: column;

@@ -9,6 +9,11 @@
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.12" />
   </ItemGroup>
 
+  <ItemGroup Label="Print">
+    <!-- PDF'er til printeren (opskrifter). Community-licens: gratis for privatpersoner og små virksomheder. -->
+    <PackageVersion Include="QuestPDF" Version="2026.9.1" />
+  </ItemGroup>
+
   <ItemGroup Label="Test">
     <PackageVersion Include="bunit" Version="2.11.3" />
     <PackageVersion Include="coverlet.collector" Version="6.0.4" />

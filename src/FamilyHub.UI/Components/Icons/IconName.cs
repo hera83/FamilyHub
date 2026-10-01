@@ -41,6 +41,7 @@ public enum IconName
     ArrowRight,
     MoreHorizontal,
     Power,
+    Printer,
 
     // Status and feedback
     Info,

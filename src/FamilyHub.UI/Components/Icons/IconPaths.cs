@@ -41,6 +41,7 @@ internal static class IconPaths
         IconName.ArrowRight => """<line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>""",
         IconName.MoreHorizontal => """<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>""",
         IconName.Power => """<path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/>""",
+        IconName.Printer => """<polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>""",
 
         IconName.Info => """<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>""",
         IconName.CheckCircle => """<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>""",

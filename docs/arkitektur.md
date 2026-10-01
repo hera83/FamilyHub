@@ -72,6 +72,7 @@ FamilyHub.Web       værten: Program.cs, layout, navigation, forside, indstillin
 | `CalendarService` (Kalender) | Singleton | Google-konti, kalendere, lokal kopi af aftaler; `CalendarSyncWorker` synkroniserer i baggrunden |
 | `RecipeService` (Madplan) | Singleton | Kopi af familiens opskriftsbog (API) i hukommelsen og på disk; søgning og skrivninger. `RecipeSyncWorker` opdaterer den hvert 15. minut. Se `docs/opskrifter-api.md` |
 | `MealPlanService` (Madplan) | Singleton | Ugens aftensmad i SQLite (`madplan/madplan.db`, EF Core med migrationer); `Changed` til alle skærme |
+| `PrintService` (Core) | Singleton | Print en PDF via familiens printserver (Print API) fra alle menuer; `PrintJobWorker` følger udskrifterne og sender `JobChanged` til alle skærme. Se `docs/printer.md` |
 | `IToastService` | Scoped | Toasts på denne skærm |
 | `DeviceService` | Scoped | Skærmens egenskaber og egne indstillinger |
 | `KeyboardService` | Scoped | Skærmtastaturets tilstand |
@@ -104,3 +105,4 @@ FamilyHub.Web       værten: Program.cs, layout, navigation, forside, indstillin
 | 2026-09-28 | Google-login er også tilladt fra en https-adresse (reverse proxy med eget domæne) med en »Webapplikation«-klient. Tunnelen er stadig muligheden uden https. |
 | 2026-09-29 | Madplan: opskrifterne ejes af familiens opskriftsbog (separat app med API, nøgle i `.env`). Family Hub holder en kopi af hele bogen (lille) på disk, søger lokalt og skriver direkte til API'et. Madplanen gemmer kun opskrifternes id. Se `docs/opskrifter-api.md`. |
 | 2026-09-29 | Madplan: kun aftensmad, én ret pr. dag, mandag–søndag. Første modul med EF Core + SQLite; databasen oprettes/opgraderes med migrationer (`MigrateAsync`) ved første brug. Flyt til en dag med en ret = byt plads. Swipe og træk-og-slip er genveje – alt kan også gøres med tryk. |
+| 2026-10-01 | Print: via familiens printserver (Print API, separat app) – Family Hub sender PDF'er og følger jobbet. Ligger i Core, så alle menuer kan printe uden at referere til hinanden. Family Hub får en almindelig nøgle (må kun printe), aldrig printserverens master-nøgle, da Family Hub ingen login har. Se `docs/printer.md`. |

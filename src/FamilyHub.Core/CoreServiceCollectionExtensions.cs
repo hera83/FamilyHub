@@ -1,6 +1,7 @@
 using FamilyHub.Core.Configuration;
 using FamilyHub.Core.Household;
 using FamilyHub.Core.Notifications;
+using FamilyHub.Core.Printing;
 using FamilyHub.Core.Storage;
 using FamilyHub.Core.Time;
 using Microsoft.AspNetCore.DataProtection;
@@ -15,7 +16,7 @@ namespace FamilyHub.Core;
 
 public static class CoreServiceCollectionExtensions
 {
-    /// <summary>Registers configuration, clock, storage, household settings and toasts.</summary>
+    /// <summary>Registers configuration, clock, storage, household settings, printing and toasts.</summary>
     public static IServiceCollection AddFamilyHubCore(this IServiceCollection services, IConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(configuration);
@@ -37,6 +38,17 @@ public static class CoreServiceCollectionExtensions
                 options.XmlRepository = new FileSystemXmlRepository(new DirectoryInfo(paths.GetDirectory("keys")), loggers));
         services.TryAddSingleton<IHubClock, HubClock>();
         services.TryAddSingleton<IHouseholdService, HouseholdService>();
+
+        // Printing for every menu: the family's print server (Print API). Empty address = not set up. See docs/printer.md.
+        services.AddOptions<PrintApiOptions>()
+            .Bind(configuration.GetSection(PrintApiOptions.SectionName))
+            .Validate(o => string.IsNullOrWhiteSpace(o.BaseUrl) || o.TryGetBaseUri(out _),
+                $"{PrintApiOptions.SectionName}:BaseUrl skal være tom eller en http(s)-adresse, fx http://homelab.local:8080.")
+            .ValidateOnStart();
+        services.AddHttpClient(PrintApiClient.HttpClientName);
+        services.TryAddSingleton<PrintApiClient>();
+        services.TryAddSingleton<PrintService>();
+        services.AddHostedService<PrintJobWorker>();
 
         // Scoped = one per screen (Blazor circuit).
         services.TryAddScoped<IToastService, ToastService>();

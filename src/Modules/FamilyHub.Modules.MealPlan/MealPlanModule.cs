@@ -1,6 +1,7 @@
 using FamilyHub.Core.Storage;
 using FamilyHub.Modules.MealPlan.Components;
 using FamilyHub.Modules.MealPlan.Plan;
+using FamilyHub.Modules.MealPlan.Print;
 using FamilyHub.Modules.MealPlan.Recipes;
 using FamilyHub.UI.Components;
 using FamilyHub.UI.Modules;
@@ -43,6 +44,10 @@ public sealed class MealPlanModule : HubModule
         services.AddSingleton<RecipeApiClient>();
         services.AddSingleton<RecipeService>();
         services.AddHostedService<RecipeSyncWorker>();
+
+        // "Print" on a recipe: PDF → the family's print server (PrintService in Core). See docs/printer.md.
+        services.AddHttpClient(RecipePrinter.HttpClientName);
+        services.AddSingleton<RecipePrinter>();
 
         // The family's plan: SQLite in the data folder (madplan/madplan.db).
         services.AddDbContextFactory<MealPlanDbContext>((provider, options) => options.UseSqlite(

@@ -16,6 +16,7 @@ Madplanen handler **kun om aftensmad** – én ret pr. dag. Andre måltider plan
 | Skift ret | »Skift ret« i dialogen → vælgeren (den nuværende ret er markeret »Valgt«). |
 | Flyt ret | **Hold fingeren** på retten og træk den til en anden dag (med mus: bare træk). Står der en ret, bytter de plads. Uden fagter: »Flyt til en anden dag« i dialogen. |
 | Fjern ret | »Fjern« i dialogen – med »Fortryd« i toasten. |
+| Print opskrift | »Print« nederst til venstre i dialogen (kun opskrifter fra bogen, og kun når printeren er sat op). Opskriften laves som PDF med billede, ingredienser og fremgangsmåde og sendes til familiens printer. Se `docs/printer.md`. |
 | »I aften« på forsiden | Dagens ret fra kl. 06:00 til 19:00 (så har vi spist). Uden ret – eller uden for tidsrummet – vises intet kort. Tider: `MealPlanRules.TonightFrom/TonightUntil`. |
 
 Swipe og træk er genveje. Alt kan også gøres med tryk alene (standarderne: ingen skjulte fagter som eneste vej).
@@ -27,7 +28,8 @@ Swipe og træk er genveje. Alt kan også gøres med tryk alene (standarderne: in
 | `Pages/MealPlanPage.razor` | Siden: værktøjslinje, status (InfoBox), ugen og de to dialoger |
 | `Components/MealPlanWeek.razor` (+ `.razor.js`) | De syv dage. JS-modulet står for swipe og træk-og-slip (pointer events – finger og mus) |
 | `Components/RecipePickerDialog.razor` | Vælg ret: søgning, kategori-chips, egen ret |
-| `Components/DinnerDialog.razor` | En planlagt ret: vis den, flyt, skift, fjern |
+| `Components/DinnerDialog.razor` | En planlagt ret: vis den, flyt, skift, fjern, print |
+| `Print/RecipePdf.cs` + `Print/RecipePrinter.cs` | Opskriften som A4-PDF (QuestPDF) og afsendelse til printeren (`PrintService` i Core) |
 | `Components/TonightWidget.razor` | »I aften« på forsiden |
 | `Components/DinnerLook.cs` | Titel, ikon og faktalinje (»35 min · Aftensmad«) |
 | `Plan/MealPlanService.cs` | Familiens plan: planlæg, flyt/byt, fjern/fortryd, `Changed` til alle skærme. `MealPlanRules`: uger og flyt-reglen |

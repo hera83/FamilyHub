@@ -385,6 +385,24 @@ async function open(page, path) {
   log('meal plan: the dish dialog offers change and move', (await page.locator('.hub-dialog .hub-btn', { hasText: 'Skift ret' }).count()) === 1 && (await page.locator('.hub-dialog .hub-choice__option').count()) === 7);
   await page.screenshot({ path: `${OUT}/27-madplan-dinner.png` });
 
+  // "Print" (only when a printer is set up): alone on the left of the footer. Never tapped here – it would print paper.
+  const printButton = page.locator('.hub-dialog__footer .hub-btn', { hasText: 'Print' });
+  if (await printButton.count()) {
+    const printBox = await printButton.boundingBox();
+    const removeBox = await page.locator('.hub-dialog__footer .hub-btn', { hasText: 'Fjern' }).boundingBox();
+    const footerBox = await page.locator('.hub-dialog__footer').boundingBox();
+    log('meal plan: Print sits on the left, Fjern and Skift ret on the right',
+      printBox.x - footerBox.x < 40 && removeBox.x - (printBox.x + printBox.width) > 40);
+    log('meal plan: Print is big enough to tap', printBox.height >= 44);
+    const theme = await page.evaluate(() => document.documentElement.dataset.theme);
+    await page.evaluate(() => document.documentElement.dataset.theme = 'dark');
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: `${OUT}/27-madplan-dinner-dark.png` });
+    await page.evaluate(t => document.documentElement.dataset.theme = t, theme);
+  } else {
+    log('meal plan: no printer set up – Print is hidden (set FamilyHub__Printing__* to check it)', true);
+  }
+
   // "Flyt til" in the dialog – the way without gestures.
   await page.locator('.hub-dialog .hub-choice__option', { hasText: 'Fre 11.' }).tap();
   await page.waitForTimeout(800);

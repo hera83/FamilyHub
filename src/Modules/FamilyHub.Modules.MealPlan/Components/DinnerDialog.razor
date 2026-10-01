@@ -1,7 +1,12 @@
 @*
     A planned dinner: the dish first (photo, time, ingredients), then what can be done –
-    move it to another day (swaps with a planned day), change it, or remove it (with "Fortryd").
+    move it to another day (swaps with a planned day), change it, remove it (with "Fortryd") or print the recipe.
 *@
+@inject RecipePrinter Printer
+@inject PrintService Printing
+@inject IToastService Toasts
+@implements IDisposable
+
 <HubDialog Open="Dinner is not null" OpenChanged="OnOpenChanged" Title="@DialogTitle">
     <ChildContent>
         @if (Dinner is { } dinner)
@@ -71,6 +76,13 @@
         }
     </ChildContent>
     <Footer>
+        @if (Recipe is { } printable && Printer.IsConfigured)
+        {
+            <div class="mp-details__print">
+                <HubButton Variant="ButtonVariant.Secondary" Icon="IconName.Printer" OnClick="() => PrintAsync(printable)"
+                           ErrorMessage="Opskriften blev ikke udskrevet">Print</HubButton>
+            </div>
+        }
         <HubButton Variant="ButtonVariant.Quiet" Icon="IconName.Trash" OnClick="OnRemove" ErrorMessage="Retten blev ikke fjernet">Fjern</HubButton>
         <HubButton Variant="ButtonVariant.Primary" Icon="IconName.Refresh" OnClick="OnChange">Skift ret</HubButton>
     </Footer>
@@ -149,5 +161,72 @@
         {
             await OnClose.InvokeAsync();
         }
+    }
+
+    // ------------------------------------------------------------------ print
+
+    // Jobs printed from this screen, with the last problem told – so "mangler papir" is said once, not every 3 s.
+    private readonly Dictionary<Guid, string?> printed = [];
+
+    protected override void OnInitialized() => Printing.JobChanged += OnJobChanged;
+
+    public void Dispose() => Printing.JobChanged -= OnJobChanged;
+
+    private async Task PrintAsync(Recipe recipe)
+    {
+        PrintJob job;
+        try
+        {
+            job = await Printer.PrintAsync(recipe);
+        }
+        catch (PrintApiException ex)
+        {
+            // The message is short and Danish ("Printeren svarer ikke."), so it says what to do.
+            Toasts.Error("Opskriften blev ikke udskrevet", ex.Message);
+            return;
+        }
+
+        lock (printed)
+        {
+            printed[job.Id] = null;
+        }
+
+        Toasts.Success("Sendt til printeren", recipe.Title);
+    }
+
+    // Raised on a background thread while the job is followed.
+    private void OnJobChanged(PrintJob job)
+    {
+        string? tell;
+        lock (printed)
+        {
+            if (!printed.TryGetValue(job.Id, out var told))
+            {
+                return;
+            }
+
+            if (job.IsFinished)
+            {
+                printed.Remove(job.Id);
+            }
+            else
+            {
+                printed[job.Id] = job.Problem;
+            }
+
+            tell = job.Problem is { } problem && problem != told ? problem : null;
+        }
+
+        _ = InvokeAsync(() =>
+        {
+            if (job.Status == PrintJobStatus.Failed)
+            {
+                Toasts.Error("Opskriften blev ikke udskrevet", tell ?? job.Problem);
+            }
+            else if (tell is not null)
+            {
+                Toasts.Warning(tell, "Opskriften udskrives, når det er ordnet.");
+            }
+        });
     }
 }

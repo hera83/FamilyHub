@@ -1,12 +1,16 @@
 using System.Globalization;
+using System.Net;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Bunit;
 using FamilyHub.Core.Configuration;
 using FamilyHub.Core.Notifications;
+using FamilyHub.Core.Printing;
 using FamilyHub.Core.Storage;
 using FamilyHub.Core.Time;
 using FamilyHub.Modules.MealPlan.Components;
 using FamilyHub.Modules.MealPlan.Plan;
+using FamilyHub.Modules.MealPlan.Print;
 using FamilyHub.Modules.MealPlan.Recipes;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -57,7 +61,16 @@ public sealed class MealPlanComponentTests : BunitContext
         var clock = new HubClock(TimeProvider.System, Options.Create(new FamilyHubOptions()), NullLogger<HubClock>.Instance);
         Services.AddSingleton<IHubClock>(clock);
         Services.AddSingleton(new RecipeService(api, paths, clock, NullLogger<RecipeService>.Instance));
+
+        // The printer: a print server that accepts everything (printer 7 is chosen in the settings).
+        var printApi = new PrintApiClient(new PrintHttp(printServer), new FixedPrintOptions(printOptions), NullLogger<PrintApiClient>.Instance);
+        var printing = new PrintService(printApi, new FixedPrintOptions(printOptions), TimeProvider.System, NullLogger<PrintService>.Instance);
+        Services.AddSingleton(printing);
+        Services.AddSingleton(new RecipePrinter(printing, new NoHttp(), clock, NullLogger<RecipePrinter>.Instance));
     }
+
+    private readonly PrintApiOptions printOptions = new() { BaseUrl = "http://print.test:8080", ApiKey = "ak_test", PrinterId = 7 };
+    private readonly PrintServerStub printServer = new();
 
     protected override void Dispose(bool disposing)
     {
@@ -172,7 +185,63 @@ public sealed class MealPlanComponentTests : BunitContext
 
         Assert.Equal("Gammel ret", cut.Find(".hub-dialog__title").TextContent);
         Assert.Contains("Opskriften kan ikke vises lige nu", cut.Markup);
+        Assert.Empty(cut.FindAll(".mp-details__print"));
     }
+
+    [Fact]
+    public void Print_is_only_offered_for_a_recipe_when_the_printer_is_set_up()
+    {
+        var ownDish = Render<DinnerDialog>(p => p
+            .Add(x => x.Dinner, new PlannedDinner(Tuesday, null, "Pizza ude"))
+            .Add(x => x.Days, Week)
+            .Add(x => x.Today, Tuesday));
+        Assert.Empty(ownDish.FindAll(".mp-details__print"));
+
+        printOptions.ApiKey = null;
+        var notSetUp = RenderChili();
+        Assert.Empty(notSetUp.FindAll(".mp-details__print"));
+    }
+
+    [Fact]
+    public void Print_sends_the_recipe_as_a_pdf_and_says_so()
+    {
+        var cut = RenderChili();
+        var footer = cut.Find(".hub-dialog__footer");
+        Assert.Equal(["Print", "Fjern", "Skift ret"], footer.QuerySelectorAll(".hub-btn__label").Select(e => e.TextContent));
+
+        cut.Find(".mp-details__print button").Click();
+
+        cut.WaitForAssertion(() => Assert.Contains(Toasts.Visible, t => t.Title == "Sendt til printeren"));
+        var submit = Assert.Single(printServer.Submitted);
+        Assert.Equal(7, (int)submit["printerId"]!);
+        Assert.False((bool)submit["color"]!);   // no photo → black and white
+        var pdf = Convert.FromBase64String((string)submit["documentBase64"]!);
+        Assert.StartsWith("%PDF-", System.Text.Encoding.ASCII.GetString(pdf, 0, 5));
+    }
+
+    [Fact]
+    public void A_print_that_fails_says_why_in_danish()
+    {
+        printServer.Offline = true;
+        var cut = RenderChili();
+
+        cut.Find(".mp-details__print button").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            var toast = Assert.Single(Toasts.Visible);
+            Assert.Equal("Opskriften blev ikke udskrevet", toast.Title);
+            Assert.Equal("Printserveren kan ikke nås lige nu.", toast.Message);
+        });
+    }
+
+    private IToastService Toasts => Services.GetRequiredService<IToastService>();
+
+    private IRenderedComponent<DinnerDialog> RenderChili() => Render<DinnerDialog>(p => p
+        .Add(x => x.Dinner, new PlannedDinner(Tuesday, 2, "Chili"))
+        .Add(x => x.Recipe, Chili)
+        .Add(x => x.Days, Week)
+        .Add(x => x.Today, Tuesday));
 
     private sealed class FixedOptions(RecipeApiOptions value) : IOptionsMonitor<RecipeApiOptions>
     {
@@ -186,5 +255,52 @@ public sealed class MealPlanComponentTests : BunitContext
     private sealed class NoHttp : IHttpClientFactory
     {
         public HttpClient CreateClient(string name) => throw new InvalidOperationException("The components must not call the recipe book.");
+    }
+
+    private sealed class FixedPrintOptions(PrintApiOptions value) : IOptionsMonitor<PrintApiOptions>
+    {
+        public PrintApiOptions CurrentValue => value;
+
+        public PrintApiOptions Get(string? name) => value;
+
+        public IDisposable? OnChange(Action<PrintApiOptions, string?> listener) => null;
+    }
+
+    private sealed class PrintHttp(HttpMessageHandler handler) : IHttpClientFactory
+    {
+        public HttpClient CreateClient(string name) => new(handler, disposeHandler: false);
+    }
+
+    /// <summary>Accepts every print job, like the print server's <c>POST /Print/Submit</c>.</summary>
+    private sealed class PrintServerStub : HttpMessageHandler
+    {
+        public List<JsonNode> Submitted { get; } = [];
+
+        public bool Offline { get; set; }
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            if (Offline)
+            {
+                throw new HttpRequestException("No route to host");
+            }
+
+            Assert.Equal("/Print/Submit", request.RequestUri!.AbsolutePath);
+            var body = JsonNode.Parse(await request.Content!.ReadAsStringAsync(cancellationToken))!;
+            Submitted.Add(body);
+            var job = new JsonObject
+            {
+                ["id"] = Guid.NewGuid(),
+                ["printerId"] = (int)body["printerId"]!,
+                ["printerName"] = "HP",
+                ["status"] = "Queued",
+                ["pageCount"] = 1,
+                ["pagesToPrint"] = 1,
+                ["copies"] = 1,
+                ["createdAt"] = "2026-10-01T08:00:00",
+                ["updatedAt"] = "2026-10-01T08:00:00",
+            };
+            return new HttpResponseMessage(HttpStatusCode.Accepted) { Content = new StringContent(job.ToJsonString(), System.Text.Encoding.UTF8, "application/json") };
+        }
     }
 }

@@ -28,6 +28,10 @@ services:
       # Madplanens opskrifter. Tom nøgle = ikke sat op endnu. Se docs/opskrifter-api.md.
       FamilyHub__MealPlan__Recipes__BaseUrl: ${RECIPES_API_URL:-https://opskriftsbog.ramskov.pro/api/v1}
       FamilyHub__MealPlan__Recipes__ApiKey: ${RECIPES_API_KEY:-}
+      # Printserveren (Print API). Tom adresse eller nøgle = ikke sat op. Se docs/printer.md.
+      FamilyHub__Printing__BaseUrl: ${PRINT_API_URL:-}
+      FamilyHub__Printing__ApiKey: ${PRINT_API_KEY:-}
+      FamilyHub__Printing__PrinterId: ${PRINT_PRINTER_ID:-}
 
     volumes:
       # Et navn = Docker-volumen. En sti (./data, /mnt/ssd/familyhub) = mappe på serveren.
