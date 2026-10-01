@@ -292,7 +292,9 @@ async function open(page, path) {
   const touch = (type, x, y) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x, y }] });
   const center = async locator => { const b = await locator.boundingBox(); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; };
   const day = iso => page.locator(`.mp-day[data-day="${iso}"]`);
-  const dinnerTitle = async iso => (await day(iso).locator('.mp-dinner__title').count()) ? (await day(iso).locator('.mp-dinner__title').innerText()).trim() : null;
+  const main = iso => day(iso).locator('.mp-dinner[data-course="Main"]');
+  const dinnerTitle = async iso => (await main(iso).count()) ? (await main(iso).locator('.mp-dinner__title').innerText()).trim() : null;
+  const courses = async iso => (await day(iso).locator('[data-course]').evaluateAll(els => els.map(e => e.dataset.course))).join(',');
 
   await open(page, '/madplan');
   log('meal plan: seven days, Monday to Sunday', (await page.locator('.mp-day').count()) === 7);
@@ -302,8 +304,8 @@ async function open(page, path) {
   // Remove anything left over from an interrupted run (and, at the end, what this run planned).
   const cleanTestWeek = async () => {
     for (const iso of ['2030-01-07', '2030-01-08', '2030-01-09', '2030-01-10', '2030-01-11', '2030-01-12', '2030-01-13']) {
-      if (await dinnerTitle(iso)) {
-        await day(iso).locator('.mp-day__press').tap();
+      while (await day(iso).locator('.mp-dish').count()) {
+        await day(iso).locator('.mp-dish').first().tap();
         await page.waitForTimeout(600);
         await page.locator('.hub-dialog .hub-btn', { hasText: 'Fjern' }).tap();
         await page.waitForTimeout(600);
@@ -316,12 +318,14 @@ async function open(page, path) {
   log('meal plan: week title', /Uge 2/.test(await page.locator('.mp-toolbar__title').innerText()));
 
   // An empty day opens the picker with the recipe book.
-  await day('2030-01-07').locator('.mp-day__press').tap();
+  await day('2030-01-07').locator('.mp-day__empty').tap();
   await page.waitForTimeout(700);
   const recipes = await page.locator('.hub-dialog .hub-list__row').count();
   log('meal plan: tapping an empty day opens the picker', (await page.locator('.hub-dialog__title', { hasText: 'Aftensmad mandag 7. januar' }).count()) === 1);
   log('meal plan: picker lists the recipe book', recipes > 1, `${recipes} rows`);
   log('meal plan: no keyboard until the search is tapped', (await page.locator('.hub-osk[data-visibility="expanded"]').count()) === 0);
+  log('meal plan: an empty day suggests the main course',
+    (await page.locator('.hub-dialog .hub-choice--segmented [aria-checked="true"]').innerText()).trim() === 'Hovedret');
   await page.screenshot({ path: `${OUT}/24-madplan-picker.png` });
 
   const chips = page.locator('.hub-dialog .hub-choice--chips .hub-choice__option');
@@ -341,7 +345,7 @@ async function open(page, path) {
   log('meal plan: the chosen recipe shows on the day', (await dinnerTitle('2030-01-07')) === chosen, chosen);
 
   // The family's own dish, typed with the on-screen keyboard.
-  await day('2030-01-08').locator('.mp-day__press').tap();
+  await day('2030-01-08').locator('.mp-day__empty').tap();
   await page.waitForTimeout(700);
   await page.getByLabel('Søg').tap();
   await page.waitForTimeout(500);
@@ -355,11 +359,11 @@ async function open(page, path) {
   log('meal plan: own dish from the search text', (await dinnerTitle('2030-01-08')) === 'Rester');
 
   // Hold a dinner with a finger and drag it onto the other planned day: they swap.
-  const from = await center(day('2030-01-07').locator('.mp-dinner'));
+  const from = await center(main('2030-01-07'));
   const to = await center(day('2030-01-08'));
   await touch('touchStart', from.x, from.y);
   await page.waitForTimeout(600);
-  const lifted = await page.locator('.mp-dinner--ghost').count();
+  const lifted = await page.locator('.mp-menu--ghost').count();
   for (let i = 1; i <= 8; i++) await touch('touchMove', from.x + (to.x - from.x) * i / 8, from.y + (to.y - from.y) * i / 8);
   await page.screenshot({ path: `${OUT}/26-madplan-drag.png` });
   await touch('touchEnd');
@@ -369,7 +373,7 @@ async function open(page, path) {
   log('meal plan: the drop did not open a dialog', (await page.locator('.hub-dialog').count()) === 0);
 
   // Mouse drag to an empty day moves it.
-  const mouseFrom = await center(day('2030-01-08').locator('.mp-dinner'));
+  const mouseFrom = await center(main('2030-01-08'));
   const mouseTo = await center(day('2030-01-10'));
   await page.mouse.move(mouseFrom.x, mouseFrom.y);
   await page.mouse.down();
@@ -379,10 +383,10 @@ async function open(page, path) {
   log('meal plan: mouse drag moves a dinner to an empty day', (await dinnerTitle('2030-01-10')) === chosen && (await dinnerTitle('2030-01-08')) === null);
 
   // A planned day shows the dish first.
-  await day('2030-01-10').locator('.mp-day__press').tap();
+  await main('2030-01-10').tap();
   await page.waitForTimeout(700);
   log('meal plan: a planned day shows the dish', (await page.locator('.hub-dialog__title', { hasText: chosen }).count()) === 1);
-  log('meal plan: the dish dialog offers change and move', (await page.locator('.hub-dialog .hub-btn', { hasText: 'Skift ret' }).count()) === 1 && (await page.locator('.hub-dialog .hub-choice__option').count()) === 7);
+  log('meal plan: the dish dialog offers change, no move', (await page.locator('.hub-dialog .hub-btn', { hasText: 'Skift ret' }).count()) === 1 && (await page.locator('.hub-dialog .hub-choice__option').count()) === 0);
   await page.screenshot({ path: `${OUT}/27-madplan-dinner.png` });
 
   // "Print" (only when a printer is set up): alone on the left of the footer. Never tapped here – it would print paper.
@@ -403,20 +407,73 @@ async function open(page, path) {
     log('meal plan: no printer set up – Print is hidden (set FamilyHub__Printing__* to check it)', true);
   }
 
-  // "Flyt til" in the dialog – the way without gestures.
-  await page.locator('.hub-dialog .hub-choice__option', { hasText: 'Fre 11.' }).tap();
-  await page.waitForTimeout(800);
-  log('meal plan: "Flyt til" moves the dinner', (await dinnerTitle('2030-01-11')) === chosen && (await dinnerTitle('2030-01-10')) === null);
+  await page.locator('.hub-dialog .hub-btn[aria-label="Luk"]').tap();
+  await page.waitForTimeout(500);
 
   // Remove, then undo.
-  await day('2030-01-11').locator('.mp-day__press').tap();
+  await main('2030-01-10').tap();
   await page.waitForTimeout(700);
   await page.locator('.hub-dialog .hub-btn', { hasText: 'Fjern' }).tap();
   await page.waitForTimeout(700);
-  log('meal plan: removing offers Fortryd', (await page.locator('.hub-toast', { hasText: 'er fjernet' }).count()) === 1 && (await dinnerTitle('2030-01-11')) === null);
+  log('meal plan: removing offers Fortryd', (await page.locator('.hub-toast', { hasText: 'er fjernet' }).count()) === 1 && (await dinnerTitle('2030-01-10')) === null);
   await page.locator('.hub-toast__action', { hasText: 'Fortryd' }).tap();
   await page.waitForTimeout(800);
-  log('meal plan: Fortryd puts it back', (await dinnerTitle('2030-01-11')) === chosen);
+  log('meal plan: Fortryd puts it back', (await dinnerTitle('2030-01-10')) === chosen);
+
+  // One more dish on the day: the small "Tilføj" under the main course suggests a dessert, then a starter.
+  log('meal plan: a planned day offers "Tilføj" for one more dish', (await day('2030-01-10').locator('.mp-day__add').count()) === 1);
+  await day('2030-01-10').locator('.mp-day__add').tap();
+  await page.waitForTimeout(700);
+  const segment = page.locator('.hub-dialog .hub-choice--segmented .hub-choice__option');
+  log('meal plan: "Tilføj" suggests a dessert and greys out the main course',
+    (await page.locator('.hub-dialog .hub-choice--segmented [aria-checked="true"]').innerText()).trim() === 'Dessert'
+    && await segment.filter({ hasText: 'Hovedret' }).isDisabled());
+  await page.screenshot({ path: `${OUT}/27b-madplan-add-course.png` });
+  await page.locator('.hub-dialog .hub-list__row').first().tap();
+  await page.waitForTimeout(700);
+  await day('2030-01-10').locator('.mp-day__add').tap();
+  await page.waitForTimeout(700);
+  log('meal plan: then a starter', (await page.locator('.hub-dialog .hub-choice--segmented [aria-checked="true"]').innerText()).trim() === 'Forret');
+  await page.getByLabel('Søg').tap();
+  await page.waitForTimeout(400);
+  for (const ch of 'suppe') await key(ch);
+  await page.waitForTimeout(300);
+  await page.locator('.hub-dialog .hub-list__row', { hasText: 'Brug »Suppe«' }).tap();
+  await page.waitForTimeout(800);
+  log('meal plan: the day shows starter, main course and dessert in that order', (await courses('2030-01-10')) === 'Starter,Main,Dessert', await courses('2030-01-10'));
+  log('meal plan: a full day has no "Tilføj"', (await day('2030-01-10').locator('.mp-day__add').count()) === 0);
+  await page.screenshot({ path: `${OUT}/27c-madplan-courses.png` });
+
+  // A day with only a main course, dragged onto the full day: the two days swap whole menus.
+  await day('2030-01-13').locator('.mp-day__empty').tap();
+  await page.waitForTimeout(700);
+  await page.locator('.hub-dialog .hub-list__row').first().tap();
+  await page.waitForTimeout(700);
+  const dayFrom = await center(main('2030-01-13'));
+  const dayTo = await center(day('2030-01-10'));
+  await touch('touchStart', dayFrom.x, dayFrom.y);
+  await page.waitForTimeout(600);
+  for (let i = 1; i <= 8; i++) await touch('touchMove', dayFrom.x + (dayTo.x - dayFrom.x) * i / 8, dayFrom.y + (dayTo.y - dayFrom.y) * i / 8);
+  await touch('touchEnd');
+  await page.waitForTimeout(900);
+  log('meal plan: dragging a day onto a full day swaps the whole menus',
+    (await courses('2030-01-10')) === 'Main' && (await courses('2030-01-13')) === 'Starter,Main,Dessert',
+    `${await courses('2030-01-10')} | ${await courses('2030-01-13')}`);
+
+  // Drag the full day (holding its dessert) to an empty day: every course goes along.
+  const fullFrom = await center(day('2030-01-13').locator('.mp-dinner[data-course="Dessert"]'));
+  const emptyTo = await center(day('2030-01-12'));
+  await touch('touchStart', fullFrom.x, fullFrom.y);
+  await page.waitForTimeout(600);
+  const ghostCourses = await page.locator('.mp-menu--ghost [data-course]').count();
+  for (let i = 1; i <= 8; i++) await touch('touchMove', fullFrom.x + (emptyTo.x - fullFrom.x) * i / 8, fullFrom.y + (emptyTo.y - fullFrom.y) * i / 8);
+  await page.screenshot({ path: `${OUT}/27d-madplan-drag-menu.png` });
+  await touch('touchEnd');
+  await page.waitForTimeout(900);
+  log('meal plan: holding a dish lifts the whole menu', ghostCourses === 3, `${ghostCourses} dishes in the ghost`);
+  log('meal plan: dragging a full day to an empty day moves every course',
+    (await courses('2030-01-12')) === 'Starter,Main,Dessert' && (await courses('2030-01-13')) === '',
+    `${await courses('2030-01-12')} | ${await courses('2030-01-13')}`);
 
   // Swipe left with a finger: next week.
   const week = await center(page.locator('.mp-week'));

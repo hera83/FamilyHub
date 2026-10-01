@@ -4,10 +4,13 @@ using Microsoft.EntityFrameworkCore.Design;
 
 namespace FamilyHub.Modules.MealPlan.Plan;
 
-/// <summary>One planned dinner in the database – at most one per date.</summary>
+/// <summary>One planned dish in the database – at most one per course per date.</summary>
 internal sealed class DinnerEntity
 {
     public DateOnly Date { get; set; }
+
+    /// <summary>Starter, main course or dessert. Rows from before courses existed are main courses (0).</summary>
+    public DinnerCourse Course { get; set; }
 
     /// <summary>The recipe in the recipe book. Null = the family's own text ("Rester").</summary>
     public int? RecipeId { get; set; }
@@ -31,7 +34,7 @@ public sealed class MealPlanDbContext(DbContextOptions<MealPlanDbContext> option
     {
         var dinner = modelBuilder.Entity<DinnerEntity>();
         dinner.ToTable("Dinners");
-        dinner.HasKey(d => d.Date);
+        dinner.HasKey(d => new { d.Date, d.Course });
         dinner.Property(d => d.Title).HasMaxLength(RecipeDraft.MaxTitleLength).IsRequired();
     }
 }

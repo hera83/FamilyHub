@@ -6,11 +6,13 @@
 
 @*
     Home screen card: today's dinner – from 06:00 until 19:00, when the family has eaten.
+    The main course big (with photo); a starter and a dessert as small lines under it.
     Renders nothing outside that time or when no dinner is planned, so the home screen stays calm.
 *@
-@if (dinner is not null && MealPlanRules.ShowTonight(TimeOnly.FromDateTime(Clock.Now.DateTime)))
+@if (MealPlanRules.Headline(dishes) is { } dinner && MealPlanRules.ShowTonight(TimeOnly.FromDateTime(Clock.Now.DateTime)))
 {
     var recipe = dinner.RecipeId is { } id ? Recipes.Find(id) : null;
+    var others = dishes.Where(d => d != dinner).ToList();
     <HubCard Title="I aften" Icon="IconName.Utensils" Href="@MealPlanModule.Path.TrimStart('/')" Class="mp-tonight">
         <div class="mp-tonight__dish">
             @if (recipe?.ImageUrl is { } image)
@@ -25,12 +27,24 @@
                 }
             </div>
         </div>
+        @if (others.Count > 0)
+        {
+            <ul class="mp-tonight__courses">
+                @foreach (var dish in others)
+                {
+                    <li>
+                        <span class="mp-tonight__course">@dish.Course.Label()</span>
+                        <span>@DinnerLook.Title(dish, dish.RecipeId is { } otherId ? Recipes.Find(otherId) : null)</span>
+                    </li>
+                }
+            </ul>
+        }
     </HubCard>
 }
 
 @code {
     private DateOnly day;
-    private PlannedDinner? dinner;
+    private IReadOnlyList<PlannedDish> dishes = [];
     private IDisposable? tick;
 
     protected override async Task OnInitializedAsync()
@@ -46,13 +60,13 @@
         day = Clock.Today;
         try
         {
-            dinner = (await MealPlan.GetDinnersAsync(day, day.AddDays(1))).GetValueOrDefault(day);
+            dishes = (await MealPlan.GetDishesAsync(day, day.AddDays(1))).GetValueOrDefault(day) ?? [];
         }
         catch (Exception ex)
         {
             // The home screen must never break because of the meal plan – the card just stays away.
             Logger.LogError(ex, "Could not read tonight's dinner");
-            dinner = null;
+            dishes = [];
         }
     }
 

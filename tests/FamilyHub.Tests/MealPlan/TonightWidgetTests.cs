@@ -73,8 +73,8 @@ public sealed class TonightWidgetTests : BunitContext
     public async Task The_card_shows_todays_dinner_during_the_day()
     {
         At(Wednesday, 12);
-        await mealPlan.PlanTextAsync(Wednesday, "Rester");
-        await mealPlan.PlanTextAsync(Wednesday.AddDays(1), "Pizza ude");
+        await mealPlan.PlanTextAsync(Wednesday, DinnerCourse.Main, "Rester");
+        await mealPlan.PlanTextAsync(Wednesday.AddDays(1), DinnerCourse.Main, "Pizza ude");
 
         var cut = Render<TonightWidget>();
 
@@ -86,8 +86,8 @@ public sealed class TonightWidgetTests : BunitContext
     public async Task The_card_is_gone_after_dinner_and_back_with_the_next_dinner_in_the_morning()
     {
         // The clock starts Tuesday 18:58 and runs through the night to Wednesday morning.
-        await mealPlan.PlanTextAsync(Tuesday, "Rester");
-        await mealPlan.PlanTextAsync(Wednesday, "Pizza ude");
+        await mealPlan.PlanTextAsync(Tuesday, DinnerCourse.Main, "Rester");
+        await mealPlan.PlanTextAsync(Wednesday, DinnerCourse.Main, "Pizza ude");
         var cut = Render<TonightWidget>();
         cut.WaitForAssertion(() => Assert.Equal("Rester", cut.Find(".mp-tonight__title").TextContent));
 
@@ -102,6 +102,33 @@ public sealed class TonightWidgetTests : BunitContext
 
         RunUntil(Wednesday, 6, 0);
         cut.WaitForAssertion(() => Assert.Equal("Pizza ude", cut.Find(".mp-tonight__title").TextContent));
+    }
+
+    [Fact]
+    public async Task The_main_course_is_the_headline_and_a_starter_and_dessert_are_listed_under_it()
+    {
+        At(Wednesday, 12);
+        await mealPlan.PlanTextAsync(Wednesday, DinnerCourse.Dessert, "Is med bær");
+        await mealPlan.PlanTextAsync(Wednesday, DinnerCourse.Main, "Lasagne");
+        await mealPlan.PlanTextAsync(Wednesday, DinnerCourse.Starter, "Tomatsuppe");
+
+        var cut = Render<TonightWidget>();
+
+        cut.WaitForAssertion(() => Assert.Equal("Lasagne", cut.Find(".mp-tonight__title").TextContent));
+        Assert.Equal(["Forret Tomatsuppe", "Dessert Is med bær"],
+            cut.FindAll(".mp-tonight__courses li").Select(li => string.Join(' ', li.Children.Select(c => c.TextContent))));
+    }
+
+    [Fact]
+    public async Task Only_a_dessert_planned_still_shows_tonight()
+    {
+        At(Wednesday, 12);
+        await mealPlan.PlanTextAsync(Wednesday, DinnerCourse.Dessert, "Is med bær");
+
+        var cut = Render<TonightWidget>();
+
+        cut.WaitForAssertion(() => Assert.Equal("Is med bær", cut.Find(".mp-tonight__title").TextContent));
+        Assert.Empty(cut.FindAll(".mp-tonight__courses"));
     }
 
     [Fact]
@@ -120,7 +147,7 @@ public sealed class TonightWidgetTests : BunitContext
         At(Wednesday, 12);
         var cut = Render<TonightWidget>();
 
-        await mealPlan.PlanTextAsync(Wednesday, "Rester");
+        await mealPlan.PlanTextAsync(Wednesday, DinnerCourse.Main, "Rester");
 
         cut.WaitForAssertion(() => Assert.Equal("Rester", cut.Find(".mp-tonight__title").TextContent));
     }

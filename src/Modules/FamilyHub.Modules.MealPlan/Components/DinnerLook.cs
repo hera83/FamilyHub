@@ -9,7 +9,7 @@ namespace FamilyHub.Modules.MealPlan.Components;
 public static class DinnerLook
 {
     /// <summary>The recipe's current title (it may have been renamed in the book), otherwise the one saved with the plan.</summary>
-    public static string Title(PlannedDinner dinner, Recipe? recipe) => recipe?.Title ?? dinner.Title;
+    public static string Title(PlannedDish dish, Recipe? recipe) => recipe?.Title ?? dish.Title;
 
     /// <summary>Utensils for dinner recipes and the family's own dishes, an open book for other categories.</summary>
     public static IconName Icon(Recipe? recipe) =>
@@ -34,5 +34,5 @@ public static class DinnerLook
         string.Join(" · ", new[] { Time(recipe), recipe.HasCategory ? recipe.Category : null }.OfType<string>());
 }
 
-/// <summary>A dinner dragged from one day to another.</summary>
+/// <summary>A day's dinner (all its dishes) dragged to another day.</summary>
 public readonly record struct DinnerMove(DateOnly From, DateOnly To);

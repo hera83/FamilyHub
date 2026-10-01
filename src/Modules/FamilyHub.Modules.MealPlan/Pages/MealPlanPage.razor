@@ -44,39 +44,45 @@
         </div>
     </div>
 
-    <MealPlanWeek Days="days" Dinners="dinners" FindRecipe="Recipes.Find" Today="today" Loading="loading"
-                  OnDaySelected="ShowDay" OnMove="MoveAsync" OnSwipe="Step" />
+    <MealPlanWeek Days="days" Dishes="dishes" FindRecipe="Recipes.Find" Today="today" Loading="loading"
+                  OnDishSelected="ShowDish" OnAdd="AddDish" OnMove="MoveAsync" OnSwipe="Step" />
 
-    @if (dinners.Count > 0)
+    @if (dishes.Count > 0)
     {
-        <p class="mp-hint">Hold fingeren på en ret, og træk den til en anden dag for at flytte den. Står der en ret i forvejen, bytter de plads.</p>
+        <p class="mp-hint">Hold fingeren på en ret, og træk den til en anden dag for at flytte hele dagens aftensmad. Står der noget i forvejen, bytter dagene.</p>
     }
 </HubPage>
 
-<RecipePickerDialog Day="pickerDay" CurrentRecipeId="@(pickerDay is { } d ? dinners.GetValueOrDefault(d)?.RecipeId : null)"
+<RecipePickerDialog Day="pickerDay" @bind-Course="pickerCourse" Replacing="pickerReplacing" TakenCourses="PickerTaken"
+                    CurrentRecipeId="@(pickerReplacing ? Find(pickerDay, pickerCourse)?.RecipeId : null)"
                     OnPickRecipe="PickRecipeAsync" OnPickText="PickTextAsync" OnClose="() => pickerDay = null" />
 
-<DinnerDialog Dinner="Shown" Recipe="@(Shown?.RecipeId is { } id ? Recipes.Find(id) : null)" Days="days" Today="today"
-              OnChange="ChangeDinner" OnRemove="RemoveAsync" OnMove="MoveShownAsync" OnClose="() => shownDay = null" />
+<DinnerDialog Dish="Shown" Recipe="@(Shown?.RecipeId is { } id ? Recipes.Find(id) : null)" Today="today"
+              OnChange="ChangeDish" OnRemove="RemoveAsync" OnClose="() => shown = null" />
 
 @code {
     private DateOnly today;
     private DateOnly monday;
     private IReadOnlyList<DateOnly> days = [];
-    private IReadOnlyDictionary<DateOnly, PlannedDinner> dinners = new Dictionary<DateOnly, PlannedDinner>();
+    private IReadOnlyDictionary<DateOnly, IReadOnlyList<PlannedDish>> dishes = new Dictionary<DateOnly, IReadOnlyList<PlannedDish>>();
     private bool loading = true;
     private bool loadFailed;
     private int loadVersion;
 
     private DateOnly? pickerDay;
-    private DateOnly? shownDay;
+    private DinnerCourse pickerCourse;
+    private bool pickerReplacing;
+    private (DateOnly Day, DinnerCourse Course)? shown;
     private IDisposable? tick;
 
     /// <summary>Any date in the week to show (yyyy-MM-dd). Missing = this week (and follows the clock into the next).</summary>
     [SupplyParameterFromQuery(Name = "dato")]
     public string? DateParameter { get; set; }
 
-    private PlannedDinner? Shown => shownDay is { } day ? dinners.GetValueOrDefault(day) : null;
+    private PlannedDish? Shown => shown is { } s ? Find(s.Day, s.Course) : null;
+
+    private IReadOnlyCollection<DinnerCourse> PickerTaken =>
+        pickerDay is { } day && !pickerReplacing ? [.. DishesOn(day).Select(d => d.Course)] : [];
 
     private bool ShowsThisWeek => monday == MealPlanRules.WeekStart(today);
 
@@ -106,7 +112,7 @@
             monday = week;
             days = MealPlanRules.WeekDays(monday);
             pickerDay = null;
-            shownDay = null;
+            shown = null;
             loading = true;
         }
 
@@ -118,10 +124,10 @@
         var version = ++loadVersion;
         try
         {
-            var result = await MealPlan.GetDinnersAsync(monday, monday.AddDays(7));
+            var result = await MealPlan.GetDishesAsync(monday, monday.AddDays(7));
             if (version == loadVersion)
             {
-                dinners = result;
+                dishes = result;
                 loadFailed = false;
             }
         }
@@ -159,22 +165,37 @@
         StateHasChanged();
     });
 
-    private void ShowDay(DateOnly day)
+    private IReadOnlyList<PlannedDish> DishesOn(DateOnly day) => dishes.GetValueOrDefault(day) ?? [];
+
+    private PlannedDish? Find(DateOnly? day, DinnerCourse course) =>
+        day is { } d ? DishesOn(d).FirstOrDefault(x => x.Course == course) : null;
+
+    private void ShowDish(PlannedDish dish) => shown = (dish.Date, dish.Course);
+
+    // An empty day suggests the main course; "Tilføj" under a dish suggests the next free course (dessert before starter).
+    private void AddDish(DateOnly day)
     {
-        if (dinners.ContainsKey(day))
+        if (MealPlanRules.NextCourse(DishesOn(day)) is not { } course)
         {
-            shownDay = day;
+            return;
         }
-        else
-        {
-            pickerDay = day;
-        }
+
+        pickerCourse = course;
+        pickerReplacing = false;
+        pickerDay = day;
     }
 
-    private void ChangeDinner()
+    private void ChangeDish()
     {
-        pickerDay = shownDay;
-        shownDay = null;
+        if (shown is not { } s)
+        {
+            return;
+        }
+
+        pickerCourse = s.Course;
+        pickerReplacing = true;
+        pickerDay = s.Day;
+        shown = null;
     }
 
     // The dish shows up on the day – no message needed (docs/standarder/feedback.md).
@@ -186,7 +207,8 @@
         }
 
         pickerDay = null;
-        await Toasts.TryAsync(() => MealPlan.PlanRecipeAsync(day, recipe), "Retten blev ikke gemt", Logger);
+        var course = pickerCourse;
+        await Toasts.TryAsync(() => MealPlan.PlanRecipeAsync(day, course, recipe), "Retten blev ikke gemt", Logger);
     }
 
     private async Task PickTextAsync(string title)
@@ -197,35 +219,25 @@
         }
 
         pickerDay = null;
-        await Toasts.TryAsync(() => MealPlan.PlanTextAsync(day, title), "Retten blev ikke gemt", Logger);
+        var course = pickerCourse;
+        await Toasts.TryAsync(() => MealPlan.PlanTextAsync(day, course, title), "Retten blev ikke gemt", Logger);
     }
 
     // Called by the dialog's HubButton, which shows the error toast if it fails.
     private async Task RemoveAsync()
     {
-        if (shownDay is not { } day)
+        if (shown is not { } s)
         {
             return;
         }
 
-        var title = Shown is { } dinner ? DinnerLook.Title(dinner, dinner.RecipeId is { } id ? Recipes.Find(id) : null) : "Retten";
-        var removed = await MealPlan.RemoveAsync(day);
-        shownDay = null;
+        var title = Shown is { } dish ? DinnerLook.Title(dish, dish.RecipeId is { } id ? Recipes.Find(id) : null) : "Retten";
+        var removed = await MealPlan.RemoveAsync(s.Day, s.Course);
+        shown = null;
         if (removed is not null)
         {
             Toasts.Undoable($"{title} er fjernet", () => MealPlan.RestoreAsync(removed));
         }
-    }
-
-    private async Task MoveShownAsync(DateOnly to)
-    {
-        if (shownDay is not { } from)
-        {
-            return;
-        }
-
-        shownDay = null;
-        await Toasts.TryAsync(() => MealPlan.MoveAsync(from, to), "Retten blev ikke flyttet", Logger);
     }
 
     private Task MoveAsync(DinnerMove move) =>

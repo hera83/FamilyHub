@@ -1,7 +1,8 @@
 // Gestures for the meal plan's week (MealPlanWeek.razor):
 //  - Swipe sideways anywhere on the week → previous/next week.
-//  - Hold a dinner (finger) or drag it (mouse) → drop it on another day to move it; a planned day swaps.
-// Both are shortcuts – the arrows and "Flyt til" in the dinner dialog do the same, so nothing depends on a gesture.
+//  - Hold a dish (finger) or drag it (mouse) → the day's whole dinner lifts; drop it on another day to move it there.
+//    A day that already has dishes swaps with it.
+// The arrows change week too; moving a dinner is done by dragging.
 // Pointer events, so it works the same with a finger on the kitchen screen and a mouse on the laptop.
 
 const HOLD_MS = 350;          // finger: how long to hold a dinner before it lifts
@@ -11,7 +12,7 @@ const SWIPE_MAX_MS = 800;     // a swipe is a quick movement
 
 export function attach(root, dotnet) {
   let press = null;           // the current pointer press
-  let drag = null;            // the dinner being dragged
+  let drag = null;            // the day's dinner being dragged
   let suppressClick = false;  // the click that follows a drag or swipe must not open the day
 
   function onPointerDown(e) {
@@ -115,13 +116,13 @@ export function attach(root, dotnet) {
     const rect = source.getBoundingClientRect();
     const ghost = source.cloneNode(true);
     ghost.removeAttribute('data-dinner');
-    ghost.classList.add('mp-dinner--ghost');
+    ghost.classList.add('mp-menu--ghost');
     ghost.setAttribute('aria-hidden', 'true');
     ghost.style.width = `${rect.width}px`;
     document.body.appendChild(ghost);
 
-    drag = { ghost, day, from: source.dataset.dinner, target: null, offsetX: x - rect.left, offsetY: y - rect.top };
-    day.classList.add('mp-day--dragging');
+    drag = { ghost, source, day, from: source.dataset.dinner, target: null, offsetX: x - rect.left, offsetY: y - rect.top };
+    source.classList.add('mp-menu--lifted');
     root.classList.add('mp-week--dragging');
     try {
       root.setPointerCapture(press.id);
@@ -146,7 +147,7 @@ export function attach(root, dotnet) {
   }
 
   function finishDrag() {
-    const from = drag.from;
+    const { from } = drag;
     const to = drag.target?.dataset.day;
     cleanupDrag();
     if (to && to !== from) {
@@ -160,7 +161,7 @@ export function attach(root, dotnet) {
     }
 
     drag.ghost.remove();
-    drag.day.classList.remove('mp-day--dragging');
+    drag.source.classList.remove('mp-menu--lifted');
     drag.target?.classList.remove('mp-day--target');
     root.classList.remove('mp-week--dragging');
     drag = null;

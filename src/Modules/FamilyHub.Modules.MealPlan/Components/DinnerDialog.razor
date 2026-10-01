@@ -1,20 +1,20 @@
 @*
-    A planned dinner: the dish first (photo, time, ingredients), then what can be done –
-    move it to another day (swaps with a planned day), change it, remove it (with "Fortryd") or print the recipe.
+    A planned dish (main course, starter or dessert): the dish first (photo, time, ingredients), then what can be done –
+    change it, remove it (with "Fortryd") or print the recipe. Moving a day's dinner is done by dragging it in the week.
 *@
 @inject RecipePrinter Printer
 @inject PrintService Printing
 @inject IToastService Toasts
 @implements IDisposable
 
-<HubDialog Open="Dinner is not null" OpenChanged="OnOpenChanged" Title="@DialogTitle">
+<HubDialog Open="Dish is not null" OpenChanged="OnOpenChanged" Title="@DialogTitle">
     <ChildContent>
-        @if (Dinner is { } dinner)
+        @if (Dish is { } dish)
         {
             <div class="mp-details">
                 <p class="mp-details__row">
                     <Icon Name="IconName.Calendar" />
-                    <span>Aftensmad · @DayLabel(dinner.Date)</span>
+                    <span>@dish.Course.Label() · @DayLabel(dish.Date)</span>
                 </p>
 
                 @if (Recipe is { } recipe)
@@ -59,7 +59,7 @@
                         <p class="mp-details__notes">@recipe.Notes</p>
                     }
                 }
-                else if (dinner.IsFromRecipeBook)
+                else if (dish.IsFromRecipeBook)
                 {
                     <InfoBox Tone="HubTone.Neutral" Title="Opskriften kan ikke vises lige nu">
                         Den findes ikke i opskriftsbogen – eller opskriftsbogen kan ikke nås.
@@ -69,9 +69,6 @@
                 {
                     <p class="hub-muted">Egen ret – den findes ikke i opskriftsbogen.</p>
                 }
-
-                <HubChoice TValue="DateOnly" Label="Flyt til en anden dag" Appearance="ChoiceAppearance.Chips" Options="MoveOptions"
-                           Value="dinner.Date" ValueChanged="OnMove" Help="Står der allerede en ret, bytter de plads." />
             </div>
         }
     </ChildContent>
@@ -89,17 +86,13 @@
 </HubDialog>
 
 @code {
-    /// <summary>The dinner to show. Null closes the dialog.</summary>
+    /// <summary>The dish to show. Null closes the dialog.</summary>
     [Parameter]
-    public PlannedDinner? Dinner { get; set; }
+    public PlannedDish? Dish { get; set; }
 
-    /// <summary>The dinner's recipe from the local copy of the recipe book, if it has one (and it still exists).</summary>
+    /// <summary>The dish's recipe from the local copy of the recipe book, if it has one (and it still exists).</summary>
     [Parameter]
     public Recipe? Recipe { get; set; }
-
-    /// <summary>The shown week, Monday to Sunday – the days the dinner can be moved to.</summary>
-    [Parameter, EditorRequired]
-    public IReadOnlyList<DateOnly> Days { get; set; } = [];
 
     [Parameter]
     public DateOnly Today { get; set; }
@@ -112,17 +105,10 @@
     [Parameter]
     public EventCallback OnRemove { get; set; }
 
-    /// <summary>Move to this day (swaps with a planned day).</summary>
-    [Parameter]
-    public EventCallback<DateOnly> OnMove { get; set; }
-
     [Parameter]
     public EventCallback OnClose { get; set; }
 
-    private string DialogTitle => Dinner is { } dinner ? DinnerLook.Title(dinner, Recipe) : "";
-
-    private IReadOnlyList<ChoiceOption<DateOnly>> MoveOptions =>
-        [.. Days.Select(d => new ChoiceOption<DateOnly>(d, $"{DanishFormat.WeekdayShort(d.DayOfWeek)} {d.Day}."))];
+    private string DialogTitle => Dish is { } dish ? DinnerLook.Title(dish, Recipe) : "";
 
     private string DayLabel(DateOnly day) =>
         Math.Abs(day.DayNumber - Today.DayNumber) <= 1

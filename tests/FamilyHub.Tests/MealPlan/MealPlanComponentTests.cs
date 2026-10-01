@@ -38,6 +38,8 @@ public sealed class MealPlanComponentTests : BunitContext
 
     private static readonly Recipe Blondie = new() { Id = 23, Title = "Appelsin blondie", CategoryId = 4, Category = "Kager", Servings = 24 };
 
+    private static readonly Recipe IceCream = new() { Id = 31, Title = "Is med bær", CategoryId = 5, Category = "Dessert" };
+
     private readonly string directory = Path.Combine(Path.GetTempPath(), "familyhub-tests", Guid.NewGuid().ToString("N"));
 
     public MealPlanComponentTests()
@@ -51,8 +53,16 @@ public sealed class MealPlanComponentTests : BunitContext
         var paths = new AppDataPaths(Options.Create(new FamilyHubOptions { DataDirectory = directory }));
         var snapshot = new RecipeSnapshot
         {
-            Recipes = [Blondie, Chili],
-            Lookups = new RecipeLookups { Categories = [new() { Id = 1, Name = "Aftensmad", RecipeCount = 1 }, new() { Id = 4, Name = "Kager", RecipeCount = 1 }] },
+            Recipes = [Blondie, Chili, IceCream],
+            Lookups = new RecipeLookups
+            {
+                Categories =
+                [
+                    new() { Id = 1, Name = "Aftensmad", RecipeCount = 1 },
+                    new() { Id = 5, Name = "Dessert", RecipeCount = 1 },
+                    new() { Id = 4, Name = "Kager", RecipeCount = 1 },
+                ],
+            },
             LastSuccess = DateTimeOffset.UnixEpoch,
         };
         File.WriteAllText(paths.GetFilePath("madplan/opskrifter.json"), JsonSerializer.Serialize(snapshot, HubJson.Files));
@@ -84,19 +94,21 @@ public sealed class MealPlanComponentTests : BunitContext
     [Fact]
     public void The_week_shows_seven_days_with_dinners_and_empty_days_to_fill()
     {
-        DateOnly? tapped = null;
-        var dinners = new Dictionary<DateOnly, PlannedDinner>
+        DateOnly? added = null;
+        PlannedDish? tapped = null;
+        var dishes = new Dictionary<DateOnly, IReadOnlyList<PlannedDish>>
         {
-            [Tuesday] = new(Tuesday, 2, "Chili"),
-            [Monday.AddDays(3)] = new(Monday.AddDays(3), null, "Rester"),
+            [Tuesday] = [new(Tuesday, DinnerCourse.Main, 2, "Chili")],
+            [Monday.AddDays(3)] = [new(Monday.AddDays(3), DinnerCourse.Main, null, "Rester")],
         };
 
         var cut = Render<MealPlanWeek>(p => p
             .Add(x => x.Days, Week)
-            .Add(x => x.Dinners, dinners)
+            .Add(x => x.Dishes, dishes)
             .Add(x => x.FindRecipe, id => id == 2 ? Chili : null)
             .Add(x => x.Today, Tuesday)
-            .Add(x => x.OnDaySelected, (DateOnly d) => tapped = d));
+            .Add(x => x.OnAdd, (DateOnly d) => added = d)
+            .Add(x => x.OnDishSelected, (PlannedDish d) => tapped = d));
 
         Assert.Equal(7, cut.FindAll(".mp-day").Count);
         Assert.Contains("mp-day--today", cut.Find($".mp-day[data-day='2026-09-29']").ClassName);
@@ -106,8 +118,55 @@ public sealed class MealPlanComponentTests : BunitContext
         Assert.Empty(cut.FindAll(".mp-day[data-day='2026-09-28'] .mp-day__empty")); // past days don't invite planning
         Assert.Equal(4, cut.FindAll(".mp-day__empty").Count);
 
-        cut.Find(".mp-day[data-day='2026-10-02'] button").Click();
-        Assert.Equal(Monday.AddDays(4), tapped);
+        cut.Find(".mp-day[data-day='2026-10-02'] .mp-day__empty").Click();
+        Assert.Equal(Monday.AddDays(4), added);
+
+        cut.Find(".mp-day--today .mp-dish").Click();
+        Assert.Equal(DinnerCourse.Main, tapped?.Course);
+        Assert.Equal(Tuesday, tapped?.Date);
+    }
+
+    [Fact]
+    public void A_planned_day_shows_its_courses_in_menu_order_with_a_small_plus_for_one_more()
+    {
+        DateOnly? added = null;
+        var dishes = new Dictionary<DateOnly, IReadOnlyList<PlannedDish>>
+        {
+            [Monday] = [new(Monday, DinnerCourse.Main, null, "Sidste uges ret")],
+            [Tuesday] = [new(Tuesday, DinnerCourse.Main, 2, "Chili"), new(Tuesday, DinnerCourse.Dessert, 23, "Blondie")],
+            [Monday.AddDays(2)] =
+            [
+                new(Monday.AddDays(2), DinnerCourse.Starter, null, "Tomatsuppe"),
+                new(Monday.AddDays(2), DinnerCourse.Main, null, "Lasagne"),
+                new(Monday.AddDays(2), DinnerCourse.Dessert, null, "Is"),
+            ],
+        };
+
+        var cut = Render<MealPlanWeek>(p => p
+            .Add(x => x.Days, Week)
+            .Add(x => x.Dishes, dishes)
+            .Add(x => x.FindRecipe, id => id == 2 ? Chili : id == 23 ? Blondie : null)
+            .Add(x => x.Today, Tuesday)
+            .Add(x => x.OnAdd, (DateOnly d) => added = d));
+
+        var tuesday = cut.Find(".mp-day[data-day='2026-09-29']");
+        Assert.Equal(["Chili sin carne", "Appelsin blondie"], tuesday.QuerySelectorAll(".mp-dinner__title").Select(e => e.TextContent));
+        Assert.Equal(["Dessert"], tuesday.QuerySelectorAll(".mp-dinner__course").Select(e => e.TextContent));
+        Assert.Equal(["Main", "Dessert"], tuesday.QuerySelectorAll("[data-course]").Select(e => e.GetAttribute("data-course")));
+        Assert.Equal("2026-09-29", tuesday.QuerySelector(".mp-menu")!.GetAttribute("data-dinner")); // a drag lifts the whole menu
+        Assert.Equal(2, tuesday.QuerySelectorAll(".mp-menu .mp-dinner").Length);
+
+        var wednesday = cut.Find(".mp-day[data-day='2026-09-30']");
+        Assert.Equal(["Tomatsuppe", "Lasagne", "Is"], wednesday.QuerySelectorAll(".mp-dinner__title").Select(e => e.TextContent));
+        Assert.Equal(["Forret", "Dessert"], wednesday.QuerySelectorAll(".mp-dinner__course").Select(e => e.TextContent));
+
+        // "Tilføj" under the dishes – not on a full day, and not in the past.
+        Assert.Single(tuesday.QuerySelectorAll(".mp-day__add"));
+        Assert.Empty(wednesday.QuerySelectorAll(".mp-day__add"));
+        Assert.Empty(cut.FindAll(".mp-day[data-day='2026-09-28'] .mp-day__add"));
+
+        cut.Find(".mp-day[data-day='2026-09-29'] .mp-day__add").Click();
+        Assert.Equal(Tuesday, added);
     }
 
     [Fact]
@@ -116,7 +175,7 @@ public sealed class MealPlanComponentTests : BunitContext
         DinnerMove? moved = null;
         var cut = Render<MealPlanWeek>(p => p
             .Add(x => x.Days, Week)
-            .Add(x => x.Dinners, new Dictionary<DateOnly, PlannedDinner>())
+            .Add(x => x.Dishes, new Dictionary<DateOnly, IReadOnlyList<PlannedDish>>())
             .Add(x => x.Today, Tuesday)
             .Add(x => x.OnMove, (DinnerMove m) => moved = m));
 
@@ -125,6 +184,7 @@ public sealed class MealPlanComponentTests : BunitContext
 
         moved = null;
         await cut.InvokeAsync(() => cut.Instance.Move("2026-09-29", "noget"));
+        await cut.InvokeAsync(() => cut.Instance.Move("2026-09-29", "2026-09-29"));
         Assert.Null(moved);
     }
 
@@ -135,12 +195,15 @@ public sealed class MealPlanComponentTests : BunitContext
         string? typed = null;
         var cut = Render<RecipePickerDialog>(p => p
             .Add(x => x.Day, Tuesday)
+            .Add(x => x.Course, DinnerCourse.Main)
+            .Add(x => x.Replacing, true)
             .Add(x => x.CurrentRecipeId, 2)
             .Add(x => x.OnPickRecipe, (Recipe r) => picked = r)
             .Add(x => x.OnPickText, (string t) => typed = t));
 
-        Assert.Equal("Aftensmad tirsdag 29. september", cut.Find(".hub-dialog__title").TextContent);
-        Assert.Equal(["Appelsin blondie", "Chili sin carne"], cut.FindAll(".hub-list__title").Select(e => e.TextContent));
+        Assert.Equal("Hovedret tirsdag 29. september", cut.Find(".hub-dialog__title").TextContent);
+        Assert.Empty(cut.FindAll(".hub-choice--segmented")); // "Skift ret" keeps the course
+        Assert.Equal(["Appelsin blondie", "Chili sin carne", "Is med bær"], cut.FindAll(".hub-list__title").Select(e => e.TextContent));
         Assert.Contains("Valgt", cut.FindAll(".hub-list__row")[1].TextContent);
 
         cut.FindAll(".hub-choice__option").Single(o => o.TextContent.Contains("Kager")).Click();
@@ -155,35 +218,57 @@ public sealed class MealPlanComponentTests : BunitContext
     }
 
     [Fact]
-    public void The_dinner_dialog_shows_the_dish_first_and_can_move_it()
+    public void Adding_to_a_day_asks_which_course_and_greys_out_the_planned_ones()
     {
-        DateOnly? movedTo = null;
-        var cut = Render<DinnerDialog>(p => p
-            .Add(x => x.Dinner, new PlannedDinner(Tuesday, 2, "Chili"))
-            .Add(x => x.Recipe, Chili)
-            .Add(x => x.Days, Week)
-            .Add(x => x.Today, Tuesday)
-            .Add(x => x.OnMove, (DateOnly d) => movedTo = d));
+        var course = DinnerCourse.Dessert;
+        Recipe? picked = null;
+        var cut = Render<RecipePickerDialog>(p => p
+            .Add(x => x.Day, Tuesday)
+            .Add(x => x.Course, course)
+            .Add(x => x.CourseChanged, (DinnerCourse c) => course = c)
+            .Add(x => x.TakenCourses, [DinnerCourse.Main])
+            .Add(x => x.OnPickRecipe, (Recipe r) => picked = r));
+
+        Assert.Equal("Aftensmad tirsdag 29. september", cut.Find(".hub-dialog__title").TextContent);
+        var courses = cut.FindAll(".hub-choice--segmented .hub-choice__option");
+        Assert.Equal(["Forret", "Hovedret", "Dessert"], courses.Select(e => e.TextContent.Trim()));
+        Assert.Equal([false, true, false], courses.Select(e => e.HasAttribute("disabled")));
+        Assert.Equal("true", courses[2].GetAttribute("aria-checked"));
+
+        // A dessert starts on the book's "Dessert" category.
+        Assert.Equal(["Is med bær"], cut.FindAll(".hub-list__title").Select(e => e.TextContent));
+
+        // A starter: the book has no starters, so all recipes are shown.
+        courses[0].Click();
+        Assert.Equal(DinnerCourse.Starter, course);
+        Assert.Equal(3, cut.FindAll(".hub-list__title").Count);
+
+        cut.FindAll(".hub-list__row")[0].Click();
+        Assert.Equal(23, picked?.Id);
+    }
+
+    [Fact]
+    public void The_dinner_dialog_shows_the_dish()
+    {
+        var cut = RenderChili();
 
         Assert.Equal("Chili sin carne", cut.Find(".hub-dialog__title").TextContent);
-        Assert.Contains("i dag, tirsdag 29. september", cut.Find(".mp-details__row").TextContent);
+        Assert.Contains("Hovedret · i dag, tirsdag 29. september", cut.Find(".mp-details__row").TextContent);
         Assert.Equal(["35 min", "4 personer", "Let", "Aftensmad"], cut.FindAll(".mp-details__fact").Select(e => e.TextContent.Trim()));
         Assert.Equal(["2 dåse Bønner", "Topping", "Creme fraiche"], cut.FindAll(".mp-details__ingredients li").Select(e => e.TextContent));
         Assert.Single(cut.FindAll(".mp-details__subheading"));
-
-        cut.FindAll(".hub-choice__option").Single(o => o.TextContent == "Fre 2.").Click();
-        Assert.Equal(Monday.AddDays(4), movedTo);
+        Assert.Empty(cut.FindAll(".hub-choice"));
     }
 
     [Fact]
     public void A_dinner_whose_recipe_is_gone_says_so()
     {
         var cut = Render<DinnerDialog>(p => p
-            .Add(x => x.Dinner, new PlannedDinner(Tuesday, 99, "Gammel ret"))
-            .Add(x => x.Days, Week)
+            .Add(x => x.Dish, new PlannedDish(Tuesday, DinnerCourse.Dessert, 99, "Gammel ret"))
             .Add(x => x.Today, Tuesday));
 
         Assert.Equal("Gammel ret", cut.Find(".hub-dialog__title").TextContent);
+        Assert.Contains("Dessert · i dag", cut.Find(".mp-details__row").TextContent);
         Assert.Contains("Opskriften kan ikke vises lige nu", cut.Markup);
         Assert.Empty(cut.FindAll(".mp-details__print"));
     }
@@ -192,8 +277,7 @@ public sealed class MealPlanComponentTests : BunitContext
     public void Print_is_only_offered_for_a_recipe_when_the_printer_is_set_up()
     {
         var ownDish = Render<DinnerDialog>(p => p
-            .Add(x => x.Dinner, new PlannedDinner(Tuesday, null, "Pizza ude"))
-            .Add(x => x.Days, Week)
+            .Add(x => x.Dish, new PlannedDish(Tuesday, DinnerCourse.Main, null, "Pizza ude"))
             .Add(x => x.Today, Tuesday));
         Assert.Empty(ownDish.FindAll(".mp-details__print"));
 
@@ -238,9 +322,8 @@ public sealed class MealPlanComponentTests : BunitContext
     private IToastService Toasts => Services.GetRequiredService<IToastService>();
 
     private IRenderedComponent<DinnerDialog> RenderChili() => Render<DinnerDialog>(p => p
-        .Add(x => x.Dinner, new PlannedDinner(Tuesday, 2, "Chili"))
+        .Add(x => x.Dish, new PlannedDish(Tuesday, DinnerCourse.Main, 2, "Chili"))
         .Add(x => x.Recipe, Chili)
-        .Add(x => x.Days, Week)
         .Add(x => x.Today, Tuesday));
 
     private sealed class FixedOptions(RecipeApiOptions value) : IOptionsMonitor<RecipeApiOptions>

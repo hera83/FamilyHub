@@ -1,8 +1,10 @@
 @*
     The week's dinners as seven columns, Monday to Sunday – like the calendar's week.
-    Tap a day to plan or see its dinner. Swipe sideways for the previous/next week. Hold a dinner and drag it
-    to another day to move it (if that day has a dinner, they swap). Swipe and drag are shortcuts: the arrows
-    and "Flyt til" in the dinner dialog do the same. The gestures live in MealPlanWeek.razor.js.
+    Each day shows its dishes in menu order: the main course big (with photo), a starter and a dessert as small cards
+    with their course on top. Tap a dish to see it; tap an empty day – or the small "Tilføj" under the dishes – to add one.
+    Swipe sideways for the previous/next week. Hold a dish and drag it to another day to move the whole dinner – starter,
+    main course and dessert go together; if that day has dishes, the two days swap. The arrows change week too.
+    The gestures live in MealPlanWeek.razor.js.
 *@
 @implements IAsyncDisposable
 @inject IJSRuntime JS
@@ -10,51 +12,85 @@
 <div class="mp-week" @ref="root">
     @foreach (var day in Days)
     {
-        var dinner = Dinners.GetValueOrDefault(day);
-        var recipe = dinner?.RecipeId is { } id ? FindRecipe(id) : null;
+        var dishes = Dishes.GetValueOrDefault(day) ?? [];
+        var canAdd = day >= Today && MealPlanRules.FreeCourses(dishes).Count > 0;
 
         <section class="mp-day @DayClass(day)" data-day="@Iso(day)">
-            <HubPressable Class="mp-day__press" OnClick="() => OnDaySelected.InvokeAsync(day)" AriaLabel="@AriaLabel(day, dinner, recipe)">
-                <span class="mp-day__head">
-                    <span class="mp-day__weekday">@DanishFormat.WeekdayShort(day.DayOfWeek)</span>
-                    <span class="mp-day__date hub-numeric">@day.Day</span>
-                </span>
+            <div class="mp-day__head">
+                <span class="mp-day__weekday">@DanishFormat.WeekdayShort(day.DayOfWeek)</span>
+                <span class="mp-day__date hub-numeric">@day.Day</span>
+            </div>
 
-                <span class="mp-day__body">
-                    @if (Loading)
+            <div class="mp-day__body">
+                @if (Loading)
+                {
+                    <HubSkeleton Lines="2" />
+                }
+                else if (dishes.Count == 0)
+                {
+                    @if (canAdd)
                     {
-                        <HubSkeleton Lines="2" />
-                    }
-                    else if (dinner is not null)
-                    {
-                        <span class="mp-dinner" data-dinner="@Iso(day)">
-                            @if (recipe?.ImageUrl is { } image)
-                            {
-                                <img class="mp-dinner__image" src="@image" alt="" loading="lazy" draggable="false" onerror="this.remove()" />
-                            }
-                            <span class="mp-dinner__title">@DinnerLook.Title(dinner, recipe)</span>
-                            @if (recipe is not null)
-                            {
-                                @if (DinnerLook.Summary(recipe) is { Length: > 0 } summary)
-                                {
-                                    <span class="mp-dinner__meta">@summary</span>
-                                }
-                            }
-                            else if (!dinner.IsFromRecipeBook)
-                            {
-                                <span class="mp-dinner__meta">Egen ret</span>
-                            }
-                        </span>
-                    }
-                    else if (day >= Today)
-                    {
-                        <span class="mp-day__empty">
+                        <HubPressable Class="mp-day__empty" OnClick="() => OnAdd.InvokeAsync(day)" AriaLabel="@($"{DanishFormat.LongDate(day)}: tilføj aftensmad")">
                             <Icon Name="IconName.Plus" />
                             <span>Tilføj ret</span>
-                        </span>
+                        </HubPressable>
                     }
-                </span>
-            </HubPressable>
+                }
+                else
+                {
+                    @* The day's dishes together: what a drag lifts and moves. *@
+                    <div class="mp-menu" data-dinner="@Iso(day)">
+                    @foreach (var dish in dishes)
+                    {
+                        var recipe = dish.RecipeId is { } id ? FindRecipe(id) : null;
+                        <HubPressable Class="mp-dish" OnClick="() => OnDishSelected.InvokeAsync(dish)" AriaLabel="@AriaLabel(dish, recipe)">
+                            @if (dish.Course == DinnerCourse.Main)
+                            {
+                                <span class="mp-dinner" data-course="@dish.Course">
+                                    @if (recipe?.ImageUrl is { } image)
+                                    {
+                                        <img class="mp-dinner__image" src="@image" alt="" loading="lazy" draggable="false" onerror="this.remove()" />
+                                    }
+                                    <span class="mp-dinner__title">@DinnerLook.Title(dish, recipe)</span>
+                                    @if (recipe is not null)
+                                    {
+                                        @if (DinnerLook.Summary(recipe) is { Length: > 0 } summary)
+                                        {
+                                            <span class="mp-dinner__meta">@summary</span>
+                                        }
+                                    }
+                                    else if (!dish.IsFromRecipeBook)
+                                    {
+                                        <span class="mp-dinner__meta">Egen ret</span>
+                                    }
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="mp-dinner mp-dinner--side" data-course="@dish.Course">
+                                    @if (recipe?.ImageUrl is { } image)
+                                    {
+                                        <img class="mp-dinner__thumb" src="@image" alt="" loading="lazy" draggable="false" onerror="this.remove()" />
+                                    }
+                                    <span class="mp-dinner__text">
+                                        <span class="mp-dinner__course">@dish.Course.Label()</span>
+                                        <span class="mp-dinner__title">@DinnerLook.Title(dish, recipe)</span>
+                                    </span>
+                                </span>
+                            }
+                        </HubPressable>
+                    }
+                    </div>
+
+                    @if (canAdd)
+                    {
+                        <HubPressable Class="mp-day__add" OnClick="() => OnAdd.InvokeAsync(day)" AriaLabel="@($"{DanishFormat.LongDate(day)}: tilføj en ret mere")">
+                            <Icon Name="IconName.Plus" />
+                            <span>Tilføj</span>
+                        </HubPressable>
+                    }
+                }
+            </div>
         </section>
     }
 </div>
@@ -69,12 +105,13 @@
     [Parameter, EditorRequired]
     public IReadOnlyList<DateOnly> Days { get; set; } = [];
 
+    /// <summary>The week's dishes by day, in menu order.</summary>
     [Parameter, EditorRequired]
-    public IReadOnlyDictionary<DateOnly, PlannedDinner> Dinners { get; set; } = new Dictionary<DateOnly, PlannedDinner>();
+    public IReadOnlyDictionary<DateOnly, IReadOnlyList<PlannedDish>> Dishes { get; set; } = new Dictionary<DateOnly, IReadOnlyList<PlannedDish>>();
 
     /// <summary>Looks a recipe up in the local copy of the recipe book.</summary>
     [Parameter, EditorRequired]
-    public Func<int, Recipe?> FindRecipe { get; set; } = _ => null;
+    public Func<int, Recipe?> FindRecipe { get; set; } = id => null;
 
     [Parameter]
     public DateOnly Today { get; set; }
@@ -83,10 +120,15 @@
     [Parameter]
     public bool Loading { get; set; }
 
+    /// <summary>A dish was tapped.</summary>
     [Parameter]
-    public EventCallback<DateOnly> OnDaySelected { get; set; }
+    public EventCallback<PlannedDish> OnDishSelected { get; set; }
 
-    /// <summary>A dinner was dragged to another day.</summary>
+    /// <summary>"Tilføj ret" on an empty day, or "Tilføj" under the dishes.</summary>
+    [Parameter]
+    public EventCallback<DateOnly> OnAdd { get; set; }
+
+    /// <summary>A day's dinner was dragged to another day.</summary>
     [Parameter]
     public EventCallback<DinnerMove> OnMove { get; set; }
 
@@ -134,12 +176,11 @@
             css += " mp-day--past";
         }
 
-        return Dinners.ContainsKey(day) ? css + " mp-day--planned" : css;
+        return Dishes.ContainsKey(day) ? css + " mp-day--planned" : css;
     }
 
-    private static string AriaLabel(DateOnly day, PlannedDinner? dinner, Recipe? recipe) => dinner is null
-        ? $"{DanishFormat.LongDate(day)}: tilføj aftensmad"
-        : $"{DanishFormat.LongDate(day)}: {DinnerLook.Title(dinner, recipe)}";
+    private static string AriaLabel(PlannedDish dish, Recipe? recipe) =>
+        $"{DanishFormat.LongDate(dish.Date)}, {dish.Course.Label().ToLower(DanishFormat.Culture)}: {DinnerLook.Title(dish, recipe)}";
 
     private static string Iso(DateOnly day) => day.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
 

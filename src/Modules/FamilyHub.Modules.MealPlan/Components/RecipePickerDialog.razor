@@ -1,7 +1,9 @@
 @*
-    Choose the dinner for a day: the recipe book as a list, narrowed by category chips and search.
-    What is typed in the search can also be used as the family's own dish ("Rester", "Pizza ude").
-    Searching is local (the copy of the recipe book) – instant, and it works without internet.
+    Choose a dish for a day: first which course (starter, main course, dessert – the planned ones are greyed out),
+    then the recipe book as a list, narrowed by category chips and search. Choosing a course starts on its category
+    ("Dessert") when the book has one. What is typed in the search can also be used as the family's own dish
+    ("Rester", "Pizza ude"). Searching is local (the copy of the recipe book) – instant, and it works without internet.
+    "Skift ret" (Replacing) keeps the course, so the choice is left out.
 *@
 @inject RecipeService Recipes
 
@@ -12,6 +14,11 @@
             <InfoBox Tone="HubTone.Warning" Title="Opskriftsbogen er ikke sat op">
                 Skriv retten i søgefeltet, så kan den bruges alligevel.
             </InfoBox>
+        }
+
+        @if (!Replacing)
+        {
+            <HubChoice TValue="DinnerCourse" Label="Ret" Options="CourseOptions" Value="Course" ValueChanged="OnCourseChanged" />
         }
 
         <HubTextField Label="Søg" Kind="InputKind.Search" Placeholder="Fx lasagne eller kylling" MaxLength="MealPlanService.MaxTitleLength"
@@ -86,7 +93,22 @@
     [Parameter]
     public DateOnly? Day { get; set; }
 
-    /// <summary>The recipe already planned for the day (marked "Valgt").</summary>
+    /// <summary>The course to plan. Changed here when the family picks another one.</summary>
+    [Parameter]
+    public DinnerCourse Course { get; set; }
+
+    [Parameter]
+    public EventCallback<DinnerCourse> CourseChanged { get; set; }
+
+    /// <summary>The courses the day already has – shown, but can't be chosen.</summary>
+    [Parameter]
+    public IReadOnlyCollection<DinnerCourse> TakenCourses { get; set; } = [];
+
+    /// <summary>"Skift ret": replaces the planned <see cref="Course"/>, so there is no course to choose.</summary>
+    [Parameter]
+    public bool Replacing { get; set; }
+
+    /// <summary>The recipe being replaced (marked "Valgt").</summary>
     [Parameter]
     public int? CurrentRecipeId { get; set; }
 
@@ -100,7 +122,12 @@
     [Parameter]
     public EventCallback OnClose { get; set; }
 
-    private string DialogTitle => Day is { } day ? $"Aftensmad {DanishFormat.LongDate(day).ToLower(DanishFormat.Culture)}" : "";
+    private string DialogTitle => Day is { } day
+        ? $"{(Replacing ? Course.Label() : "Aftensmad")} {DanishFormat.LongDate(day).ToLower(DanishFormat.Culture)}"
+        : "";
+
+    private IReadOnlyList<ChoiceOption<DinnerCourse>> CourseOptions =>
+        [.. DinnerCourses.MenuOrder.Select(c => new ChoiceOption<DinnerCourse>(c, c.Label(), Disabled: TakenCourses.Contains(c)))];
 
     /// <summary>The search text, cleaned – offered as the family's own dish.</summary>
     private string? Typed => MealPlanService.CleanTitle(search);
@@ -109,10 +136,10 @@
     {
         if (Day != shownDay)
         {
-            // A new day starts fresh: whole book, no search.
+            // A new day starts fresh: no search, and the course's category ("Dessert") or the whole book.
             shownDay = Day;
             search = "";
-            categoryId = null;
+            categoryId = Replacing ? null : MealPlanRules.CategoryFor(Course, Recipes.Categories);
         }
 
         categoryOptions =
@@ -131,6 +158,13 @@
     private void OnSearchChanged(string? value)
     {
         search = value ?? "";
+        Filter();
+    }
+
+    private async Task OnCourseChanged(DinnerCourse value)
+    {
+        await CourseChanged.InvokeAsync(value);
+        categoryId = MealPlanRules.CategoryFor(value, Recipes.Categories);
         Filter();
     }
 

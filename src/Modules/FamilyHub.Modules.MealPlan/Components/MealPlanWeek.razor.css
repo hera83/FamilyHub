@@ -14,8 +14,11 @@
 
 .mp-day {
     display: flex;
+    flex-direction: column;
+    gap: var(--hub-space-3);
     min-width: 0;
     min-height: 18rem;
+    padding: var(--hub-space-2) var(--hub-space-2) var(--hub-space-3);
     border: 1px solid var(--hub-border);
     border-radius: var(--hub-radius-lg);
     background: var(--hub-surface);
@@ -29,15 +32,6 @@
 .mp-day--today {
     border-color: var(--hub-accent);
     box-shadow: 0 0 0 1px var(--hub-accent);
-}
-
-.mp-day ::deep .mp-day__press {
-    display: flex;
-    flex-direction: column;
-    gap: var(--hub-space-3);
-    height: 100%;
-    padding: var(--hub-space-2) var(--hub-space-2) var(--hub-space-3);
-    border-radius: var(--hub-radius-lg);
 }
 
 .mp-day__head {
@@ -86,10 +80,12 @@
     display: flex;
     flex: 1;
     flex-direction: column;
+    gap: var(--hub-space-2);
     min-height: 0;
 }
 
-.mp-day__empty {
+/* An empty day: the whole space invites a dish. */
+.mp-day ::deep .mp-day__empty {
     display: flex;
     flex: 1;
     flex-direction: column;
@@ -104,12 +100,57 @@
     font-weight: var(--hub-weight-medium);
 }
 
-.mp-day__empty ::deep .hub-icon {
+.mp-day ::deep .mp-day__empty .hub-icon {
     width: 1.75rem;
     height: 1.75rem;
 }
 
-/* ------------------------------------------------------------------ the dinner */
+/* A day with dishes: a small, quiet "+ Tilføj" under them – there while a course is free. */
+.mp-day ::deep .mp-day__add {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--hub-space-1);
+    min-height: var(--hub-touch-min);
+    border: 1.5px dashed var(--hub-border-strong);
+    border-radius: var(--hub-radius-pill);
+    color: var(--hub-text-muted);
+    font-size: var(--hub-text-sm);
+    font-weight: var(--hub-weight-medium);
+    transition: transform var(--hub-duration-fast) var(--hub-ease), color var(--hub-duration-fast) var(--hub-ease),
+        border-color var(--hub-duration-fast) var(--hub-ease), background-color var(--hub-duration-fast) var(--hub-ease);
+}
+
+.mp-day ::deep .mp-day__add:active {
+    border-color: var(--hub-accent);
+    background: var(--hub-accent-softer);
+    color: var(--hub-accent-strong);
+}
+
+.mp-day ::deep .mp-day__add .hub-icon {
+    width: 1.25rem;
+    height: 1.25rem;
+}
+
+@media (hover: hover) {
+    .mp-day ::deep .mp-day__add:hover {
+        border-color: var(--hub-accent);
+        color: var(--hub-accent-strong);
+    }
+}
+
+/* The day's dishes together – lifted and moved as one by a drag. */
+.mp-menu {
+    display: flex;
+    flex-direction: column;
+    gap: var(--hub-space-2);
+}
+
+.mp-day ::deep .mp-dish {
+    border-radius: var(--hub-radius-md);
+}
+
+/* ------------------------------------------------------------------ a dish: the main course big, a starter/dessert small */
 
 .mp-dinner {
     display: flex;
@@ -153,9 +194,47 @@
     font-size: var(--hub-text-sm);
 }
 
+.mp-dinner--side {
+    flex-direction: row;
+    align-items: center;
+    gap: var(--hub-space-2);
+    padding: var(--hub-space-2);
+    border-color: var(--hub-border);
+    background: var(--hub-surface);
+}
+
+.mp-dinner__thumb {
+    flex: none;
+    width: 2.75rem;
+    height: 2.75rem;
+    border-radius: var(--hub-radius-sm);
+    object-fit: cover;
+    pointer-events: none;
+}
+
+.mp-dinner__text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    min-width: 0;
+}
+
+.mp-dinner__course {
+    color: var(--hub-accent-strong);
+    font-size: var(--hub-text-xs);
+    font-weight: var(--hub-weight-bold);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.mp-dinner--side .mp-dinner__title {
+    font-size: var(--hub-text-sm);
+    -webkit-line-clamp: 2;
+}
+
 /* ------------------------------------------------------------------ drag and drop (classes set by MealPlanWeek.razor.js) */
 
-.mp-day--dragging .mp-dinner {
+.mp-menu--lifted {
     opacity: 0.3;
 }
 
@@ -165,11 +244,13 @@
     box-shadow: 0 0 0 2px var(--hub-accent);
 }
 
-.mp-dinner--ghost {
+.mp-menu--ghost {
     position: fixed;
     top: 0;
     left: 0;
     z-index: var(--hub-z-dialog);
+    border-radius: var(--hub-radius-md);
+    background: var(--hub-surface);
     box-shadow: var(--hub-shadow-lg);
     opacity: 0.95;
     pointer-events: none;
@@ -181,7 +262,7 @@
         gap: var(--hub-space-2);
     }
 
-    .mp-day ::deep .mp-day__press {
+    .mp-day {
         padding: var(--hub-space-1) var(--hub-space-1) var(--hub-space-2);
     }
 
@@ -196,5 +277,9 @@
     .mp-dinner__image {
         width: calc(100% + 2 * var(--hub-space-2));
         margin: calc(-1 * var(--hub-space-2)) calc(-1 * var(--hub-space-2)) 0;
+    }
+
+    .mp-dinner__thumb {
+        display: none;
     }
 }
