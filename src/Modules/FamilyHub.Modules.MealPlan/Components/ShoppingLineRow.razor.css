@@ -1,0 +1,93 @@
+.sl-row {
+    display: flex;
+    align-items: center;
+    gap: var(--hub-space-1);
+    padding-right: var(--hub-space-2);
+}
+
+.sl-row + .sl-row {
+    border-top: 1px solid var(--hub-border);
+}
+
+/* The whole row (except the pencil) is the toggle. */
+.sl-row ::deep .sl-row__main {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    gap: var(--hub-space-4);
+    min-height: 4rem;
+    padding: var(--hub-space-3) var(--hub-space-4);
+}
+
+/* Staples are a shorter list beside the main one. */
+.sl-row--staple ::deep .sl-row__main {
+    min-height: var(--hub-control-md);
+    padding-block: var(--hub-space-2);
+}
+
+.sl-row__check {
+    display: grid;
+    flex: none;
+    place-items: center;
+    color: var(--hub-text-subtle);
+}
+
+.sl-row__check ::deep .hub-icon {
+    width: 1.75rem;
+    height: 1.75rem;
+}
+
+.sl-row--checked .sl-row__check {
+    color: var(--hub-success);
+}
+
+.sl-row--staple .sl-row__check {
+    color: var(--hub-text-muted);
+}
+
+.sl-row--staple.sl-row--checked .sl-row__check {
+    color: var(--hub-accent);
+}
+
+.sl-row__amount {
+    flex: none;
+    width: 8.5rem;
+    font-weight: var(--hub-weight-bold);
+    font-variant-numeric: tabular-nums;
+}
+
+.sl-row__text {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.sl-row__name {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--hub-space-2);
+    font-weight: var(--hub-weight-medium);
+}
+
+.sl-row__detail {
+    color: var(--hub-text-muted);
+    font-size: var(--hub-text-sm);
+}
+
+/* Crossed out: still readable, clearly done. Colour is never alone – the line and the tick say it too. */
+.sl-row--checked:not(.sl-row--staple) .sl-row__amount,
+.sl-row--checked:not(.sl-row--staple) .sl-row__name {
+    color: var(--hub-text-subtle);
+    text-decoration: line-through;
+    text-decoration-thickness: 2px;
+}
+
+.sl-row--checked:not(.sl-row--staple) .sl-row__detail {
+    color: var(--hub-text-subtle);
+}
+
+.sl-row--staple.sl-row--checked .sl-row__name {
+    color: var(--hub-accent-strong);
+}

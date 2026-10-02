@@ -3,6 +3,7 @@ using FamilyHub.Modules.MealPlan.Components;
 using FamilyHub.Modules.MealPlan.Plan;
 using FamilyHub.Modules.MealPlan.Print;
 using FamilyHub.Modules.MealPlan.Recipes;
+using FamilyHub.Modules.MealPlan.Shopping;
 using FamilyHub.UI.Components;
 using FamilyHub.UI.Modules;
 using Microsoft.Data.Sqlite;
@@ -53,5 +54,9 @@ public sealed class MealPlanModule : HubModule
         services.AddDbContextFactory<MealPlanDbContext>((provider, options) => options.UseSqlite(
             new SqliteConnectionStringBuilder { DataSource = provider.GetRequiredService<IAppDataPaths>().GetFilePath("madplan/madplan.db") }.ToString()));
         services.AddSingleton<MealPlanService>();
+
+        // The shopping list: the week's ingredients added up + fixed items, staples and the family's pack sizes.
+        services.AddSingleton<ShoppingListService>();
+        services.AddSingleton<ShoppingListPrinter>();
     }
 }

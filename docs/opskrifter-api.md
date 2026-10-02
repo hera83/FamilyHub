@@ -156,7 +156,7 @@ Det kan servicen allerede i dag. UI'et skal kun bygge oven på det:
 | Hurtige retter på hverdage | `Sort = RecipeSort.TotalTime`, `MaxTotalMinutes` – husk at 0 = ukendt |
 | Opskriftsvisning i køkkenet | `Ingredients` (med `IsHeading`), `Steps` som nummererede trin med stor tekst, `Notes` i en `InfoBox` |
 | Antal personer | `NumberStepper` → `RecipeMath.Scale(recipe, personer)` – mængder som "1½ dl" |
-| Indkøbsliste fra ugens retter | `RecipeMath.CombineForShopping([(ret, personer), …])` – lægger samme vare og enhed sammen |
+| Indkøbsliste fra ugens retter | **Bygget** (2026-10-02): `Shopping/ShoppingCalculator` – omregner enheder, runder op til hele pakker og holder basisvarer udenfor. Se modulets README. (`RecipeMath.CombineForShopping` er den simple udgave: samme vare og enhed lægges sammen.) |
 | Nye/ændrede opskrifter | `Sort = RecipeSort.LastModified` |
 | Rette en opskrift fra køkkenet | `RecipeDraft.From(recipe)` → felter → `RecipeValidation.Validate` → `UpdateRecipeAsync` |
 | Slet med fortryd | `DeleteRecipeAsync` + `Toasts.Undoable` → `RestoreRecipeAsync` (nyt id, billedet er væk) |

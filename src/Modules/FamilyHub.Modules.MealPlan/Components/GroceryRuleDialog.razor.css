@@ -1,0 +1,37 @@
+/* "Brug standard" stands alone on the left of the footer; Annuller and Gem stay on the right. */
+.gr-reset {
+    margin-inline-end: auto;
+}
+
+.gr-sizes {
+    display: flex;
+    flex-direction: column;
+    gap: var(--hub-space-3);
+}
+
+.gr-size {
+    display: flex;
+    align-items: center;
+    gap: var(--hub-space-2);
+}
+
+.gr-preview {
+    display: flex;
+    align-items: center;
+    gap: var(--hub-space-3);
+    padding: var(--hub-space-4);
+    border-radius: var(--hub-radius-md);
+    background: var(--hub-surface-muted);
+    color: var(--hub-text-muted);
+}
+
+.gr-preview ::deep .hub-icon {
+    flex: none;
+    width: 1.5rem;
+    height: 1.5rem;
+}
+
+.gr-preview strong {
+    color: var(--hub-text);
+    font-weight: var(--hub-weight-bold);
+}

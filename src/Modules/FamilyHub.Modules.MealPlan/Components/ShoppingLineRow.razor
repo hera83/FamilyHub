@@ -1,0 +1,95 @@
+@*
+    One grocery on the shopping list. The row itself is a toggle: on the list it crosses the grocery out (they have it or
+    it's bought); among the staples it puts the staple on the list. The pencil beside it opens "how we buy it".
+*@
+<li class="sl-row @(Staple ? "sl-row--staple" : null) @(Checked ? "sl-row--checked" : null)" data-key="@Line.Key">
+    <HubPressable Class="sl-row__main" OnClick="() => OnToggle.InvokeAsync()" AriaLabel="@AriaLabel"
+                  aria-pressed="@(Checked ? "true" : "false")">
+        <span class="sl-row__check" aria-hidden="true"><Icon Name="CheckIcon" /></span>
+        @if (!Staple)
+        {
+            <span class="sl-row__amount">@Line.Amount</span>
+        }
+        <span class="sl-row__text">
+            <span class="sl-row__name">
+                @Line.Name
+                @if (Line.IsNeeded && !Staple)
+                {
+                    <HubBadge Tone="HubTone.Neutral">Basisvare</HubBadge>
+                }
+            </span>
+            @if (Detail.Length > 0)
+            {
+                <span class="sl-row__detail">@Detail</span>
+            }
+        </span>
+    </HubPressable>
+    <HubButton Variant="ButtonVariant.Quiet" Icon="IconName.Edit" AriaLabel="@($"Sådan køber I {Line.Name.ToLower(DanishFormat.Culture)}")"
+               OnClick="() => OnEdit.InvokeAsync()" />
+</li>
+
+@code {
+    /// <summary>Dishes shown in the detail line before "+ 2 mere".</summary>
+    private const int MaxSources = 3;
+
+    [Parameter, EditorRequired]
+    public ShoppingLine Line { get; set; } = null!;
+
+    /// <summary>Among the staples: the toggle means "it's missing – put it on the list", and the amount is in the detail line.</summary>
+    [Parameter]
+    public bool Staple { get; set; }
+
+    /// <summary>Crossed out (on the list) or on the list (staples).</summary>
+    [Parameter]
+    public bool Checked { get; set; }
+
+    [Parameter]
+    public EventCallback OnToggle { get; set; }
+
+    [Parameter]
+    public EventCallback OnEdit { get; set; }
+
+    private IconName CheckIcon => (Staple, Checked) switch
+    {
+        (true, false) => IconName.Plus,
+        (_, true) => IconName.CheckCircle,
+        _ => IconName.Circle,
+    };
+
+    private string AriaLabel
+    {
+        get
+        {
+            var what = Line.Amount.Length > 0 ? $"{Line.Name}, {Line.Amount}" : Line.Name;
+            return Staple
+                ? $"{what}. {(Checked ? "På listen – tryk for at fjerne den" : "Tryk, hvis den mangler")}"
+                : $"{what}. {(Checked ? "Streget ud – tryk for at sætte den på igen" : "Tryk for at strege den ud")}";
+        }
+    }
+
+    /// <summary>"Lasagne, Pandekager · skal bruge 1,3 l" – for staples just the amount ("1 spsk"), to keep the list short.</summary>
+    private string Detail
+    {
+        get
+        {
+            if (Staple)
+            {
+                return Line.Amount;
+            }
+
+            var parts = new List<string>();
+            if (Line.Sources.Count > 0)
+            {
+                var shown = string.Join(", ", Line.Sources.Take(MaxSources));
+                parts.Add(Line.Sources.Count > MaxSources ? $"{shown} + {Line.Sources.Count - MaxSources} mere" : shown);
+            }
+
+            if (Line.Need is { } need)
+            {
+                parts.Add($"skal bruge {need}");
+            }
+
+            return string.Join(" · ", parts);
+        }
+    }
+}

@@ -1,6 +1,6 @@
 // Family Hub – UI smoke test in real Chrome/Edge, emulating the 1920x1080 kitchen touch screen.
 // Checks the on-screen keyboard end-to-end (finger taps, typing, number pad, dialogs), the calendar and the meal plan
-// (pick, own dish, drag and drop, swipe, undo) and saves screenshots.
+// (pick, own dish, drag and drop, swipe, undo, shopping list) and saves screenshots.
 //
 //   cd tools/ui-smoke
 //   npm install                       (first time – installs playwright-core, no browser download)
@@ -475,6 +475,94 @@ async function open(page, path) {
     (await courses('2030-01-12')) === 'Starter,Main,Dessert' && (await courses('2030-01-13')) === '',
     `${await courses('2030-01-12')} | ${await courses('2030-01-13')}`);
 
+  // The shopping list: the week's ingredients by section, crossing out, staples, how a grocery is bought and fixed items.
+  // Everything it changes is undone again (the fixed item is for the test week only and removed at the end).
+  await page.locator('.hub-page__actions .hub-btn', { hasText: 'Indkøbsliste' }).tap();
+  await page.waitForTimeout(1000);
+  const lastDialog = () => page.locator('.hub-dialog').last();
+  const groceries = page.locator('.sl-main .sl-row');
+  log('shopping list: opens wide for the week', (await page.locator('.hub-dialog--extralarge .hub-dialog__title', { hasText: 'Indkøbsliste · uge 2' }).count()) === 1);
+  log('shopping list: groceries by section of the shop', (await groceries.count()) > 0 && (await page.locator('.sl-section').count()) > 0,
+    `${await groceries.count()} groceries, ${await page.locator('.sl-section').count()} sections`);
+  log('shopping list: no keyboard', (await page.locator('.hub-osk[data-visibility="expanded"]').count()) === 0);
+  await page.screenshot({ path: `${OUT}/30-indkobsliste.png` });
+
+  // Rows not touched before (an interrupted run may have left marks in the test week).
+  const grocery = page.locator(`.sl-main .sl-row[data-key="${await page.locator('.sl-main .sl-row:not(.sl-row--checked)').first().getAttribute('data-key')}"]`);
+  await grocery.locator('.sl-row__main').tap();
+  await page.waitForTimeout(600);
+  log('shopping list: tapping a grocery crosses it out', /sl-row--checked/.test(await grocery.getAttribute('class')));
+  await page.screenshot({ path: `${OUT}/30b-indkobsliste-streget-ud.png` });
+  await grocery.locator('.sl-row__main').tap();
+  await page.waitForTimeout(600);
+  log('shopping list: tapping it again puts it back', !/sl-row--checked/.test(await grocery.getAttribute('class')));
+
+  const staple = page.locator('.sl-side .sl-row:not(.sl-row--checked)').first();
+  if (await staple.count()) {
+    const key = await staple.getAttribute('data-key');
+    await staple.locator('.sl-row__main').tap();
+    await page.waitForTimeout(700);
+    log('shopping list: a missing staple goes on the list', (await page.locator(`.sl-main .sl-row[data-key="${key}"]`).count()) === 1, key);
+    await page.locator(`.sl-side .sl-row[data-key="${key}"] .sl-row__main`).tap();
+    await page.waitForTimeout(700);
+    log('shopping list: and off it again', (await page.locator(`.sl-main .sl-row[data-key="${key}"]`).count()) === 0);
+  }
+
+  await groceries.first().locator('.hub-btn').tap();
+  await page.waitForTimeout(600);
+  log('shopping list: the pencil says how a grocery is bought', (await lastDialog().locator('.hub-switch', { hasText: 'Basisvare' }).count()) === 1);
+  const packs = lastDialog().locator('.hub-choice__option', { hasText: 'Hele pakker' });
+  if (await packs.count()) {
+    await packs.tap();
+    await page.waitForTimeout(400);
+    log('shopping list: packs show what the list will say', (await lastDialog().locator('.gr-preview').count()) === 1);
+  }
+  await page.screenshot({ path: `${OUT}/31-indkobsliste-vare.png` });
+  await lastDialog().locator('.hub-btn', { hasText: 'Annuller' }).tap();
+  await page.waitForTimeout(500);
+
+  // A fixed item for the test week only, typed with the on-screen keyboard; Enter ("Tilføj") adds it and stays.
+  await page.locator('.sl-group__head .hub-btn', { hasText: 'Tilføj' }).tap();
+  await page.waitForTimeout(700);
+  log('shopping list: "Tilføj" opens the keyboard (started by the user)', (await page.locator('.hub-osk[data-visibility="expanded"]').count()) === 1);
+  await lastDialog().locator('.hub-choice__option', { hasText: 'Kun uge 2' }).tap(); // a tap outside the field closes the keyboard …
+  await page.waitForTimeout(500);
+  await lastDialog().locator('input').tap();                                        // … and a tap in it brings it back
+  await page.waitForTimeout(500);
+  for (const ch of ['s', 'k', 'y', 'r']) await page.locator(`.hub-osk__layer[data-layer-name="letters"] [data-key="char"][data-text="${ch}"]`).tap();
+  log('shopping list: Enter says Tilføj', (await page.locator('.hub-osk__layer[data-layer-name="letters"] [data-key="enter"]').innerText()).trim() === 'Tilføj');
+  await page.locator('.hub-osk__layer[data-layer-name="letters"] [data-key="enter"]').tap();
+  await page.waitForTimeout(800);
+  log('shopping list: Enter adds the item and makes room for the next', /Tilføjet: Skyr/.test(await lastDialog().innerText()) && (await lastDialog().locator('input').inputValue()) === '');
+  log('shopping list: the keyboard stays for the next item', (await page.locator('.hub-osk[data-visibility="expanded"]').count()) === 1);
+  await page.screenshot({ path: `${OUT}/32-indkobsliste-fast-vare.png` });
+  await lastDialog().locator('.hub-btn', { hasText: 'Færdig' }).tap();
+  await page.waitForTimeout(700);
+  const skyr = page.locator('.sl-side .hub-list__row', { hasText: 'Skyr' });
+  log('shopping list: the fixed item is on the list', (await skyr.count()) === 1 && (await page.locator('.sl-main .sl-row[data-key="skyr"]').count()) === 1);
+
+  // Remove it – with Fortryd – and remove it for good.
+  const removeSkyr = async () => {
+    await page.locator('.sl-side .hub-list__row', { hasText: 'Skyr' }).tap();
+    await page.waitForTimeout(600);
+    await lastDialog().locator('.hub-btn', { hasText: 'Fjern' }).tap();
+    await page.waitForTimeout(700);
+  };
+  await removeSkyr();
+  log('shopping list: removing a fixed item offers Fortryd', (await page.locator('.hub-toast', { hasText: 'Skyr er fjernet' }).count()) === 1 && (await skyr.count()) === 0);
+  await page.locator('.hub-toast__action', { hasText: 'Fortryd' }).tap();
+  await page.waitForTimeout(800);
+  log('shopping list: Fortryd puts it back', (await skyr.count()) === 1);
+  await removeSkyr();
+
+  await page.evaluate(() => document.documentElement.dataset.theme = 'dark');
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: `${OUT}/33-indkobsliste-dark.png` });
+  await page.evaluate(() => document.documentElement.dataset.theme = 'light');
+  await page.locator('.hub-dialog .hub-btn', { hasText: 'Færdig' }).tap();
+  await page.waitForTimeout(500);
+  log('shopping list: Færdig closes it', (await page.locator('.hub-dialog').count()) === 0);
+
   // Swipe left with a finger: next week.
   const week = await center(page.locator('.mp-week'));
   await touch('touchStart', week.x + 200, week.y);
@@ -497,6 +585,9 @@ async function open(page, path) {
   const { context, page } = await newPage({ viewport: { width: 1280, height: 1024 } });
   await open(page, '/madplan');
   await page.screenshot({ path: `${OUT}/29-madplan-1280x1024.png` });
+  await page.locator('.hub-page__actions .hub-btn', { hasText: 'Indkøbsliste' }).tap();
+  await page.waitForTimeout(1000);
+  await page.screenshot({ path: `${OUT}/34-indkobsliste-1280x1024.png` });
   await context.close();
 }
 

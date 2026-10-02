@@ -1,0 +1,352 @@
+@*
+    The week's shopping list – wide, so it can all be seen at once:
+      * left: what to buy, by section of the shop. Tap a grocery to cross it out; the pencil says how it is bought.
+      * right: the fixed items (every week or only this week) and the staples the dishes use – tap the missing ones.
+    Everything is saved at once and shared with the other screens; nothing needs a "Gem".
+*@
+@implements IDisposable
+@inject ShoppingListService Shopping
+@inject MealPlanService MealPlan
+@inject RecipeService Recipes
+@inject ShoppingListPrinter Printer
+@inject PrintService Printing
+@inject IToastService Toasts
+@inject ILogger<ShoppingListDialog> Logger
+
+<HubDialog Open="Open" OpenChanged="OnOpenChanged" Title="@($"Indkøbsliste · {MealPlanRules.WeekTitle(Week).ToLower(DanishFormat.Culture)}")"
+           Size="DialogSize.ExtraLarge">
+    <ChildContent>
+        <div class="sl">
+            <div class="sl-top">
+                <p class="sl-top__summary">@Summary</p>
+                @if (CanChooseDays)
+                {
+                    <HubChoice TValue="bool" Options="DayOptions" Value="restOfWeek" ValueChanged="OnDaysChanged" Class="sl-top__days" />
+                }
+            </div>
+
+            @if (loadFailed)
+            {
+                <InfoBox Tone="HubTone.Danger" Title="Indkøbslisten kunne ikke vises">Prøv igen om lidt.</InfoBox>
+            }
+
+            <div class="sl-columns">
+                <section class="sl-main" aria-label="Skal købes">
+                    @if (loading)
+                    {
+                        <HubSkeleton Lines="8" />
+                    }
+                    else if (list.Lines.Count == 0)
+                    {
+                        <EmptyState Icon="IconName.ShoppingCart" Title="@EmptyTitle" Compact="true">
+                            <ChildContent>@EmptyText</ChildContent>
+                            <Actions>
+                                <HubButton Icon="IconName.Plus" OnClick="AddItem">Tilføj fast vare</HubButton>
+                            </Actions>
+                        </EmptyState>
+                    }
+                    else
+                    {
+                        @foreach (var section in list.Lines.GroupBy(l => l.Section))
+                        {
+                            <h3 class="sl-section">@section.Key.Label()</h3>
+                            <ul class="sl-lines">
+                                @foreach (var line in section)
+                                {
+                                    <ShoppingLineRow @key="line.Key" Line="line" Checked="line.IsDone"
+                                                     OnToggle="() => ToggleDoneAsync(line)" OnEdit="() => editing = line" />
+                                }
+                            </ul>
+                        }
+
+                        <p class="sl-hint">Tryk på en vare for at strege den ud – fx hvis I har den i forvejen. Blyanten bestemmer, hvordan varen købes.</p>
+                    }
+                </section>
+
+                <aside class="sl-side">
+                    <section class="sl-group" aria-labelledby="sl-fixed">
+                        <div class="sl-group__head">
+                            <h3 class="sl-group__title" id="sl-fixed">Faste varer</h3>
+                            <HubButton Size="ButtonSize.Small" Icon="IconName.Plus" OnClick="AddItem">Tilføj</HubButton>
+                        </div>
+                        @if (list.FixedItems.Count == 0)
+                        {
+                            <p class="sl-group__text">Varer, I køber hver uge – fx mælk, skyr og pålæg til madpakkerne.</p>
+                        }
+                        else
+                        {
+                            <HubList>
+                                @foreach (var item in list.FixedItems)
+                                {
+                                    <HubListItem @key="item.Id" Title="@item.Name" Subtitle="@ItemText(item)" OnClick="() => EditItem(item)" />
+                                }
+                            </HubList>
+                        }
+                    </section>
+
+                    @if (list.Staples.Count > 0)
+                    {
+                        <section class="sl-group" aria-labelledby="sl-staples">
+                            <div class="sl-group__head">
+                                <h3 class="sl-group__title" id="sl-staples">Basisvarer</h3>
+                            </div>
+                            <p class="sl-group__text">Dem har I som regel. Tryk på dem, der mangler, så kommer de på listen.</p>
+                            <ul class="sl-lines">
+                                @foreach (var staple in list.Staples)
+                                {
+                                    <ShoppingLineRow @key="staple.Key" Line="staple" Staple="true" Checked="staple.IsNeeded"
+                                                     OnToggle="() => ToggleNeededAsync(staple)" OnEdit="() => editing = staple" />
+                                }
+                            </ul>
+                        </section>
+                    }
+
+                    @if (list.WithoutIngredients.Count > 0)
+                    {
+                        <p class="sl-group__text">
+                            Uden ingredienser: @string.Join(", ", list.WithoutIngredients.Select(d => d.Title).Distinct())
+                        </p>
+                    }
+                </aside>
+            </div>
+        </div>
+    </ChildContent>
+    <Footer>
+        @if (Printer.IsConfigured)
+        {
+            <div class="sl-print">
+                <HubButton Icon="IconName.Printer" OnClick="PrintAsync" Disabled="@(loading || list.Remaining == 0)"
+                           ErrorMessage="Indkøbslisten blev ikke udskrevet">Print</HubButton>
+            </div>
+        }
+        <HubButton Variant="ButtonVariant.Primary" Icon="IconName.Check" OnClick="CloseAsync">Færdig</HubButton>
+    </Footer>
+</HubDialog>
+
+<GroceryRuleDialog Line="editing" OnSave="SaveRuleAsync" OnReset="ResetRuleAsync" OnClose="() => editing = null" />
+
+<FixedItemDialog @bind-Open="itemDialogOpen" Item="editingItem" Week="Week" />
+
+@code {
+    private static readonly IReadOnlyList<ChoiceOption<bool>> DayOptions =
+        [new(true, "Resten af ugen"), new(false, "Hele ugen")];
+
+    private ShoppingList list = ShoppingList.Empty;
+    private bool loading = true;
+    private bool loadFailed;
+    private int loadVersion;
+    private bool wasOpen;
+    private DateOnly shownWeek;
+    private bool restOfWeek = true;
+
+    private ShoppingLine? editing;
+    private bool itemDialogOpen;
+    private FixedItem? editingItem;
+
+    [Parameter]
+    public bool Open { get; set; }
+
+    [Parameter]
+    public EventCallback<bool> OpenChanged { get; set; }
+
+    /// <summary>The Monday of the week on the page.</summary>
+    [Parameter, EditorRequired]
+    public DateOnly Week { get; set; }
+
+    [Parameter, EditorRequired]
+    public DateOnly Today { get; set; }
+
+    /// <summary>In this week after Monday the dinners already eaten can be left out – and are, to begin with.</summary>
+    private bool CanChooseDays => Week == MealPlanRules.WeekStart(Today) && Today > Week;
+
+    private DateOnly From => CanChooseDays && restOfWeek ? Today : Week;
+
+    private string Summary
+    {
+        get
+        {
+            var days = From == Week
+                ? DanishFormat.DayRange(Week, Week.AddDays(6))
+                : $"Fra i dag til søndag {Week.AddDays(6).ToString("d. MMMM", DanishFormat.Culture)}";
+            var dishes = list.Dishes.Count switch
+            {
+                0 => "ingen retter fra opskriftsbogen",
+                1 => "1 ret",
+                var n => $"{n} retter",
+            };
+            return loading ? days : $"{days} · {dishes}";
+        }
+    }
+
+    private string EmptyTitle => list.Dishes.Count == 0 && list.FixedItems.Count == 0 ? "Indkøbslisten er tom" : "Der er ikke noget at købe";
+
+    private string EmptyText => list.Dishes.Count == 0 && list.FixedItems.Count == 0
+        ? "Vælg ugens retter, eller tilføj de varer, I køber hver uge."
+        : "Ugens retter bruger kun basisvarer. Tryk på dem, der mangler.";
+
+    private string ItemText(FixedItem item)
+    {
+        var when = item.IsEveryWeek ? "Hver uge" : $"Kun {MealPlanRules.WeekTitle(Week).ToLower(DanishFormat.Culture)}";
+        return item.AmountText.Length > 0 ? $"{item.AmountText} · {when.ToLower(DanishFormat.Culture)}" : when;
+    }
+
+    private PrintJobToasts? jobs;
+
+    protected override void OnInitialized()
+    {
+        jobs = new PrintJobToasts(Printing, Toasts, InvokeAsync, "Indkøbslisten blev ikke udskrevet", "Listen udskrives, når det er ordnet.");
+        Shopping.Changed += OnDataChanged;
+        MealPlan.Changed += OnDataChanged;
+        Recipes.Changed += OnDataChanged;
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // A fresh start every time the list opens (or the page moves to another week).
+        if (Open && (!wasOpen || Week != shownWeek))
+        {
+            wasOpen = true;
+            shownWeek = Week;
+            restOfWeek = true;
+            editing = null;
+            itemDialogOpen = false;
+            loading = true;
+            await LoadAsync();
+        }
+        else if (!Open)
+        {
+            wasOpen = false;
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        var version = ++loadVersion;
+        try
+        {
+            var result = await Shopping.GetAsync(Week, From);
+            if (version == loadVersion)
+            {
+                list = result;
+                loadFailed = false;
+
+                // Keep an open editor on the fresh line (or close it, if the grocery left the list).
+                editing = editing is { } e ? list.Lines.Concat(list.Staples).FirstOrDefault(l => l.Key == e.Key) : null;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Could not work out the shopping list for the week of {Monday}", Week);
+            loadFailed = version == loadVersion;
+        }
+        finally
+        {
+            if (version == loadVersion)
+            {
+                loading = false;
+            }
+        }
+    }
+
+    // From another screen, the meal plan or the recipe book – may come from any thread.
+    private void OnDataChanged() => _ = InvokeAsync(async () =>
+    {
+        if (!Open)
+        {
+            return;
+        }
+
+        await LoadAsync();
+        StateHasChanged();
+    });
+
+    private async Task OnDaysChanged(bool value)
+    {
+        restOfWeek = value;
+        await LoadAsync();
+    }
+
+    // Crossing out shows at once; the save follows (and the list is read again when it is done).
+    private async Task ToggleDoneAsync(ShoppingLine line)
+    {
+        var done = !line.IsDone;
+        list = list with { Lines = [.. list.Lines.Select(l => l.Key == line.Key ? l with { IsDone = done } : l)] };
+        await Toasts.TryAsync(() => Shopping.SetMarkAsync(Week, line.Key, ShoppingMarks.Done, done), "Varen blev ikke streget ud", Logger);
+    }
+
+    private Task ToggleNeededAsync(ShoppingLine staple) =>
+        Toasts.TryAsync(() => Shopping.SetMarkAsync(Week, staple.Key, ShoppingMarks.Needed, !staple.IsNeeded), "Basisvaren blev ikke sat på listen", Logger);
+
+    // Called by the rule dialog's buttons, which show an error toast if it fails.
+    private async Task SaveRuleAsync(GroceryRule rule)
+    {
+        await Shopping.SetRuleAsync(rule);
+        editing = null;
+    }
+
+    private async Task ResetRuleAsync()
+    {
+        if (editing is { } line)
+        {
+            await Shopping.ResetRuleAsync(line.Key);
+        }
+
+        editing = null;
+    }
+
+    // What is crossed out stays home; the rest goes on paper.
+    private async Task PrintAsync()
+    {
+        PrintJob job;
+        try
+        {
+            job = await Printer.PrintAsync(list);
+        }
+        catch (PrintApiException ex)
+        {
+            // The message is short and Danish ("Printeren svarer ikke."), so it says what to do.
+            Toasts.Error("Indkøbslisten blev ikke udskrevet", ex.Message);
+            return;
+        }
+
+        jobs?.Follow(job);
+        Toasts.Success("Sendt til printeren", $"{list.Remaining} varer");
+    }
+
+    private void AddItem()
+    {
+        editingItem = null;
+        itemDialogOpen = true;
+    }
+
+    private void EditItem(FixedItem item)
+    {
+        editingItem = item;
+        itemDialogOpen = true;
+    }
+
+    private async Task OnOpenChanged(bool open)
+    {
+        if (!open)
+        {
+            await CloseAsync();
+        }
+    }
+
+    private async Task CloseAsync()
+    {
+        Open = false;
+        wasOpen = false;
+        editing = null;
+        itemDialogOpen = false;
+        await OpenChanged.InvokeAsync(false);
+    }
+
+    public void Dispose()
+    {
+        jobs?.Dispose();
+        Shopping.Changed -= OnDataChanged;
+        MealPlan.Changed -= OnDataChanged;
+        Recipes.Changed -= OnDataChanged;
+    }
+}

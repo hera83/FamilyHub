@@ -80,4 +80,5 @@ Læs `docs/standarder/` før en ny menu bygges. Det vigtigste:
 | `deploy/` + `docs/raspberry-pi.md` | Scripts til server og kiosk; opsætning af køkkenskærmen |
 | `docs/google-kalender.md` | Google-opsætning til kalenderen (nøgler i `.env`, login via SSH-tunnel) |
 | `docs/opskrifter-api.md` | Madplanens opskrifter: opskriftsbogens API, `RecipeService` og muligheder til UI'et – læs før madplanens UI |
+| `src/Modules/FamilyHub.Modules.MealPlan/Shopping/` | Indkøbslistens hjælper: enheder, pakker, varekatalog og beregning (rene funktioner med tests) – se modulets README |
 | `docs/printer.md` + `src/FamilyHub.Core/Printing/` | Print fra alle menuer: `PrintService` (PDF → familiens printserver), nøgle i `.env` – læs før en printknap |

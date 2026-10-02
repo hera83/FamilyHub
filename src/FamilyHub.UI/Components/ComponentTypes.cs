@@ -62,6 +62,9 @@ public enum DialogSize
     Small,
     Medium,
     Large,
+
+    /// <summary>Up to 72rem – overviews with two columns, e.g. the shopping list.</summary>
+    ExtraLarge,
 }
 
 public enum AvatarSize

@@ -94,6 +94,7 @@ else
 | Hvor | Hvad | Kode |
 |---|---|---|
 | Madplan → tryk på en planlagt ret | **Print** nederst til venstre (kun ved opskrifter fra bogen, og kun når printeren er sat op) | `DinnerDialog.razor`, `Print/RecipePrinter.cs`, `Print/RecipePdf.cs` |
+| Madplan → **Indkøbsliste** | **Print** nederst til venstre (kun når printeren er sat op, og der er noget at købe) | `ShoppingListDialog.razor`, `Print/ShoppingListPrinter.cs`, `Print/ShoppingListPdf.cs` |
 
 **Opskriften som PDF** (`RecipePdf`, QuestPDF): A4 med kategori, titel, tid/personer/sværhed, billedet, ingredienser
 i en boks til venstre (underoverskrifter som "GLASUR"), nummererede trin til højre og noter nederst. Lange
@@ -104,6 +105,12 @@ sort/hvid.
 skærmens tråd og sender den. **I farver, når der er et billede**, ellers sort/hvid. Dialogen viser
 "Sendt til printeren", og senere en toast, hvis printeren går i stå ("Printeren mangler papir.") eller
 udskriften mislykkes.
+
+**Indkøbslisten som PDF** (`ShoppingListPdf`): A4 i sort/hvid med ugen og ugens retter øverst og varerne i to
+kolonner efter afdeling – hver med en lille boks at sætte kryds i. Overstregede varer og basisvarer, der ikke mangler,
+kommer ikke med.
+
+Begge dialoger følger deres udskrifter med `Print/PrintJobToasts.cs` (problemet siges én gang, fejl som fejl-toast).
 
 QuestPDF bruger Community-licensen (gratis for privatpersoner og små virksomheder). Skrifttypen (Lato med æøå og ½)
 følger med pakken – Docker-imaget skal ikke have ekstra skrifttyper.

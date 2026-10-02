@@ -1,0 +1,188 @@
+@*
+    How the family buys a grocery: a staple they always have, the total ("1,3 kg") or whole packs in the sizes their shop
+    has ("800 g + 500 g") – and where it is in the shop. Everything is chosen with switches, choices and steppers;
+    the preview shows what the list will say. Saved for every week.
+*@
+
+<HubDialog Open="Line is not null" OpenChanged="OnOpenChanged" Title="@(Line?.Name ?? "")" CloseOnBackdrop="false">
+    <ChildContent>
+        @if (Line is { } line)
+        {
+            <p class="hub-muted">@NeedText(line)</p>
+
+            <HubSwitch Label="Basisvare" Description="I har den som regel. Den kommer kun på listen, når I trykker på den under Basisvarer."
+                       @bind-Value="staple" />
+
+            @if (!staple && measure is { } m)
+            {
+                <HubChoice TValue="BuyMode" Label="Sådan købes den" Options="ModeOptions" Value="mode" ValueChanged="OnModeChanged" />
+
+                @if (mode == BuyMode.Packs)
+                {
+                    <div class="gr-sizes" role="group" aria-labelledby="gr-sizes-label">
+                        <span class="hub-field__label" id="gr-sizes-label">Pakkestørrelser i butikken</span>
+                        @for (var i = 0; i < sizes.Count; i++)
+                        {
+                            var index = i;
+                            <div class="gr-size">
+                                <NumberStepper TValue="double" Value="sizes[index]" ValueChanged="v => sizes[index] = v"
+                                               Min="StepFor(m)" Max="MaxFor(m)" Step="StepFor(m)" Format="v => ShoppingUnits.FormatPack(v, m)"
+                                               DecreaseLabel="Mindre pakke" IncreaseLabel="Større pakke" />
+                                @if (sizes.Count > 1)
+                                {
+                                    <HubButton Variant="ButtonVariant.Quiet" Icon="IconName.Trash" AriaLabel="Fjern størrelsen" OnClick="() => sizes.RemoveAt(index)" />
+                                }
+                            </div>
+                        }
+                        @if (sizes.Count < ShoppingListService.MaxPackSizes)
+                        {
+                            <div>
+                                <HubButton Variant="ButtonVariant.Quiet" Size="ButtonSize.Small" Icon="IconName.Plus" OnClick="() => AddSize(m)">Tilføj størrelse</HubButton>
+                            </div>
+                        }
+                    </div>
+                }
+
+                @if (Preview(line) is { } preview)
+                {
+                    <p class="gr-preview"><Icon Name="IconName.ShoppingCart" /><span>På listen: <strong>@preview</strong></span></p>
+                }
+            }
+
+            <HubChoice TValue="GrocerySection" Label="Afdeling" Appearance="ChoiceAppearance.Chips" Options="SectionOptions" @bind-Value="section" />
+        }
+    </ChildContent>
+    <Footer>
+        @if (Line is { HasOwnRule: true })
+        {
+            <div class="gr-reset">
+                <HubButton Variant="ButtonVariant.Quiet" Icon="IconName.Undo" OnClick="() => OnReset.InvokeAsync()" ErrorMessage="Varen blev ikke nulstillet">Brug standard</HubButton>
+            </div>
+        }
+        <HubButton Variant="ButtonVariant.Quiet" OnClick="() => OnClose.InvokeAsync()">Annuller</HubButton>
+        <HubButton Variant="ButtonVariant.Primary" Icon="IconName.Check" OnClick="SaveAsync" ErrorMessage="Varen blev ikke gemt">Gem</HubButton>
+    </Footer>
+</HubDialog>
+
+@code {
+    private static readonly IReadOnlyList<ChoiceOption<BuyMode>> ModeOptions =
+        [new(BuyMode.Total, "Samlet mængde"), new(BuyMode.Packs, "Hele pakker")];
+
+    private static readonly IReadOnlyList<ChoiceOption<GrocerySection>> SectionOptions =
+        [.. GrocerySections.ShopOrder.Select(s => new ChoiceOption<GrocerySection>(s, s.Label()))];
+
+    private string? shownKey;
+    private bool staple;
+    private BuyMode mode;
+    private Measure? measure;
+    private List<double> sizes = [];
+    private GrocerySection section;
+
+    /// <summary>The grocery to set up. Null closes the dialog.</summary>
+    [Parameter]
+    public ShoppingLine? Line { get; set; }
+
+    /// <summary>"Gem" – the caller saves the rule (errors become a toast on the button).</summary>
+    [Parameter]
+    public EventCallback<GroceryRule> OnSave { get; set; }
+
+    /// <summary>"Brug standard" – forget the family's rule for the grocery.</summary>
+    [Parameter]
+    public EventCallback OnReset { get; set; }
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    protected override void OnParametersSet()
+    {
+        // Start from the grocery's current rule each time it opens – not when the list behind it is read again.
+        if (Line?.Key == shownKey)
+        {
+            return;
+        }
+
+        shownKey = Line?.Key;
+        if (Line is not { } line)
+        {
+            return;
+        }
+
+        var rule = line.Rule;
+        staple = rule.IsStaple;
+        mode = rule.UsesPacks ? BuyMode.Packs : BuyMode.Total;
+        section = rule.Section;
+
+        // Packs are measured like the amount the dishes need – or like the sizes already set.
+        measure = line.Total?.Measure is { } total and not Measure.Other ? total : rule.PackMeasure;
+        sizes = rule.PackMeasure == measure ? [.. rule.PackSizes] : [];
+    }
+
+    private static string NeedText(ShoppingLine line) =>
+        line.Amount.Length > 0 ? $"I alt i denne uge: {line.Need ?? line.Amount}." : "Der står ikke, hvor meget der skal bruges.";
+
+    private string? Preview(ShoppingLine line)
+    {
+        if (line.Total is not { } total)
+        {
+            return null;
+        }
+
+        var rule = Draft(line);
+        var (buy, _) = ShoppingCalculator.Buy(total, rule);
+        return buy;
+    }
+
+    private void OnModeChanged(BuyMode value)
+    {
+        mode = value;
+        if (mode == BuyMode.Packs && sizes.Count == 0 && measure is { } m)
+        {
+            sizes.Add(DefaultSize(m));
+        }
+    }
+
+    private void AddSize(Measure m) =>
+        sizes.Add(sizes.Count == 0 ? DefaultSize(m) : Math.Max(StepFor(m), Math.Round(sizes.Min() / 2 / StepFor(m)) * StepFor(m)));
+
+    private static double DefaultSize(Measure m) => m switch
+    {
+        Measure.Volume => 1000,
+        Measure.Mass => 500,
+        _ => 6,
+    };
+
+    private static double StepFor(Measure m) => m switch
+    {
+        Measure.Volume => 50,
+        Measure.Mass => 25,
+        _ => 1,
+    };
+
+    private static double MaxFor(Measure m) => m == Measure.Count ? 30 : 5000;
+
+    private GroceryRule Draft(ShoppingLine line) => new()
+    {
+        Key = line.Key,
+        IsStaple = staple,
+        Mode = mode,
+        PackMeasure = mode == BuyMode.Packs ? measure : null,
+        PackSizes = mode == BuyMode.Packs ? [.. sizes.Distinct().OrderDescending()] : [],
+        Section = section,
+    };
+
+    private async Task SaveAsync()
+    {
+        if (Line is { } line)
+        {
+            await OnSave.InvokeAsync(Draft(line));
+        }
+    }
+
+    private async Task OnOpenChanged(bool open)
+    {
+        if (!open)
+        {
+            await OnClose.InvokeAsync();
+        }
+    }
+}

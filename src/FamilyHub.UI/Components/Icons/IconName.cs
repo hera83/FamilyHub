@@ -27,6 +27,7 @@ public enum IconName
     Minus,
     X,
     Check,
+    Circle,
     Edit,
     Trash,
     Search,

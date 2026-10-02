@@ -1112,6 +1112,10 @@
   width: min(48rem, 100%);
 }
 
+.hub-dialog--extralarge {
+  width: min(72rem, 100%);
+}
+
 /* Title and buttons stay put while long content (a recipe, a list) scrolls between them. */
 .hub-dialog__header {
   position: sticky;

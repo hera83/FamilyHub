@@ -8,54 +8,61 @@
 @inject ILogger<MealPlanPage> Logger
 
 <HubPage Title="Madplan" Width="PageWidth.Full">
-    @if (!Recipes.IsConfigured)
-    {
-        <InfoBox Tone="HubTone.Warning" Title="Opskriftsbogen er ikke sat op">
-            Madplanen virker, men retterne skal skrives selv, indtil nøglen til opskriftsbogen er sat ind på serveren.
-        </InfoBox>
-    }
-    else if (Recipes.Status.Problem == RecipeApiError.Unauthorized)
-    {
-        <InfoBox Tone="HubTone.Danger" Title="Opskriftsbogen afviste nøglen">
-            Opskrifterne kan ikke hentes. Tjek nøglen til opskriftsbogen på serveren.
-        </InfoBox>
-    }
-    else if (IsStale)
-    {
-        <InfoBox Tone="HubTone.Warning" Title="Opskriftsbogen kan ikke nås" Icon="IconName.WifiOff">
-            @StaleText Den prøver igen af sig selv.
-        </InfoBox>
-    }
+    <Actions>
+        <HubButton Variant="ButtonVariant.Primary" Icon="IconName.ShoppingCart" OnClick="() => shoppingOpen = true">Indkøbsliste</HubButton>
+    </Actions>
+    <ChildContent>
+        @if (!Recipes.IsConfigured)
+        {
+            <InfoBox Tone="HubTone.Warning" Title="Opskriftsbogen er ikke sat op">
+                Madplanen virker, men retterne skal skrives selv, indtil nøglen til opskriftsbogen er sat ind på serveren.
+            </InfoBox>
+        }
+        else if (Recipes.Status.Problem == RecipeApiError.Unauthorized)
+        {
+            <InfoBox Tone="HubTone.Danger" Title="Opskriftsbogen afviste nøglen">
+                Opskrifterne kan ikke hentes. Tjek nøglen til opskriftsbogen på serveren.
+            </InfoBox>
+        }
+        else if (IsStale)
+        {
+            <InfoBox Tone="HubTone.Warning" Title="Opskriftsbogen kan ikke nås" Icon="IconName.WifiOff">
+                @StaleText Den prøver igen af sig selv.
+            </InfoBox>
+        }
 
-    @if (loadFailed)
-    {
-        <InfoBox Tone="HubTone.Danger" Title="Madplanen kunne ikke vises">Prøv igen om lidt.</InfoBox>
-    }
+        @if (loadFailed)
+        {
+            <InfoBox Tone="HubTone.Danger" Title="Madplanen kunne ikke vises">Prøv igen om lidt.</InfoBox>
+        }
 
-    <div class="mp-toolbar">
-        <div class="mp-toolbar__nav">
-            <HubButton Icon="IconName.ChevronLeft" AriaLabel="Forrige uge" OnClick="() => Step(-1)" />
-            <HubButton OnClick="GoToThisWeek" Disabled="ShowsThisWeek">Denne uge</HubButton>
-            <HubButton Icon="IconName.ChevronRight" AriaLabel="Næste uge" OnClick="() => Step(1)" />
+        <div class="mp-toolbar">
+            <div class="mp-toolbar__nav">
+                <HubButton Icon="IconName.ChevronLeft" AriaLabel="Forrige uge" OnClick="() => Step(-1)" />
+                <HubButton OnClick="GoToThisWeek" Disabled="ShowsThisWeek">Denne uge</HubButton>
+                <HubButton Icon="IconName.ChevronRight" AriaLabel="Næste uge" OnClick="() => Step(1)" />
+            </div>
+            <div class="mp-toolbar__period">
+                <h2 class="mp-toolbar__title">@MealPlanRules.WeekTitle(monday)</h2>
+                <p class="mp-toolbar__detail">@MealPlanRules.WeekDetail(monday, today)</p>
+            </div>
         </div>
-        <div class="mp-toolbar__period">
-            <h2 class="mp-toolbar__title">@MealPlanRules.WeekTitle(monday)</h2>
-            <p class="mp-toolbar__detail">@MealPlanRules.WeekDetail(monday, today)</p>
-        </div>
-    </div>
 
-    <MealPlanWeek Days="days" Dishes="dishes" FindRecipe="Recipes.Find" Today="today" Loading="loading"
-                  OnDishSelected="ShowDish" OnAdd="AddDish" OnMove="MoveAsync" OnSwipe="Step" />
+        <MealPlanWeek Days="days" Dishes="dishes" FindRecipe="Recipes.Find" Today="today" Loading="loading"
+                      OnDishSelected="ShowDish" OnAdd="AddDish" OnMove="MoveAsync" OnSwipe="Step" />
 
-    @if (dishes.Count > 0)
-    {
-        <p class="mp-hint">Hold fingeren på en ret, og træk den til en anden dag for at flytte hele dagens aftensmad. Står der noget i forvejen, bytter dagene.</p>
-    }
+        @if (dishes.Count > 0)
+        {
+            <p class="mp-hint">Hold fingeren på en ret, og træk den til en anden dag for at flytte hele dagens aftensmad. Står der noget i forvejen, bytter dagene.</p>
+        }
+    </ChildContent>
 </HubPage>
 
 <RecipePickerDialog Day="pickerDay" @bind-Course="pickerCourse" Replacing="pickerReplacing" TakenCourses="PickerTaken"
                     CurrentRecipeId="@(pickerReplacing ? Find(pickerDay, pickerCourse)?.RecipeId : null)"
                     OnPickRecipe="PickRecipeAsync" OnPickText="PickTextAsync" OnClose="() => pickerDay = null" />
+
+<ShoppingListDialog @bind-Open="shoppingOpen" Week="monday" Today="today" />
 
 <DinnerDialog Dish="Shown" Recipe="@(Shown?.RecipeId is { } id ? Recipes.Find(id) : null)" Today="today"
               OnChange="ChangeDish" OnRemove="RemoveAsync" OnClose="() => shown = null" />
@@ -73,6 +80,7 @@
     private DinnerCourse pickerCourse;
     private bool pickerReplacing;
     private (DateOnly Day, DinnerCourse Course)? shown;
+    private bool shoppingOpen;
     private IDisposable? tick;
 
     /// <summary>Any date in the week to show (yyyy-MM-dd). Missing = this week (and follows the clock into the next).</summary>

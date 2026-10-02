@@ -1,0 +1,187 @@
+@*
+    A fixed item: "Mælk – 2 l – hver uge". Only the name is typed; amount, unit and week are picked.
+    When adding, Enter ("Tilføj") adds the item and makes room for the next one, so several go in a row.
+*@
+@inject ShoppingListService Shopping
+@inject IToastService Toasts
+
+<HubDialog Open="Open" OpenChanged="OnOpenChanged" Title="@(Item is null ? "Tilføj fast vare" : "Redigér fast vare")" CloseOnBackdrop="false">
+    <ChildContent>
+        <HubTextField Label="Vare" Placeholder="Fx Skyr" Kind="InputKind.Text" AutoFocus="@(Item is null)" MaxLength="FixedItem.MaxNameLength"
+                      Error="@nameError" @bind-Value="name" OnEnter="EnterAsync"
+                      EnterLabel="@(Item is null ? "Tilføj" : null)" KeepKeyboardOnEnter="@(Item is null)"
+                      Help="@(added.Count > 0 ? $"Tilføjet: {string.Join(", ", added)}" : null)" />
+
+        <NumberStepper TValue="decimal" Label="Antal" Value="quantity" ValueChanged="v => quantity = v" Min="0m" Max="FixedItem.MaxQuantity"
+                       Step="FixedItem.StepFor(unit)" Format="QuantityText" />
+
+        @if (quantity > 0)
+        {
+            <HubChoice TValue="string" Label="Enhed" Appearance="ChoiceAppearance.Chips" Options="UnitOptions" Value="unit" ValueChanged="OnUnitChanged" />
+        }
+
+        <HubChoice TValue="bool" Label="Hvornår" Options="WhenOptions" @bind-Value="everyWeek" />
+    </ChildContent>
+    <Footer>
+        @if (Item is { } item)
+        {
+            <div class="fi-remove">
+                <HubButton Variant="ButtonVariant.Quiet" Icon="IconName.Trash" OnClick="() => RemoveAsync(item)" ErrorMessage="Varen blev ikke fjernet">Fjern</HubButton>
+            </div>
+            <HubButton Variant="ButtonVariant.Quiet" OnClick="CloseAsync">Annuller</HubButton>
+            <HubButton Variant="ButtonVariant.Primary" Icon="IconName.Check" OnClick="() => SaveAsync(item)" ErrorMessage="Varen blev ikke gemt">Gem</HubButton>
+        }
+        else
+        {
+            <HubButton Variant="ButtonVariant.Quiet" OnClick="CloseAsync">@(added.Count > 0 ? "Færdig" : "Annuller")</HubButton>
+            <HubButton Variant="ButtonVariant.Primary" Icon="IconName.Plus" OnClick="AddAndCloseAsync" ErrorMessage="Varen blev ikke tilføjet">Tilføj</HubButton>
+        }
+    </Footer>
+</HubDialog>
+
+@code {
+    private static readonly IReadOnlyList<ChoiceOption<string>> UnitOptions =
+        [new("", "Ingen"), .. FixedItem.Units.Select(u => new ChoiceOption<string>(u, u == "l" ? "liter" : u))];
+
+    private bool wasOpen;
+    private string name = "";
+    private string? nameError;
+    private decimal quantity = 1;
+    private string unit = "stk";
+    private bool everyWeek = true;
+    private readonly List<string> added = [];
+
+    [Parameter]
+    public bool Open { get; set; }
+
+    [Parameter]
+    public EventCallback<bool> OpenChanged { get; set; }
+
+    /// <summary>The item to change – null to add a new one.</summary>
+    [Parameter]
+    public FixedItem? Item { get; set; }
+
+    /// <summary>The Monday of the week shown – used for "Kun uge 40".</summary>
+    [Parameter, EditorRequired]
+    public DateOnly Week { get; set; }
+
+    private IReadOnlyList<ChoiceOption<bool>> WhenOptions =>
+        [new(true, "Hver uge"), new(false, $"Kun {MealPlanRules.WeekTitle(Week).ToLower(DanishFormat.Culture)}")];
+
+    protected override void OnParametersSet()
+    {
+        // A fresh form every time the dialog opens.
+        if (Open && !wasOpen)
+        {
+            name = Item?.Name ?? "";
+            nameError = null;
+            quantity = Item?.Quantity ?? 1;
+            unit = Item is { } item ? item.Unit : "stk";
+            everyWeek = Item?.IsEveryWeek ?? true;
+            added.Clear();
+        }
+
+        wasOpen = Open;
+    }
+
+    private string QuantityText(decimal value) => value <= 0 ? "Uden antal" : RecipeMath.FormatQuantity((double)value);
+
+    private void OnUnitChanged(string value)
+    {
+        unit = value;
+
+        // Pieces and packs are whole numbers.
+        var step = FixedItem.StepFor(unit);
+        quantity = Math.Ceiling(quantity / step) * step;
+    }
+
+    private FixedItemDraft? Draft()
+    {
+        if (ShoppingListService.CleanName(name) is not { } clean)
+        {
+            nameError = "Skriv en vare";
+            return null;
+        }
+
+        nameError = null;
+        return new FixedItemDraft(clean, quantity, quantity > 0 ? unit : "", everyWeek ? null : Week);
+    }
+
+    // Enter while adding: add it and get ready for the next one (the keyboard stays). While editing: save.
+    private async Task EnterAsync()
+    {
+        if (Item is { } item)
+        {
+            await Toasts.TryAsync(() => SaveAsync(item), "Varen blev ikke gemt");
+            return;
+        }
+
+        if (Draft() is not { } draft)
+        {
+            return;
+        }
+
+        if (await Toasts.TryAsync(() => Shopping.AddItemAsync(draft), "Varen blev ikke tilføjet"))
+        {
+            added.Add(draft.Name);
+            name = "";
+            quantity = 1;
+            unit = "stk";
+        }
+    }
+
+    private async Task AddAndCloseAsync()
+    {
+        // Something already added and the field left empty: "Tilføj" just finishes.
+        if (added.Count > 0 && string.IsNullOrWhiteSpace(name))
+        {
+            await CloseAsync();
+            return;
+        }
+
+        if (Draft() is not { } draft)
+        {
+            return;
+        }
+
+        await Shopping.AddItemAsync(draft);
+        await CloseAsync();
+    }
+
+    private async Task SaveAsync(FixedItem item)
+    {
+        if (Draft() is not { } draft)
+        {
+            return;
+        }
+
+        await Shopping.UpdateItemAsync(item.Id, draft);
+        await CloseAsync();
+    }
+
+    // Removed at once, with "Fortryd" (docs/standarder/feedback.md).
+    private async Task RemoveAsync(FixedItem item)
+    {
+        var removed = await Shopping.RemoveItemAsync(item.Id);
+        await CloseAsync();
+        if (removed is not null)
+        {
+            Toasts.Undoable($"{removed.Name} er fjernet", () => Shopping.RestoreItemAsync(removed));
+        }
+    }
+
+    private async Task OnOpenChanged(bool open)
+    {
+        if (!open)
+        {
+            await CloseAsync();
+        }
+    }
+
+    private async Task CloseAsync()
+    {
+        Open = false;
+        wasOpen = false;
+        await OpenChanged.InvokeAsync(false);
+    }
+}

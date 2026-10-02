@@ -1,0 +1,4 @@
+/* "Fjern" stands alone on the left of the footer; Annuller and Gem stay on the right. */
+.fi-remove {
+    margin-inline-end: auto;
+}

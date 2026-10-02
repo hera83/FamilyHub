@@ -1,0 +1,99 @@
+/* "Print" stands alone on the left of the footer; Færdig stays on the right. */
+.sl-print {
+    margin-inline-end: auto;
+}
+
+.sl {
+    display: flex;
+    flex-direction: column;
+    gap: var(--hub-space-5);
+}
+
+.sl-top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--hub-space-3) var(--hub-space-6);
+}
+
+.sl-top__summary {
+    color: var(--hub-text-muted);
+}
+
+/* The list on the left, fixed items and staples on the right – one column on a narrow screen. */
+.sl-columns {
+    display: grid;
+    grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr);
+    align-items: start;
+    gap: var(--hub-space-8);
+}
+
+@media (max-width: 60rem) {
+    .sl-columns {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+.sl-main,
+.sl-side {
+    display: flex;
+    flex-direction: column;
+    gap: var(--hub-space-3);
+    min-width: 0;
+}
+
+.sl-side {
+    gap: var(--hub-space-8);
+}
+
+.sl-section {
+    padding-top: var(--hub-space-3);
+    color: var(--hub-text-muted);
+    font-size: var(--hub-text-sm);
+    font-weight: var(--hub-weight-bold);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.sl-section:first-child {
+    padding-top: 0;
+}
+
+.sl-lines {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    list-style: none;
+    border: 1px solid var(--hub-border);
+    border-radius: var(--hub-radius-lg);
+    background: var(--hub-surface);
+}
+
+.sl-hint {
+    color: var(--hub-text-subtle);
+    font-size: var(--hub-text-sm);
+}
+
+.sl-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--hub-space-3);
+}
+
+.sl-group__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--hub-space-3);
+    min-height: var(--hub-control-sm);
+}
+
+.sl-group__title {
+    font-size: var(--hub-text-lg);
+}
+
+.sl-group__text {
+    color: var(--hub-text-muted);
+    font-size: var(--hub-text-sm);
+}
