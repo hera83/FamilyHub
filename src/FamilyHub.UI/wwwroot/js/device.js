@@ -5,6 +5,8 @@ const APPEARANCE_KEY = 'familyhub.appearance';   // read by the boot script in A
 let trackingInstalled = false;
 let lastPointerType = '';
 const idle = { ref: null, ms: 0, timer: 0 };
+const saver = { ref: null, ms: 0, timer: 0, asleep: false, since: 0 };
+const WAKE_GRACE_MS = 800;   // a mouse still moving right after "Prøv" must not wake the screen at once
 
 export function initialize(settingsKey) {
   installInteractionTracking();
@@ -66,6 +68,20 @@ export function setIdleTimeout(dotnetRef, minutes) {
   resetIdle();
 }
 
+// Screen saver: calls dotnetRef.OnSleep() after the given minutes without activity (0 = only via showScreenSaver),
+// and dotnetRef.OnWake() on the next touch, key or mouse movement. null = off.
+export function setScreenSaver(dotnetRef, minutes) {
+  saver.ref = dotnetRef;
+  saver.ms = Math.max(0, minutes) * 60_000;
+  if (!dotnetRef) saver.asleep = false;
+  if (!saver.asleep) armScreenSaver();
+}
+
+export function showScreenSaver() {
+  clearTimeout(saver.timer);
+  sleep();
+}
+
 export function scrollToTop(element) {
   element?.scrollTo?.({ top: 0, left: 0, behavior: 'instant' });
 }
@@ -93,17 +109,40 @@ function installInteractionTracking() {
   document.addEventListener('pointerdown', e => {
     lastPointerType = e.pointerType || 'mouse';
     html.classList.toggle('hub-touch-input', lastPointerType === 'touch' || lastPointerType === 'pen');
-    resetIdle();
+    onActivity();
+  }, { capture: true, passive: true });
+
+  // The screen saver wakes when the finger is lifted, not when it lands: it is still on top until then,
+  // so the tap (and its click) can never reach a button underneath.
+  document.addEventListener('pointerup', () => {
+    if (saver.asleep) wake();
   }, { capture: true, passive: true });
 
   document.addEventListener('pointermove', e => {
-    if (e.pointerType === 'mouse' && Math.abs(e.movementX) + Math.abs(e.movementY) > 2) {
-      html.classList.remove('hub-touch-input');
+    if (e.pointerType !== 'mouse' || Math.abs(e.movementX) + Math.abs(e.movementY) <= 2) return;
+    html.classList.remove('hub-touch-input');
+    if (!saver.asleep) {
+      onActivity();
+    } else if (performance.now() - saver.since > WAKE_GRACE_MS) {
+      wake();
     }
   }, { passive: true });
 
-  document.addEventListener('keydown', resetIdle, { capture: true, passive: true });
-  document.addEventListener('wheel', resetIdle, { capture: true, passive: true });
+  // On window, so it runs before every other key handler (fields, the on-screen keyboard).
+  window.addEventListener('keydown', e => {
+    if (saver.asleep) {
+      // The key only wakes the screen – it must not type into a field or press a button underneath.
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      wake();
+    }
+    onActivity();
+  }, { capture: true });
+
+  document.addEventListener('wheel', () => {
+    if (saver.asleep) wake();
+    onActivity();
+  }, { capture: true, passive: true });
 
   // A long press opens the browser's context menu – not wanted on a touch screen.
   document.addEventListener('contextmenu', e => {
@@ -113,9 +152,35 @@ function installInteractionTracking() {
   });
 }
 
+function onActivity() {
+  resetIdle();
+  if (!saver.asleep) armScreenSaver();
+}
+
 function resetIdle() {
   clearTimeout(idle.timer);
   if (idle.ms > 0 && idle.ref) {
     idle.timer = setTimeout(() => idle.ref?.invokeMethodAsync('OnIdle').catch(() => { }), idle.ms);
   }
+}
+
+function armScreenSaver() {
+  clearTimeout(saver.timer);
+  if (saver.ms > 0 && saver.ref) {
+    saver.timer = setTimeout(sleep, saver.ms);
+  }
+}
+
+function sleep() {
+  if (!saver.ref || saver.asleep) return;
+  saver.asleep = true;
+  saver.since = performance.now();
+  // If the server can't draw it (connection lost), don't keep swallowing keys.
+  saver.ref.invokeMethodAsync('OnSleep').catch(() => { saver.asleep = false; });
+}
+
+function wake() {
+  saver.asleep = false;
+  saver.ref?.invokeMethodAsync('OnWake').catch(() => { });
+  armScreenSaver();
 }

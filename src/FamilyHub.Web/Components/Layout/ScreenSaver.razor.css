@@ -1,0 +1,43 @@
+/* Covers everything, including the on-screen keyboard and toasts – only connection messages go above it. */
+.hub-saver {
+    position: fixed;
+    inset: 0;
+    z-index: var(--hub-z-saver);
+    background: var(--hub-saver-bg);
+    cursor: none;
+    touch-action: none;
+    user-select: none;
+    animation: saver-fade-in var(--hub-duration-dim) var(--hub-ease) both;
+}
+
+/* left/top in percent of the screen, pulled back by the same percent of the clock itself:
+   the clock stays fully on screen wherever ScreenSaverLayout places it. */
+.hub-saver__clock {
+    position: absolute;
+    left: var(--saver-left, 50%);
+    top: var(--saver-top, 50%);
+    translate: calc(var(--saver-left, 50%) * -1) calc(var(--saver-top, 50%) * -1);
+    text-align: center;
+    white-space: nowrap;
+}
+
+.hub-saver__time {
+    color: var(--hub-saver-text);
+    font-size: var(--hub-text-clock);
+    font-weight: 300;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.045em;
+    line-height: 1;
+}
+
+.hub-saver__date {
+    margin-top: var(--hub-space-4);
+    color: var(--hub-saver-text-muted);
+    font-size: var(--hub-text-2xl);
+}
+
+@keyframes saver-fade-in {
+    from {
+        opacity: 0;
+    }
+}

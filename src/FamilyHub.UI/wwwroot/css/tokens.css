@@ -64,6 +64,11 @@
   --hub-person-teal: #4c9696;
   --hub-person-stone: #878175;
 
+  /* ---- Screen saver: black, with a quiet clock. Dimmer at night (dark theme) than by day. ---- */
+  --hub-saver-bg: #000000;
+  --hub-saver-text: #8a857b;
+  --hub-saver-text-muted: #6a665e;
+
   /* ---- Typography ---- */
   --hub-font: "Inter", "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, "Noto Sans", "DejaVu Sans", sans-serif;
   --hub-text-xs: 0.875rem;    /* 14px – captions, sparingly */
@@ -73,6 +78,7 @@
   --hub-text-xl: 1.625rem;    /* 26px – section titles */
   --hub-text-2xl: 2.125rem;   /* 34px – page titles */
   --hub-text-display: clamp(5rem, 10vw, 8.5rem);  /* the clock */
+  --hub-text-clock: clamp(7rem, 16vw, 20rem);     /* the screen saver's clock – readable across the kitchen */
   --hub-leading: 1.5;
   --hub-leading-tight: 1.2;
   --hub-weight-regular: 400;
@@ -121,11 +127,13 @@
   --hub-duration-fast: 120ms;
   --hub-duration: 200ms;
   --hub-duration-slow: 320ms;
+  --hub-duration-dim: 1.5s;   /* the screen saver fading in */
 
   /* ---- Layers ---- */
   --hub-z-dialog: 900;
   --hub-z-keyboard: 950;
   --hub-z-toast: 1000;
+  --hub-z-saver: 1500;        /* above everything but connection messages */
   --hub-z-system: 2000;
 
   /* ---- On-screen keyboard ---- */
@@ -180,6 +188,9 @@
   --hub-person-rose: #d692a4;
   --hub-person-teal: #6cb3b3;
   --hub-person-stone: #a39d91;
+
+  --hub-saver-text: #625e56;
+  --hub-saver-text-muted: #4d4a44;
 
   --hub-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
   --hub-shadow-md: 0 4px 14px rgba(0, 0, 0, 0.45);

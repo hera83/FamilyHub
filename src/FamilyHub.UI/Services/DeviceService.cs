@@ -83,6 +83,15 @@ public sealed class DeviceService(
         }
     }
 
+    /// <summary>Shows the screen saver right away (the "Prøv" button). A touch wakes the screen again.</summary>
+    public async Task ShowScreenSaverAsync()
+    {
+        if (module is not null)
+        {
+            await module.InvokeVoidAsync("showScreenSaver");
+        }
+    }
+
     /// <summary>Reloads the page in the browser (e.g. after an update).</summary>
     public async Task ReloadScreenAsync()
     {

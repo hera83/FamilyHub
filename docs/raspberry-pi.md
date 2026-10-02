@@ -61,6 +61,7 @@ På køkkenskærmen: **Indstillinger → Denne skærm**
 
 - Skærmtastatur: bør vise "Touchskærm fundet". Gør den ikke det, så vælg **Altid**.
 - Tilbage til forsiden: fx **5 min**.
+- Pauseskærm: fx **15 min** – skærmen bliver sort og viser kun et dæmpet ur, til nogen rører den. Tryk **Prøv** for at se den.
 - Tema: **Efter tidspunkt** (mørkt fra 21 til 6) eller fast.
 - Visningsstørrelse: tilpas efter hvor langt væk, man står.
 
@@ -82,7 +83,7 @@ imellem: `ssh pi@familyhub.local "sudo apt update && sudo apt full-upgrade -y &&
 | `homelab.local` kan ikke findes | Brug serverens IP-adresse i stedet, fx `-ServerUrl http://192.168.1.10:8080`. |
 | Touch bliver ikke genkendt | Tjek USB-kablet til skærmen. Vælg **Altid** under Skærmtastatur. `libinput list-devices` viser touch-enheder. |
 | Raspberry Pi OS' eget tastatur dukker op | `sudo raspi-config` → Display Options → On-screen Keyboard → Disabled |
-| Skærmen går i sort | `sudo raspi-config` → Display Options → Screen Blanking → No |
+| Skærmen går helt i sort (intet ur) | `sudo raspi-config` → Display Options → Screen Blanking → No. (Sort med et ur er Family Hubs pauseskærm – et tryk vækker den.) |
 | Skærmen skal roteres | Skrivebordets "Screen Configuration", eller `wlr-randr` |
 | Musemarkøren står midt på skærmen | Den forsvinder efter første tryk på skærmen. |
 | Kiosken starter ikke | Start den manuelt i en terminal på Pi'en: `familyhub-kiosk` og se beskeden. |

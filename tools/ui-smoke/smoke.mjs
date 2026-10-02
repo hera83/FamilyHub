@@ -1,6 +1,6 @@
 // Family Hub – UI smoke test in real Chrome/Edge, emulating the 1920x1080 kitchen touch screen.
 // Checks the on-screen keyboard end-to-end (finger taps, typing, number pad, dialogs), the calendar and the meal plan
-// (pick, own dish, drag and drop, swipe, undo, shopping list) and saves screenshots.
+// (pick, own dish, drag and drop, swipe, undo, shopping list), the screen saver, and saves screenshots.
 //
 //   cd tools/ui-smoke
 //   npm install                       (first time – installs playwright-core, no browser download)
@@ -614,6 +614,51 @@ async function open(page, path) {
   await open(page, '/indstillinger');
   const status = await page.locator('.hub-infobox').first().innerText();
   log('no touch screen reported', /Ingen touchskærm/.test(status), status.slice(0, 50));
+  await context.close();
+}
+
+// ---------------------------------------------------------------- screen saver (Indstillinger → Pauseskærm)
+{
+  const { context, page } = await newPage();
+  await open(page, '/indstillinger');
+  const card = page.locator('.hub-card', { hasText: 'Pauseskærm' });
+  await card.scrollIntoViewIfNeeded();
+  await card.locator('.hub-choice__option', { hasText: '15 min' }).tap();
+  await page.waitForTimeout(400);
+  const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('familyhub.device.v1') || '{}').screenSaverMinutes);
+  log('screen saver: setting saved on this screen', stored === 15, `screenSaverMinutes=${stored}`);
+  await page.screenshot({ path: `${OUT}/40-pauseskaerm-indstilling.png` });
+
+  await card.locator('.hub-btn', { hasText: 'Prøv' }).tap();
+  await page.waitForTimeout(1800);   // fades in
+  log('screen saver: "Prøv" shows it', await page.locator('.hub-saver').isVisible());
+  const time = (await page.locator('.hub-saver__time').innerText()).trim();
+  log('screen saver: shows the time', /^\d\d:\d\d$/.test(time), time);
+  const clock = await page.locator('.hub-saver__clock').boundingBox();
+  log('screen saver: clock fully on screen', clock.x >= 0 && clock.y >= 0 && clock.x + clock.width <= 1920 && clock.y + clock.height <= 1080,
+    `x ${Math.round(clock.x)}, y ${Math.round(clock.y)}, ${Math.round(clock.width)}x${Math.round(clock.height)}`);
+  await page.screenshot({ path: `${OUT}/41-pauseskaerm.png` });
+
+  // A tap wakes it – and must not press the option that sits underneath.
+  const never = await card.locator('.hub-choice__option', { hasText: 'Aldrig' }).boundingBox();
+  await page.touchscreen.tap(never.x + never.width / 2, never.y + never.height / 2);
+  await page.waitForTimeout(600);
+  log('screen saver: a tap wakes it', (await page.locator('.hub-saver').count()) === 0);
+  const checked = (await card.locator('.hub-choice__option[aria-checked="true"]').innerText()).trim();
+  log('screen saver: the waking tap pressed nothing underneath', checked === '15 min', `selected: ${checked}`);
+
+  // Night (dark theme) has a dimmer clock. On a laptop a key wakes it – without typing into the field underneath.
+  await page.evaluate(() => document.documentElement.dataset.theme = 'dark');
+  await card.locator('.hub-btn', { hasText: 'Prøv' }).tap();
+  await page.waitForTimeout(1800);
+  await page.screenshot({ path: `${OUT}/42-pauseskaerm-dark.png` });
+  const field = page.getByLabel('Prøv tastaturet');
+  await field.evaluate(el => el.focus());
+  await page.keyboard.press('a');
+  await page.waitForTimeout(600);
+  log('screen saver: a key wakes it', (await page.locator('.hub-saver').count()) === 0);
+  log('screen saver: the waking key typed nothing', (await field.inputValue()) === '', JSON.stringify(await field.inputValue()));
+
   await context.close();
 }
 

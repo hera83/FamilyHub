@@ -53,6 +53,9 @@ public sealed record DeviceSettings
     /// <summary>Return to the home screen after this many idle minutes. 0 = never.</summary>
     public int IdleReturnMinutes { get; init; }
 
+    /// <summary>Darken the screen to a quiet clock after this many idle minutes. 0 = never.</summary>
+    public int ScreenSaverMinutes { get; init; }
+
     /// <summary>Clamps values into valid ranges – stored data may be old or hand-edited.</summary>
     public DeviceSettings Normalize() => this with
     {
@@ -62,5 +65,6 @@ public sealed record DeviceSettings
         NightEndHour = Math.Clamp(NightEndHour, 0, 23),
         DisplayScalePercent = Math.Clamp(DisplayScalePercent, MinScalePercent, MaxScalePercent),
         IdleReturnMinutes = Math.Clamp(IdleReturnMinutes, 0, MaxIdleMinutes),
+        ScreenSaverMinutes = Math.Clamp(ScreenSaverMinutes, 0, MaxIdleMinutes),
     };
 }

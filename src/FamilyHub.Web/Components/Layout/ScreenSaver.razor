@@ -1,0 +1,127 @@
+@implements IAsyncDisposable
+@inject DeviceService Device
+@inject IHubClock Clock
+@inject IJSRuntime JS
+
+@*
+    The screen saver (Indstillinger → Pauseskærm): after the idle time the screen goes black with a quiet clock.
+    device.js decides when to sleep and wake, because it sees every touch and key; this component only draws it.
+    The page underneath is left as it was – a touch brings it back exactly as the family left it.
+*@
+@if (asleep)
+{
+    <div class="hub-saver" aria-label="Pauseskærm. Tryk for at vække skærmen.">
+        <div class="hub-saver__clock" style="@ClockStyle">
+            <p class="hub-saver__time">@DanishFormat.Time(TimeOnly.FromDateTime(now.DateTime))</p>
+            <p class="hub-saver__date">@DanishFormat.LongDate(DateOnly.FromDateTime(now.DateTime))</p>
+        </div>
+    </div>
+}
+
+@code {
+    private IJSObjectReference? deviceModule;
+    private DotNetObjectReference<ScreenSaver>? selfReference;
+    private IDisposable? minuteTick;
+    private DateTimeOffset now;
+    private bool asleep;
+    private int appliedMinutes = -1;
+
+    private string ClockStyle
+    {
+        get
+        {
+            var position = ScreenSaverLayout.ClockPosition(now);
+            return string.Create(CultureInfo.InvariantCulture, $"--saver-left: {position.LeftPercent}%; --saver-top: {position.TopPercent}%");
+        }
+    }
+
+    protected override void OnInitialized()
+    {
+        now = Clock.Now;
+        Device.Changed += OnDeviceChanged;
+        minuteTick = Clock.SubscribeMinuteTick(time => _ = InvokeAsync(() =>
+        {
+            now = time;
+            if (asleep)
+            {
+                StateHasChanged();
+            }
+        }));
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        try
+        {
+            await Device.InitializeAsync();
+            deviceModule = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/FamilyHub.UI/js/device.js");
+            selfReference = DotNetObjectReference.Create(this);
+            await ApplyMinutesAsync();
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    /// <summary>Called by device.js after the idle time, or right away from the "Prøv" button.</summary>
+    [JSInvokable]
+    public void OnSleep()
+    {
+        now = Clock.Now;
+        asleep = true;
+        StateHasChanged();
+    }
+
+    /// <summary>Called by device.js when a finger is lifted, a key is pressed or the mouse moves.</summary>
+    [JSInvokable]
+    public void OnWake()
+    {
+        asleep = false;
+        StateHasChanged();
+    }
+
+    private void OnDeviceChanged() => _ = InvokeAsync(ApplyMinutesAsync);
+
+    private async Task ApplyMinutesAsync()
+    {
+        var minutes = Device.Settings.ScreenSaverMinutes;
+        if (deviceModule is null || selfReference is null || minutes == appliedMinutes)
+        {
+            return;
+        }
+
+        appliedMinutes = minutes;
+        try
+        {
+            await deviceModule.InvokeVoidAsync("setScreenSaver", selfReference, minutes);
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        Device.Changed -= OnDeviceChanged;
+        minuteTick?.Dispose();
+
+        if (deviceModule is not null)
+        {
+            try
+            {
+                await deviceModule.InvokeVoidAsync("setScreenSaver", null, 0);
+                await deviceModule.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+
+        selfReference?.Dispose();
+    }
+}

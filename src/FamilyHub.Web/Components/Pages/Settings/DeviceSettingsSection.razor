@@ -42,6 +42,17 @@
                    Help="Når ingen har rørt skærmen i et stykke tid, vender den tilbage til forsiden."
                    ValueChanged="(int minutes) => UpdateAsync(s => s with { IdleReturnMinutes = minutes })" />
     </HubCard>
+
+    <HubCard Title="Pauseskærm" Icon="IconName.Moon">
+        <HeaderActions>
+            <HubButton Size="ButtonSize.Small" OnClick="Device.ShowScreenSaverAsync">Prøv</HubButton>
+        </HeaderActions>
+        <ChildContent>
+            <HubChoice Options="screenSaverOptions" Value="Device.Settings.ScreenSaverMinutes"
+                       Help="Når ingen har rørt skærmen i et stykke tid, bliver den mørk og viser kun uret. Et tryk vækker den igen."
+                       ValueChanged="(int minutes) => UpdateAsync(s => s with { ScreenSaverMinutes = minutes })" />
+        </ChildContent>
+    </HubCard>
 </HubSection>
 
 @code {
@@ -73,6 +84,14 @@
         new(2, "2 min"),
         new(5, "5 min"),
         new(10, "10 min"),
+    ];
+
+    private static readonly IReadOnlyList<ChoiceOption<int>> screenSaverOptions =
+    [
+        new(0, "Aldrig"),
+        new(5, "5 min"),
+        new(15, "15 min"),
+        new(30, "30 min"),
     ];
 
     private string? tryText;

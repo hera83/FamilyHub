@@ -60,6 +60,7 @@ public class ThemeAndSettingsTests
             NightEndHour = -4,
             DisplayScalePercent = 500,
             IdleReturnMinutes = -10,
+            ScreenSaverMinutes = 999,
         };
 
         var clean = messy.Normalize();
@@ -70,6 +71,29 @@ public class ThemeAndSettingsTests
         Assert.Equal(0, clean.NightEndHour);
         Assert.Equal(DeviceSettings.MaxScalePercent, clean.DisplayScalePercent);
         Assert.Equal(0, clean.IdleReturnMinutes);
+        Assert.Equal(DeviceSettings.MaxIdleMinutes, clean.ScreenSaverMinutes);
+    }
+
+    [Fact]
+    public void Screen_saver_is_off_unless_chosen_and_survives_json()
+    {
+        Assert.Equal(0, new DeviceSettings().ScreenSaverMinutes);
+
+        var json = JsonSerializer.Serialize(new DeviceSettings { ScreenSaverMinutes = 15 }, HubJson.Compact);
+        var back = JsonSerializer.Deserialize<DeviceSettings>(json, HubJson.Compact)!;
+
+        Assert.Equal(15, back.ScreenSaverMinutes);
+    }
+
+    [Fact]
+    public void Settings_saved_before_the_screen_saver_existed_still_load_with_it_off()
+    {
+        var old = """{"keyboardMode":"Auto","theme":"Dark","idleReturnMinutes":5}""";
+
+        var settings = JsonSerializer.Deserialize<DeviceSettings>(old, HubJson.Compact)!.Normalize();
+
+        Assert.Equal(5, settings.IdleReturnMinutes);
+        Assert.Equal(0, settings.ScreenSaverMinutes);
     }
 
     [Fact]
