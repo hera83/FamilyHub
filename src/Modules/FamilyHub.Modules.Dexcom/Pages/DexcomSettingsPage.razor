@@ -1,0 +1,124 @@
+@attribute [Microsoft.AspNetCore.Components.Route(DexcomModule.SettingsPath)]
+@implements IDisposable
+@inject GlucoseMonitor Glucose
+@inject IHubClock Clock
+@inject IToastService Toasts
+@inject ILogger<DexcomSettingsPage> Logger
+
+<HubPage Title="Dexcom-indstillinger" BackHref="@DexcomModule.Path.TrimStart('/')" BackLabel="Dexcom" Width="PageWidth.Narrow">
+    <HubSection Title="Målområde" Description="Bruges til farverne, grafen og tid i målområdet. Gælder med det samme på alle skærme.">
+        <HubCard>
+            <ChildContent>
+                <div class="dx-settings__range">
+                    <NumberStepper TValue="decimal" Label="Lavt blodsukker – under" Value="settings.LowMmolL" ValueChanged="ChangeLowAsync"
+                                   Min="GlucoseSettings.MinLow" Max="GlucoseSettings.MaxLow" Step="0.1m" Unit="mmol/L" Format="GlucoseRules.Format"
+                                   DecreaseLabel="Lavere" IncreaseLabel="Højere" Help="@($"Typisk {GlucoseRules.Format(GlucoseSettings.DefaultLow)}. Vises med rødt.")" />
+                    <NumberStepper TValue="decimal" Label="Højt blodsukker – over" Value="settings.HighMmolL" ValueChanged="ChangeHighAsync"
+                                   Min="GlucoseSettings.MinHigh" Max="GlucoseSettings.MaxHigh" Step="0.1m" Unit="mmol/L" Format="GlucoseRules.Format"
+                                   DecreaseLabel="Lavere" IncreaseLabel="Højere" Help="@($"Typisk {GlucoseRules.Format(GlucoseSettings.DefaultHigh)}. Vises med gult.")" />
+                </div>
+            </ChildContent>
+            <Footer>
+                <div class="dx-settings__footer">
+                    <p>Målområdet er <strong>@GlucoseRules.RangeText(settings)</strong>.</p>
+                    @if (!IsDefaultRange)
+                    {
+                        <HubButton Variant="ButtonVariant.Quiet" Size="ButtonSize.Small" Icon="IconName.Undo" OnClick="ResetRangeAsync">
+                            Brug @GlucoseRules.RangeText(new GlucoseSettings())
+                        </HubButton>
+                    }
+                </div>
+            </Footer>
+        </HubCard>
+    </HubSection>
+
+    <HubSection Title="Graf" Description="Hvor mange timer grafen viser, når siden åbnes.">
+        <HubCard>
+            <HubChoice TValue="int" Options="HourOptions" Value="settings.ChartHours" ValueChanged="ChangeHoursAsync" />
+        </HubCard>
+    </HubSection>
+
+    <HubSection Title="Forbindelse">
+        <HubCard>
+            @if (!Glucose.IsConfigured)
+            {
+                <InfoBox Tone="HubTone.Neutral" Title="Blodsukker er ikke sat op endnu">
+                    Udfyld DEXCOM_API_KEY i .env på serveren, og genstart med docker compose up -d.
+                    Under udvikling: dotnet user-secrets. Vejledningen står i docs/dexcom.md.
+                </InfoBox>
+            }
+            else
+            {
+                @switch (Glucose.Status.Problem)
+                {
+                    case GlucoseProblem.Unauthorized:
+                        <InfoBox Tone="HubTone.Danger" Title="API'et afviste nøglen">Tjek DEXCOM_API_KEY i .env på serveren.</InfoBox>
+                        break;
+                    case GlucoseProblem.Offline:
+                        <InfoBox Tone="HubTone.Warning" Icon="IconName.WifiOff" Title="Blodsukker-API'et kunne ikke nås">Family Hub prøver igen hvert minut.</InfoBox>
+                        break;
+                    case GlucoseProblem.Failed:
+                        <InfoBox Tone="HubTone.Warning" Title="Målingerne kunne ikke hentes">Family Hub prøver igen hvert minut.</InfoBox>
+                        break;
+                }
+                <p>@StatusText</p>
+                <p class="hub-muted hub-small">Henter nye målinger hvert minut. Tid i målområdet kan vises for op til 90 dage.</p>
+            }
+        </HubCard>
+    </HubSection>
+</HubPage>
+
+@code {
+    private static readonly IReadOnlyList<ChoiceOption<int>> HourOptions =
+        [.. GlucoseSettings.ChartHourOptions.Select(h => new ChoiceOption<int>(h, GlucoseRules.HoursLabel(h)))];
+
+    private GlucoseSettings settings = new();
+    private IDisposable? tick;
+
+    private bool IsDefaultRange => settings.LowMmolL == GlucoseSettings.DefaultLow && settings.HighMmolL == GlucoseSettings.DefaultHigh;
+
+    private string StatusText
+    {
+        get
+        {
+            var now = Clock.Now;
+            var updated = Glucose.Status.LastSuccess is { } last ? $"Opdateret {GlucoseRules.When(last, now, Clock.TimeZone)}." : "Ikke hentet endnu.";
+            var latest = Glucose.Latest is { } reading ? $" Seneste måling: {GlucoseRules.When(reading.Time, now, Clock.TimeZone)}." : "";
+            return updated + latest;
+        }
+    }
+
+    protected override void OnInitialized()
+    {
+        settings = Glucose.Settings;
+        Glucose.Changed += OnGlucoseChanged;
+        tick = Clock.SubscribeMinuteTick(time => _ = InvokeAsync(StateHasChanged));
+    }
+
+    private void OnGlucoseChanged() => _ = InvokeAsync(() =>
+    {
+        settings = Glucose.Settings;
+        StateHasChanged();
+    });
+
+    private Task ChangeLowAsync(decimal value) => SaveAsync(settings with { LowMmolL = value });
+
+    private Task ChangeHighAsync(decimal value) => SaveAsync(settings with { HighMmolL = value });
+
+    private Task ChangeHoursAsync(int value) => SaveAsync(settings with { ChartHours = value });
+
+    private Task ResetRangeAsync() => SaveAsync(settings with { LowMmolL = GlucoseSettings.DefaultLow, HighMmolL = GlucoseSettings.DefaultHigh });
+
+    // The new value is visible at once – no message. Only a failure gets a toast.
+    private async Task SaveAsync(GlucoseSettings changed)
+    {
+        settings = changed.Normalized();
+        await Toasts.TryAsync(() => Glucose.SaveSettingsAsync(settings), "Indstillingen blev ikke gemt", Logger);
+    }
+
+    public void Dispose()
+    {
+        Glucose.Changed -= OnGlucoseChanged;
+        tick?.Dispose();
+    }
+}

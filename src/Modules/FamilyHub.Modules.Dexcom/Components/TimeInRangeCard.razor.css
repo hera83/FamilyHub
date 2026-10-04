@@ -1,0 +1,109 @@
+/* Percent to the left, the bar with its legend to the right – one row, so the page fits without scrolling. */
+.dx-tir {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: var(--hub-space-4) var(--hub-space-10);
+}
+
+/* Stacked together with the rest of the page (see DexcomPage.razor.css). */
+@media (max-width: 64rem) {
+    .dx-tir {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+.dx-tir__summary {
+    display: flex;
+    align-items: center;
+    gap: var(--hub-space-4);
+}
+
+.dx-tir__percent {
+    color: var(--hub-success);
+    font-size: calc(var(--hub-text-2xl) * 1.5);
+    font-weight: var(--hub-weight-bold);
+    line-height: 1;
+    white-space: nowrap;
+}
+
+.dx-tir__caption {
+    display: flex;
+    flex-direction: column;
+    font-size: var(--hub-text-md);
+    font-weight: var(--hub-weight-medium);
+    line-height: var(--hub-leading-tight);
+}
+
+.dx-tir__range {
+    color: var(--hub-text-muted);
+    font-size: var(--hub-text-sm);
+    font-weight: var(--hub-weight-regular);
+}
+
+.dx-tir__detail {
+    display: flex;
+    flex-direction: column;
+    gap: var(--hub-space-2);
+    min-width: 0;
+}
+
+.dx-tir__bar {
+    display: flex;
+    gap: calc(var(--hub-space-1) / 2);
+    height: var(--hub-space-5);
+    overflow: hidden;
+    border-radius: var(--hub-radius-pill);
+    background: var(--hub-surface-sunken);
+}
+
+.dx-tir__segment {
+    flex-basis: 0;
+    min-width: var(--hub-space-1);
+}
+
+.dx-tir__segment--low { background: var(--hub-danger); }
+.dx-tir__segment--in-range { background: var(--hub-success); }
+.dx-tir__segment--high { background: var(--hub-warning); }
+
+.dx-tir__legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--hub-space-1) var(--hub-space-8);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.dx-tir__legend li {
+    display: flex;
+    align-items: center;
+    gap: var(--hub-space-2);
+}
+
+.dx-tir__swatch {
+    width: var(--hub-space-3);
+    height: var(--hub-space-3);
+    border-radius: var(--hub-radius-pill);
+}
+
+.dx-tir__meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--hub-space-1) var(--hub-space-6);
+    color: var(--hub-text-muted);
+    font-size: var(--hub-text-sm);
+}
+
+.dx-tir__note {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--hub-space-2);
+}
+
+.dx-tir__note ::deep .hub-icon {
+    flex: none;
+    width: 1.25em;
+    height: 1.25em;
+}

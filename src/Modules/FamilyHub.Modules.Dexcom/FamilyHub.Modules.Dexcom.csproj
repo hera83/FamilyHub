@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+  <!-- Modul: Dexcom. Blodsukker lige nu, graf over de sidste timer og tid i målområdet. Se README.md. -->
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\FamilyHub.Core\FamilyHub.Core.csproj" />
+    <ProjectReference Include="..\..\FamilyHub.UI\FamilyHub.UI.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="FamilyHub.Tests" />
+  </ItemGroup>
+
+</Project>

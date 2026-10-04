@@ -1,0 +1,83 @@
+@*
+    "Lige nu": the newest reading, big enough to read across the kitchen.
+    Older than 8 minutes → a dash instead of the number, like in the CGM apps, and how long it has been.
+    Low and high tint the card – always together with an icon and a word, never colour alone. No sound, no blinking.
+*@
+@{
+    var fresh = Reading is { } current && GlucoseRules.IsFresh(current, Now) ? current : null;
+    var level = fresh is null ? (GlucoseLevel?)null : GlucoseRules.Classify(fresh.MmolL, Settings);
+}
+<div class="dx-now dx-now--@State(level)">
+    <HubCard Title="Lige nu" Icon="IconName.Droplet">
+        @if (fresh is not null && level is { } shown)
+        {
+            <div class="dx-now__reading">
+                <span class="dx-now__value hub-numeric">@GlucoseRules.Format(fresh.MmolL)</span>
+                <TrendArrow Trend="fresh.Trend" Class="dx-now__arrow" />
+            </div>
+            <p class="dx-now__unit">
+                mmol/L
+                @if (fresh.Trend.Arrow().Length > 0)
+                {
+                    <span> · @fresh.Trend.Label()</span>
+                }
+            </p>
+            <p class="dx-now__status">
+                <Icon Name="@StatusIcon(shown)" />
+                <span>@shown.Label()</span>
+            </p>
+            <p class="dx-now__age">Målt @GlucoseRules.When(fresh.Time, Now, Zone) · @GlucoseRules.Age(fresh.Time, Now).ToLower(DanishFormat.Culture)</p>
+        }
+        else
+        {
+            <div class="dx-now__reading">
+                <span class="dx-now__value dx-now__value--missing" aria-label="Ingen aktuel måling">–</span>
+            </div>
+            @if (Reading is { } last)
+            {
+                <p class="dx-now__status">
+                    <Icon Name="IconName.WifiOff" />
+                    <span>Ingen ny måling i @GlucoseRules.Elapsed(last.Time, Now)</span>
+                </p>
+                <p class="dx-now__age">Seneste: @GlucoseRules.Format(last.MmolL) mmol/L @GlucoseRules.When(last.Time, Now, Zone)</p>
+            }
+            else
+            {
+                <p class="dx-now__status">
+                    <Icon Name="IconName.Clock" />
+                    <span>Ingen målinger endnu</span>
+                </p>
+            }
+        }
+    </HubCard>
+</div>
+
+@code {
+    /// <summary>The newest reading, or null when there is none yet.</summary>
+    [Parameter]
+    public GlucoseReading? Reading { get; set; }
+
+    [Parameter, EditorRequired]
+    public GlucoseSettings Settings { get; set; } = new();
+
+    [Parameter]
+    public DateTimeOffset Now { get; set; }
+
+    [Parameter, EditorRequired]
+    public TimeZoneInfo Zone { get; set; } = TimeZoneInfo.Utc;
+
+    private static string State(GlucoseLevel? level) => level switch
+    {
+        GlucoseLevel.Low => "low",
+        GlucoseLevel.High => "high",
+        GlucoseLevel.InRange => "in-range",
+        _ => "missing",
+    };
+
+    private static IconName StatusIcon(GlucoseLevel level) => level switch
+    {
+        GlucoseLevel.Low => IconName.AlertCircle,
+        GlucoseLevel.High => IconName.AlertTriangle,
+        _ => IconName.CheckCircle,
+    };
+}

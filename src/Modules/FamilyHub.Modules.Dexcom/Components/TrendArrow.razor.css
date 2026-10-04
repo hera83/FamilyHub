@@ -1,0 +1,21 @@
+.dx-trend {
+    display: inline-flex;
+    align-items: center;
+    line-height: 1;
+}
+
+.dx-trend ::deep .hub-icon {
+    width: 1em;
+    height: 1em;
+    stroke-width: 2.5;
+}
+
+/* Two arrows ("very fast") overlap a little, like in the Dexcom app. */
+.dx-trend ::deep .hub-icon + .hub-icon {
+    margin-left: -0.15em;
+}
+
+.dx-trend--up ::deep .hub-icon { transform: rotate(-90deg); }
+.dx-trend--up45 ::deep .hub-icon { transform: rotate(-45deg); }
+.dx-trend--down45 ::deep .hub-icon { transform: rotate(45deg); }
+.dx-trend--down ::deep .hub-icon { transform: rotate(90deg); }

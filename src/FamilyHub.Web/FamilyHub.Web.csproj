@@ -13,6 +13,7 @@
     <ProjectReference Include="..\FamilyHub.UI\FamilyHub.UI.csproj" />
     <ProjectReference Include="..\Modules\FamilyHub.Modules.Calendar\FamilyHub.Modules.Calendar.csproj" />
     <ProjectReference Include="..\Modules\FamilyHub.Modules.MealPlan\FamilyHub.Modules.MealPlan.csproj" />
+    <ProjectReference Include="..\Modules\FamilyHub.Modules.Dexcom\FamilyHub.Modules.Dexcom.csproj" />
   </ItemGroup>
 
   <ItemGroup>

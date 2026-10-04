@@ -1,0 +1,79 @@
+@*
+    The graph: one dot per reading (every 5 minutes), coloured by the target range, with the range as a soft band.
+    Plain SVG drawn on the server – no JavaScript. The SVG stretches to the box; dots and lines keep their size
+    (non-scaling stroke), and the labels are HTML, so they follow the screen's text size.
+*@
+@{
+    var model = GlucoseChartLayout.Build(Readings, From, To, Settings, Zone);
+}
+<div class="dx-chart dx-chart--@(Size(From, To))" role="img" aria-label="@AriaLabel(model)">
+    <div class="dx-chart__plot">
+        <svg class="dx-chart__svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+            <rect class="dx-chart__band" x="0" y="@N(model.HighY)" width="100" height="@N(model.LowY - model.HighY)" />
+            @foreach (var tick in model.TimeTicks)
+            {
+                <line class="dx-chart__grid" x1="@N(tick.Position)" x2="@N(tick.Position)" y1="0" y2="100" />
+            }
+            <line class="dx-chart__limit dx-chart__limit--high" x1="0" x2="100" y1="@N(model.HighY)" y2="@N(model.HighY)" />
+            <line class="dx-chart__limit dx-chart__limit--low" x1="0" x2="100" y1="@N(model.LowY)" y2="@N(model.LowY)" />
+            <path class="dx-chart__dots dx-chart__dots--in-range" d="@model.DotPath(GlucoseLevel.InRange)" />
+            <path class="dx-chart__dots dx-chart__dots--high" d="@model.DotPath(GlucoseLevel.High)" />
+            <path class="dx-chart__dots dx-chart__dots--low" d="@model.DotPath(GlucoseLevel.Low)" />
+        </svg>
+        @if (model.Dots.Count == 0)
+        {
+            <p class="dx-chart__empty">Ingen målinger i perioden</p>
+        }
+    </div>
+    <div class="dx-chart__values" aria-hidden="true">
+        @foreach (var tick in model.ValueTicks)
+        {
+            <span class="dx-chart__label @(tick.Strong ? "dx-chart__label--strong" : null)" style="top: @N(tick.Position)%">@tick.Label</span>
+        }
+    </div>
+    <div class="dx-chart__times" aria-hidden="true">
+        @foreach (var tick in model.TimeTicks)
+        {
+            <span class="dx-chart__label" style="left: @N(tick.Position)%">@tick.Label</span>
+        }
+    </div>
+</div>
+
+@code {
+    /// <summary>The readings to draw, oldest first.</summary>
+    [Parameter, EditorRequired]
+    public IReadOnlyList<GlucoseReading> Readings { get; set; } = [];
+
+    [Parameter]
+    public DateTimeOffset From { get; set; }
+
+    [Parameter]
+    public DateTimeOffset To { get; set; }
+
+    [Parameter, EditorRequired]
+    public GlucoseSettings Settings { get; set; } = new();
+
+    [Parameter, EditorRequired]
+    public TimeZoneInfo Zone { get; set; } = TimeZoneInfo.Utc;
+
+    private static string N(double value) => GlucoseChartLayout.Number(value);
+
+    /// <summary>Bigger dots when there are few of them (1 hour), smaller for a whole day.</summary>
+    private static string Size(DateTimeOffset from, DateTimeOffset to) => (to - from).TotalHours switch
+    {
+        <= 1.5 => "xl",
+        <= 3.5 => "lg",
+        <= 7 => "md",
+        <= 13 => "sm",
+        _ => "xs",
+    };
+
+    private string AriaLabel(GlucoseChartModel model)
+    {
+        var period = GlucoseRules.HoursTitle((int)Math.Round((To - From).TotalHours)).ToLower(DanishFormat.Culture);
+        var inPeriod = Readings.Where(r => r.Time >= From && r.Time <= To).ToList();
+        return inPeriod.Count == 0
+            ? $"Graf over blodsukker {period}: ingen målinger."
+            : $"Graf over blodsukker {period}: laveste {GlucoseRules.Format(inPeriod.Min(r => r.MmolL))}, højeste {GlucoseRules.Format(inPeriod.Max(r => r.MmolL))} mmol/L.";
+    }
+}

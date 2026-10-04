@@ -1,0 +1,51 @@
+/*
+   The whole page fits on the screen without scrolling: the graph takes the height that is left.
+   --dx-reserved is everything else on the page in the wide layout (header, card headers, time in range,
+   margins) – in rem, so it follows the screen's text size. Below 8.5rem the page scrolls rather than squeeze the graph.
+*/
+.dx-dashboard {
+    --dx-reserved: 36.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: var(--hub-space-6);
+}
+
+/* "Lige nu" to the left, the graph to the right – one column on narrow screens. */
+.dx-overview {
+    display: grid;
+    grid-template-columns: minmax(20rem, 1fr) minmax(0, 2fr);
+    gap: var(--hub-space-6);
+}
+
+/* The graph fills its card – also the extra height when "Lige nu" beside it is the taller one. */
+.dx-overview ::deep .dx-graph .hub-card__body {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.dx-graph__chart {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: clamp(8.5rem, calc(100dvh - var(--dx-reserved)), 26rem);
+    padding-top: var(--hub-space-3);
+}
+
+.dx-graph__chart ::deep .dx-chart {
+    flex: 1;
+    height: auto;
+    min-height: 0;
+}
+
+@media (max-width: 64rem) {
+    .dx-overview {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    /* Stacked, the page scrolls anyway – a fixed, comfortable height. */
+    .dx-graph__chart {
+        min-height: 18rem;
+    }
+}

@@ -1,4 +1,5 @@
 using FamilyHub.Core.Configuration;
+using FamilyHub.Core.Dexcom;
 using FamilyHub.Core.Household;
 using FamilyHub.Core.Notifications;
 using FamilyHub.Core.Printing;
@@ -16,7 +17,7 @@ namespace FamilyHub.Core;
 
 public static class CoreServiceCollectionExtensions
 {
-    /// <summary>Registers configuration, clock, storage, household settings, printing and toasts.</summary>
+    /// <summary>Registers configuration, clock, storage, household settings, printing, glucose readings and toasts.</summary>
     public static IServiceCollection AddFamilyHubCore(this IServiceCollection services, IConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(configuration);
@@ -49,6 +50,15 @@ public static class CoreServiceCollectionExtensions
         services.TryAddSingleton<PrintApiClient>();
         services.TryAddSingleton<PrintService>();
         services.AddHostedService<PrintJobWorker>();
+
+        // Glucose readings from the family's own API in front of Dexcom. Empty key = not set up. See docs/dexcom.md.
+        services.AddOptions<DexcomOptions>()
+            .Bind(configuration.GetSection(DexcomOptions.SectionName))
+            .Validate(o => string.IsNullOrWhiteSpace(o.BaseUrl) || o.TryGetBaseUri(out _),
+                $"{DexcomOptions.SectionName}:BaseUrl skal være tom eller en http(s)-adresse, fx https://dexcom.appcore.cc.")
+            .ValidateOnStart();
+        services.AddHttpClient(DexcomService.HttpClientName);
+        services.TryAddSingleton<IDexcomService, DexcomService>();
 
         // Scoped = one per screen (Blazor circuit).
         services.TryAddScoped<IToastService, ToastService>();

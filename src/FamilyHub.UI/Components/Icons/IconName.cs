@@ -21,6 +21,7 @@ public enum IconName
     Bell,
     Star,
     Heart,
+    Droplet,
 
     // Actions
     Plus,

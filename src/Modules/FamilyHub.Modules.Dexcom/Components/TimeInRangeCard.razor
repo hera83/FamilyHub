@@ -1,0 +1,100 @@
+@*
+    Tid i målområdet: the share of readings inside the target range – big – with a bar showing low / in range / high.
+    Says plainly when the period is not covered yet (the API only has readings from the day it was set up).
+    Compact on purpose: the whole Dexcom page must fit on the screen without scrolling.
+*@
+<HubCard Title="Tid i målområdet">
+    <HeaderActions>@ChildContent</HeaderActions>
+    <ChildContent>
+        @if (!Result.HasData)
+        {
+            <EmptyState Compact="true" Icon="IconName.Droplet" Title="Ingen målinger i perioden">
+                Tallet kommer, så snart der er målinger.
+            </EmptyState>
+        }
+        else
+        {
+            <div class="dx-tir">
+                <div class="dx-tir__summary">
+                    <p class="dx-tir__percent hub-numeric">@Percent(Result.InRangePercent)</p>
+                    <p class="dx-tir__caption">
+                        i målområdet
+                        <span class="dx-tir__range">@GlucoseRules.RangeText(Settings)</span>
+                    </p>
+                </div>
+                <div class="dx-tir__detail">
+                    <div class="dx-tir__bar" role="img"
+                         aria-label="@($"Lav {Percent(Result.BelowPercent)}, i målområdet {Percent(Result.InRangePercent)}, høj {Percent(Result.AbovePercent)}")">
+                        @foreach (var (level, percent) in Segments)
+                        {
+                            @if (percent > 0)
+                            {
+                                <span class="dx-tir__segment dx-tir__segment--@Slug(level)" style="flex-grow: @percent"></span>
+                            }
+                        }
+                    </div>
+                    <ul class="dx-tir__legend">
+                        @foreach (var (level, percent) in Segments)
+                        {
+                            <li>
+                                <span class="dx-tir__swatch dx-tir__segment--@Slug(level)"></span>
+                                <span>@LegendLabel(level)</span>
+                                <strong class="hub-numeric">@Percent(percent)</strong>
+                            </li>
+                        }
+                    </ul>
+                    <div class="dx-tir__meta">
+                        <span>Gennemsnit @GlucoseRules.Format(Result.Average ?? 0) mmol/L · @Result.Count.ToString("N0", DanishFormat.Culture) målinger</span>
+                        @if (CoveredDays is { } days)
+                        {
+                            <span class="dx-tir__note">
+                                <Icon Name="IconName.Info" />
+                                <span>Bygger kun på @(days == 1 ? "det seneste døgns" : $"de seneste {days} dages") målinger – tallet bliver mere retvisende med tiden.</span>
+                            </span>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+    </ChildContent>
+</HubCard>
+
+@code {
+    [Parameter, EditorRequired]
+    public TimeInRangeResult Result { get; set; } = TimeInRangeResult.Empty;
+
+    [Parameter, EditorRequired]
+    public GlucoseSettings Settings { get; set; } = new();
+
+    /// <summary>Set when the readings cover clearly less than the chosen period.</summary>
+    [Parameter]
+    public int? CoveredDays { get; set; }
+
+    /// <summary>The period choice, shown in the card's header.</summary>
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    private IEnumerable<(GlucoseLevel Level, int Percent)> Segments =>
+    [
+        (GlucoseLevel.Low, Result.BelowPercent),
+        (GlucoseLevel.InRange, Result.InRangePercent),
+        (GlucoseLevel.High, Result.AbovePercent),
+    ];
+
+    /// <summary>"75 %" – Danish style, with a space that never breaks.</summary>
+    private static string Percent(int value) => $"{value}\u00a0%";
+
+    private static string Slug(GlucoseLevel level) => level switch
+    {
+        GlucoseLevel.Low => "low",
+        GlucoseLevel.High => "high",
+        _ => "in-range",
+    };
+
+    private static string LegendLabel(GlucoseLevel level) => level switch
+    {
+        GlucoseLevel.Low => "Lav",
+        GlucoseLevel.High => "Høj",
+        _ => "I målområdet",
+    };
+}

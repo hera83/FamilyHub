@@ -1,0 +1,32 @@
+@*
+    Dexcom's trend arrow: one arrow turned in steps of 45°, two arrows for "very fast".
+    Renders nothing when the sensor has no trend.
+*@
+@if (Direction(Trend) is { } direction)
+{
+    <span class="dx-trend dx-trend--@direction @Class" role="img" aria-label="@Trend.Label()">
+        <Icon Name="IconName.ArrowRight" />
+        @if (Trend is GlucoseTrend.DoubleUp or GlucoseTrend.DoubleDown)
+        {
+            <Icon Name="IconName.ArrowRight" />
+        }
+    </span>
+}
+
+@code {
+    [Parameter]
+    public GlucoseTrend Trend { get; set; }
+
+    [Parameter]
+    public string? Class { get; set; }
+
+    private static string? Direction(GlucoseTrend trend) => trend switch
+    {
+        GlucoseTrend.DoubleUp or GlucoseTrend.SingleUp => "up",
+        GlucoseTrend.FortyFiveUp => "up45",
+        GlucoseTrend.Flat => "flat",
+        GlucoseTrend.FortyFiveDown => "down45",
+        GlucoseTrend.SingleDown or GlucoseTrend.DoubleDown => "down",
+        _ => null,
+    };
+}

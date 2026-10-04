@@ -1,0 +1,140 @@
+@attribute [Microsoft.AspNetCore.Components.Route(DexcomModule.Path)]
+@implements IDisposable
+@inject GlucoseMonitor Glucose
+@inject IHubClock Clock
+
+<HubPage Title="Dexcom" Subtitle="@($"Blodsukker · målområde {GlucoseRules.RangeText(settings)}")">
+    <Actions>
+        <HubButton Variant="ButtonVariant.Quiet" Icon="IconName.Settings" Href="@DexcomModule.SettingsPath.TrimStart('/')" AriaLabel="Indstillinger for Dexcom" />
+    </Actions>
+    <ChildContent>
+        @if (!Glucose.IsConfigured)
+        {
+            <EmptyState Icon="IconName.Droplet" Title="Blodsukker er ikke sat op endnu">
+                <ChildContent>Skriv nøglen til blodsukker-API'et i .env på serveren (DEXCOM_API_KEY), og genstart Family Hub.</ChildContent>
+                <Actions>
+                    <HubButton Href="@DexcomModule.SettingsPath.TrimStart('/')">Se indstillinger</HubButton>
+                </Actions>
+            </EmptyState>
+        }
+        else
+        {
+            @if (Glucose.Status.Problem is GlucoseProblem.Unauthorized)
+            {
+                <InfoBox Tone="HubTone.Danger" Title="Blodsukker-API'et afviste nøglen">
+                    Målingerne bliver ikke opdateret. Tjek DEXCOM_API_KEY i .env på serveren.
+                </InfoBox>
+            }
+            else if (IsStale)
+            {
+                <InfoBox Tone="HubTone.Warning" Icon="IconName.WifiOff" Title="Blodsukker kunne ikke hentes">
+                    @(Glucose.Status.LastSuccess is { } last ? $"Viser målingerne fra {GlucoseRules.When(last, now, Clock.TimeZone)}. " : "")Family Hub prøver igen hvert minut.
+                </InfoBox>
+            }
+
+            @if (!Glucose.HasData)
+            {
+                @if (!IsStale)
+                {
+                    <div class="dx-overview">
+                        <HubCard><HubSkeleton Lines="4" /></HubCard>
+                        <HubCard><HubSkeleton Lines="6" /></HubCard>
+                    </div>
+                }
+            }
+            else
+            {
+                <div class="dx-dashboard">
+                    <div class="dx-overview">
+                        <CurrentGlucose Reading="Glucose.Latest" Settings="settings" Now="now" Zone="Clock.TimeZone" />
+                        <HubCard Title="@GlucoseRules.HoursTitle(hours)" Class="dx-graph">
+                            <HeaderActions>
+                                <HubChoice TValue="int" Options="HourOptions" Value="hours" ValueChanged="ChangeHours" />
+                            </HeaderActions>
+                            <ChildContent>
+                                <div class="dx-graph__chart">
+                                    <GlucoseChart Readings="chartReadings" From="now.AddHours(-hours)" To="now" Settings="settings" Zone="Clock.TimeZone" />
+                                </div>
+                            </ChildContent>
+                        </HubCard>
+                    </div>
+
+                    <TimeInRangeCard Result="timeInRange" Settings="settings" CoveredDays="coveredDays">
+                        <HubChoice TValue="int" Options="DayOptions" Value="days" ValueChanged="ChangeDays" />
+                    </TimeInRangeCard>
+                </div>
+            }
+        }
+    </ChildContent>
+</HubPage>
+
+@code {
+    private static readonly IReadOnlyList<ChoiceOption<int>> HourOptions =
+        [.. GlucoseSettings.ChartHourOptions.Select(h => new ChoiceOption<int>(h, GlucoseRules.HoursLabel(h)))];
+
+    private static readonly IReadOnlyList<ChoiceOption<int>> DayOptions =
+    [
+        new(7, "7 dage"),
+        new(14, "14 dage"),
+        new(30, "30 dage"),
+        new(GlucoseMonitor.HistoryDays, "90 dage"),
+    ];
+
+    private GlucoseSettings settings = new();
+    private DateTimeOffset now;
+    private int hours;
+    private int days = GlucoseMonitor.HistoryDays;
+    private IReadOnlyList<GlucoseReading> chartReadings = [];
+    private TimeInRangeResult timeInRange = TimeInRangeResult.Empty;
+    private int? coveredDays;
+    private IDisposable? tick;
+
+    /// <summary>Failing for more than a few minutes – a single missed round is not worth a box.</summary>
+    private bool IsStale =>
+        Glucose.Status.Problem is GlucoseProblem.Offline or GlucoseProblem.Failed
+        && (Glucose.Status.LastSuccess is not { } last || now - last > TimeSpan.FromMinutes(3));
+
+    protected override void OnInitialized()
+    {
+        settings = Glucose.Settings;
+        hours = settings.ChartHours;
+        Refresh();
+        Glucose.Changed += OnGlucoseChanged;
+
+        // Every minute: "3 min siden" counts up, the graph moves along, and after 8 minutes the number gives way to a dash.
+        tick = Clock.SubscribeMinuteTick(time => OnGlucoseChanged());
+    }
+
+    private void Refresh()
+    {
+        now = Clock.Now;
+        settings = Glucose.Settings;
+        chartReadings = Glucose.GetReadings(now.AddHours(-hours), now);
+        timeInRange = TimeInRange.Compute(Glucose.GetReadings(now.AddDays(-days), now), settings);
+        coveredDays = TimeInRange.CoveredDays(timeInRange, now, days);
+    }
+
+    private void OnGlucoseChanged() => _ = InvokeAsync(() =>
+    {
+        Refresh();
+        StateHasChanged();
+    });
+
+    private void ChangeHours(int value)
+    {
+        hours = value;
+        Refresh();
+    }
+
+    private void ChangeDays(int value)
+    {
+        days = value;
+        Refresh();
+    }
+
+    public void Dispose()
+    {
+        Glucose.Changed -= OnGlucoseChanged;
+        tick?.Dispose();
+    }
+}

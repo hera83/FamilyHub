@@ -1,6 +1,7 @@
 using System.Globalization;
 using FamilyHub.Core;
 using FamilyHub.Modules.Calendar;
+using FamilyHub.Modules.Dexcom;
 using FamilyHub.Modules.MealPlan;
 using FamilyHub.UI;
 using FamilyHub.UI.Modules;
@@ -23,7 +24,8 @@ builder.Services.AddFamilyHubUI();
 // The menus. A new module = a new project + one line here. See docs/standarder/nyt-modul.md.
 var modules = builder.Services.AddFamilyHubModules(builder.Configuration, modules => modules
     .Add<CalendarModule>()
-    .Add<MealPlanModule>());
+    .Add<MealPlanModule>()
+    .Add<DexcomModule>());
 
 var app = builder.Build();
 

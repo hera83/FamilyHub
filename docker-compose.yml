@@ -32,6 +32,9 @@ services:
       FamilyHub__Printing__BaseUrl: ${PRINT_API_URL:-}
       FamilyHub__Printing__ApiKey: ${PRINT_API_KEY:-}
       FamilyHub__Printing__PrinterId: ${PRINT_PRINTER_ID:-}
+      # Blodsukker (familiens API foran Dexcom). Tom nøgle = ikke sat op. Se docs/dexcom.md.
+      FamilyHub__Dexcom__BaseUrl: ${DEXCOM_API_URL:-https://dexcom.appcore.cc}
+      FamilyHub__Dexcom__ApiKey: ${DEXCOM_API_KEY:-}
 
     volumes:
       # Et navn = Docker-volumen. En sti (./data, /mnt/ssd/familyhub) = mappe på serveren.

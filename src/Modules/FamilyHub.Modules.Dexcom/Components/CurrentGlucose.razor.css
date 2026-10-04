@@ -1,0 +1,97 @@
+.dx-now {
+    height: 100%;
+    container-type: inline-size;
+}
+
+/* The reading sits in the middle of the card, level with the graph beside it. */
+.dx-now ::deep .hub-card__body {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.dx-now ::deep .hub-card {
+    min-height: 100%;
+    transition: background-color var(--hub-duration-slow) var(--hub-ease), border-color var(--hub-duration-slow) var(--hub-ease);
+}
+
+/* Low: red. High: yellow. Calm, soft tints – the word and the icon say the same. */
+.dx-now--low ::deep .hub-card {
+    background: var(--hub-danger-soft);
+    border-color: color-mix(in srgb, var(--hub-danger) 35%, transparent);
+}
+
+.dx-now--high ::deep .hub-card {
+    background: var(--hub-warning-soft);
+    border-color: color-mix(in srgb, var(--hub-warning) 35%, transparent);
+}
+
+/*
+   As big as the card allows: "13,4 ↑↑" (about 3.4 times the font size) must fit inside the card's padding,
+   so the number never runs into the graph – and on a low screen it shrinks with the graph beside it
+   (see --dx-reserved on the page), so this card is never taller than the graph. The arrow follows the number.
+*/
+.dx-now__reading {
+    display: flex;
+    align-items: center;
+    gap: 0.1em;
+    margin-top: var(--hub-space-2);
+    font-size: min(
+        var(--hub-text-display),
+        calc((100cqi - var(--hub-space-12)) / 3.4),
+        max(2.75rem, calc(100dvh - var(--dx-reserved, 36.25rem) - 6.5rem)));
+}
+
+.dx-now__value {
+    font-weight: var(--hub-weight-bold);
+    line-height: 1;
+    letter-spacing: -0.02em;
+}
+
+.dx-now__value--missing {
+    color: var(--hub-text-subtle);
+    font-weight: var(--hub-weight-regular);
+}
+
+.dx-now ::deep .dx-now__arrow {
+    font-size: 0.55em;
+}
+
+.dx-now--low .dx-now__value,
+.dx-now--low ::deep .dx-now__arrow,
+.dx-now--low .dx-now__status {
+    color: var(--hub-danger);
+}
+
+.dx-now--high .dx-now__value,
+.dx-now--high ::deep .dx-now__arrow,
+.dx-now--high .dx-now__status {
+    color: var(--hub-warning);
+}
+
+.dx-now--in-range .dx-now__status {
+    color: var(--hub-success);
+}
+
+.dx-now__unit {
+    color: var(--hub-text-muted);
+    font-size: var(--hub-text-lg);
+}
+
+.dx-now__status {
+    display: flex;
+    align-items: center;
+    gap: var(--hub-space-2);
+    margin-top: var(--hub-space-3);
+    font-size: var(--hub-text-lg);
+    font-weight: var(--hub-weight-bold);
+}
+
+.dx-now--missing .dx-now__status {
+    color: var(--hub-text-muted);
+}
+
+.dx-now__age {
+    color: var(--hub-text-muted);
+}

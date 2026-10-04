@@ -82,3 +82,5 @@ Læs `docs/standarder/` før en ny menu bygges. Det vigtigste:
 | `docs/opskrifter-api.md` | Madplanens opskrifter: opskriftsbogens API, `RecipeService` og muligheder til UI'et – læs før madplanens UI |
 | `src/Modules/FamilyHub.Modules.MealPlan/Shopping/` | Indkøbslistens hjælper: enheder, pakker, varekatalog og beregning (rene funktioner med tests) – se modulets README |
 | `docs/printer.md` + `src/FamilyHub.Core/Printing/` | Print fra alle menuer: `PrintService` (PDF → familiens printserver), nøgle i `.env` – læs før en printknap |
+| `docs/dexcom.md` + `src/FamilyHub.Core/Dexcom/` | Blodsukker: `IDexcomService` (seneste måling, periode, status) mod familiens Dexcom-API, nøgle i `.env` |
+| `src/Modules/FamilyHub.Modules.Dexcom/` | Menuen Dexcom: lige nu, graf (SVG) og tid i målområdet; `GlucoseMonitor` deler målingerne mellem skærme – se modulets README |
