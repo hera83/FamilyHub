@@ -36,6 +36,41 @@
     font-size: var(--hub-text-2xl);
 }
 
+/*
+   The smaller bubble beside the clock: left edge in percent of the screen, top pulled back like the clock's.
+   ScreenSaverLayout keeps it on the side of the clock with room, so the two never overlap.
+*/
+.hub-saver__bubble {
+    position: absolute;
+    left: var(--saver-bubble-left, 75%);
+    top: var(--saver-bubble-top, 50%);
+    translate: 0 calc(var(--saver-bubble-top, 50%) * -1);
+    display: flex;
+    flex-direction: column;
+    gap: var(--hub-space-6);
+    font-size: var(--hub-saver-bubble);
+}
+
+/* A thin ring says "an extra value" – the same dim colours as the clock, never a status colour. */
+.hub-saver__ring {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 2.5em;
+    height: 2.5em;
+    border: 0.04em solid var(--hub-saver-text-muted);
+    border-radius: 50%;
+    color: var(--hub-saver-text);
+    text-align: center;
+    white-space: nowrap;
+}
+
+/* A module with nothing to show renders nothing – then there is no empty ring either. */
+.hub-saver__ring:empty {
+    display: none;
+}
+
 @keyframes saver-fade-in {
     from {
         opacity: 0;

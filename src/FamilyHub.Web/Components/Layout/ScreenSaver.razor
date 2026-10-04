@@ -2,11 +2,14 @@
 @inject DeviceService Device
 @inject IHubClock Clock
 @inject IJSRuntime JS
+@inject ModuleCatalog Modules
 
 @*
     The screen saver (Indstillinger → Pauseskærm): after the idle time the screen goes black with a quiet clock.
     device.js decides when to sleep and wake, because it sees every touch and key; this component only draws it.
     The page underneath is left as it was – a touch brings it back exactly as the family left it.
+    Modules may add a small value in a ring beside the clock (ScreenSaverItems, e.g. the glucose): this component
+    draws the ring and moves it, always on the side of the clock with room (ScreenSaverLayout); the module draws the inside.
 *@
 @if (asleep)
 {
@@ -15,6 +18,15 @@
             <p class="hub-saver__time">@DanishFormat.Time(TimeOnly.FromDateTime(now.DateTime))</p>
             <p class="hub-saver__date">@DanishFormat.LongDate(DateOnly.FromDateTime(now.DateTime))</p>
         </div>
+        @if (Modules.ScreenSaverItems.Count > 0)
+        {
+            <div class="hub-saver__bubble" style="@BubbleStyle">
+                @foreach (var item in Modules.ScreenSaverItems)
+                {
+                    <div class="hub-saver__ring"><DynamicComponent Type="item.Component" /></div>
+                }
+            </div>
+        }
     </div>
 }
 
@@ -32,6 +44,15 @@
         {
             var position = ScreenSaverLayout.ClockPosition(now);
             return string.Create(CultureInfo.InvariantCulture, $"--saver-left: {position.LeftPercent}%; --saver-top: {position.TopPercent}%");
+        }
+    }
+
+    private string BubbleStyle
+    {
+        get
+        {
+            var position = ScreenSaverLayout.BubblePosition(now);
+            return string.Create(CultureInfo.InvariantCulture, $"--saver-bubble-left: {position.LeftPercent}%; --saver-bubble-top: {position.TopPercent}%");
         }
     }
 

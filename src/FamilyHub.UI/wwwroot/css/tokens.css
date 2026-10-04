@@ -79,6 +79,8 @@
   --hub-text-2xl: 2.125rem;   /* 34px – page titles */
   --hub-text-display: clamp(5rem, 10vw, 8.5rem);  /* the clock */
   --hub-text-clock: clamp(7rem, 16vw, 20rem);     /* the screen saver's clock – readable across the kitchen */
+  --hub-saver-bubble: clamp(2.75rem, 5.5vw, 7rem); /* the screen saver's smaller bubble (e.g. glucose); its ring is 2.5em wide.
+                                                      In vw like the clock – ScreenSaverLayout counts on both widths. */
   --hub-leading: 1.5;
   --hub-leading-tight: 1.2;
   --hub-weight-regular: 400;

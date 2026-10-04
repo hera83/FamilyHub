@@ -1,0 +1,20 @@
+/* Sized in em of the screen saver's bubble (--hub-saver-bubble); the ring around it is 2.5em wide. */
+.dx-saver__value {
+    font-size: 0.85em;
+    font-weight: 300;
+    letter-spacing: -0.03em;
+    line-height: 1;
+}
+
+.dx-saver__detail {
+    display: flex;
+    align-items: center;
+    gap: 0.1em;
+    margin-top: 0.12em;
+    color: var(--hub-saver-text-muted);
+    font-size: 0.2em;
+}
+
+.dx-saver__detail ::deep .dx-saver__arrow {
+    font-size: 1.3em;
+}

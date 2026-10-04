@@ -224,4 +224,43 @@ public sealed class DexcomPageTests : BunitContext
         Assert.Equal(["low", "in-range", "high", "missing"], new GlucoseLevel?[] { GlucoseLevel.Low, GlucoseLevel.InRange, GlucoseLevel.High, null }.Select(GlucoseLook.CssName));
         Assert.Equal(3, Enum.GetValues<GlucoseLevel>().Select(GlucoseLook.Icon).Distinct().Count());
     }
+
+    // ------------------------------------------------------------------ screen saver bubble
+
+    [Fact]
+    public async Task The_screen_saver_shows_the_number_quietly_with_arrow_and_unit()
+    {
+        await WithReadingsAsync(3.2);
+
+        var cut = Render<GlucoseSaverBubble>();
+
+        Assert.Equal("3,2", cut.Find(".dx-saver__value").TextContent);
+        Assert.Equal("Stiger", cut.Find(".dx-trend").GetAttribute("aria-label"));
+        Assert.Contains("mmol/L", cut.Find(".dx-saver__detail").TextContent);
+
+        // Like the clock: no status colours or words, even when low.
+        Assert.DoesNotContain("--low", cut.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("Lav", cut.Markup, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task On_the_screen_saver_an_old_reading_gives_way_to_a_dash()
+    {
+        await WithReadingsAsync(8.5, minutesOld: 2);
+        var cut = Render<GlucoseSaverBubble>();
+
+        time.Advance(TimeSpan.FromMinutes(7));
+
+        cut.WaitForAssertion(() => Assert.Equal("–", cut.Find(".dx-saver__value").TextContent));
+        Assert.Empty(cut.FindAll(".dx-trend"));
+    }
+
+    [Fact]
+    public void Without_readings_or_setup_the_screen_saver_shows_no_ring()
+    {
+        Assert.Equal("", Render<GlucoseSaverBubble>().Markup.Trim());
+
+        api.Configured = false;
+        Assert.Equal("", Render<GlucoseSaverBubble>().Markup.Trim());
+    }
 }

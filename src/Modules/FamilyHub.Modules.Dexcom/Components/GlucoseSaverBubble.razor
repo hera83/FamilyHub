@@ -1,0 +1,48 @@
+@implements IDisposable
+@inject GlucoseMonitor Glucose
+@inject IHubClock Clock
+
+@*
+    Inside the screen saver's ring beside the clock: the glucose, quiet like the clock – no status colours, no blinking.
+    The screen saver draws the ring and moves it; this only draws the number, a small trend arrow and the unit.
+    After 8 minutes without a new reading the number gives way to a dash, like on the Dexcom page.
+    Not set up, or no readings at all: renders nothing, and the ring stays away.
+*@
+@if (Glucose.IsConfigured && Glucose.Latest is { } reading)
+{
+    var fresh = GlucoseRules.IsFresh(reading, now);
+    <span class="dx-saver__value hub-numeric">@(fresh ? GlucoseRules.Format(reading.MmolL) : "–")</span>
+    <span class="dx-saver__detail">
+        @if (fresh)
+        {
+            <TrendArrow Trend="reading.Trend" Class="dx-saver__arrow" />
+        }
+        <span>mmol/L</span>
+    </span>
+}
+
+@code {
+    private DateTimeOffset now;
+    private IDisposable? tick;
+
+    protected override void OnInitialized()
+    {
+        now = Clock.Now;
+        Glucose.Changed += OnChanged;
+
+        // Every minute: after 8 minutes without a new reading the number gives way to a dash.
+        tick = Clock.SubscribeMinuteTick(time => OnChanged());
+    }
+
+    private void OnChanged() => _ = InvokeAsync(() =>
+    {
+        now = Clock.Now;
+        StateHasChanged();
+    });
+
+    public void Dispose()
+    {
+        Glucose.Changed -= OnChanged;
+        tick?.Dispose();
+    }
+}

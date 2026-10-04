@@ -19,6 +19,9 @@ public sealed class ModuleCatalog
             .SelectMany(m => m.Widgets.Select(w => new ModuleWidget(m, w)))
             .OrderBy(w => w.Widget.Order)
             .ThenBy(w => w.Module.Order)];
+        ScreenSaverItems = [.. Modules
+            .SelectMany(m => m.ScreenSaverItems)
+            .OrderBy(i => i.Order)];
         Assemblies = [.. Modules.Select(m => m.GetType().Assembly).Distinct()];
     }
 
@@ -29,6 +32,9 @@ public sealed class ModuleCatalog
     public IReadOnlyList<HubModule> NavigationModules { get; }
 
     public IReadOnlyList<ModuleWidget> Widgets { get; }
+
+    /// <summary>What the modules show beside the clock on the screen saver, in order.</summary>
+    public IReadOnlyList<ScreenSaverItem> ScreenSaverItems { get; }
 
     /// <summary>Assemblies with routable pages – handed to the Blazor router.</summary>
     public IReadOnlyList<Assembly> Assemblies { get; }

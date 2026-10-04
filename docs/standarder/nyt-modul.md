@@ -78,6 +78,21 @@ Brug `@attribute [Route(...)]` med modulets konstant, så ruten og navigationen 
 - Har widget'en intet at sige lige nu, renderer den ingenting – så fylder den heller ikke på forsiden.
   Eksempel: Madplanens »I aften« vises kun kl. 06–19, og kun når der er en ret.
 
+### Lille værdi på pauseskærmen (valgfrit)
+
+Et modul kan vise én lille værdi i en ring ved siden af uret på pauseskærmen (fx Dexcoms blodsukker):
+
+```csharp
+public override IReadOnlyList<ScreenSaverItem> ScreenSaverItems =>
+    [ScreenSaverItem.For<GlucoseSaverBubble>(order: 30)];
+```
+
+- Pauseskærmen tegner ringen og flytter den rundt – altid på den side af uret, hvor der er plads
+  (`ScreenSaverLayout.BubblePosition`). Komponenten tegner kun indholdet.
+- Stille som uret: kun `--hub-saver-text`/`--hub-saver-text-muted`, ingen statusfarver, ingen blink.
+- Størrelser i `em` – ringen er `2.5em` bred i `--hub-saver-bubble`. Et tal i `0.85em` og en lille linje under.
+- Har den intet at vise, renderer den ingenting – så forsvinder ringen også.
+
 ## 7. Regler for livscyklus og tid
 
 - Ingen prerendering: `OnInitialized(Async)` kører én gang; JS-interop først i `OnAfterRenderAsync(firstRender)`.

@@ -8,7 +8,7 @@ namespace FamilyHub.Tests.UI;
 
 public class ModuleCatalogTests
 {
-    private sealed class TestModule(string id, string title, string route, int order = 100, bool showInNavigation = true, IReadOnlyList<DashboardWidget>? widgets = null) : HubModule
+    private sealed class TestModule(string id, string title, string route, int order = 100, bool showInNavigation = true, IReadOnlyList<DashboardWidget>? widgets = null, IReadOnlyList<ScreenSaverItem>? saverItems = null) : HubModule
     {
         public bool ServicesConfigured { get; private set; }
 
@@ -25,6 +25,8 @@ public class ModuleCatalogTests
         public override bool ShowInNavigation => showInNavigation;
 
         public override IReadOnlyList<DashboardWidget> Widgets => widgets ?? [];
+
+        public override IReadOnlyList<ScreenSaverItem> ScreenSaverItems => saverItems ?? [];
 
         public override void ConfigureServices(IServiceCollection services, IConfiguration configuration) => ServicesConfigured = true;
     }
@@ -111,5 +113,18 @@ public class ModuleCatalogTests
     public void Widgets_must_be_components()
     {
         Assert.Throws<ArgumentException>(() => new DashboardWidget(typeof(string)));
+    }
+
+    [Fact]
+    public void Screen_saver_items_from_all_modules_are_collected_in_order()
+    {
+        var catalog = Build(
+            new TestModule("a", "A", "/a", saverItems: [ScreenSaverItem.For<WidgetA>(order: 20)]),
+            new TestModule("b", "B", "/b", saverItems: [ScreenSaverItem.For<WidgetB>(order: 10)]),
+            new TestModule("c", "C", "/c"));
+
+        Assert.Equal([typeof(WidgetB), typeof(WidgetA)], catalog.ScreenSaverItems.Select(i => i.Component));
+        Assert.Empty(ModuleCatalog.Empty.ScreenSaverItems);
+        Assert.Throws<ArgumentException>(() => new ScreenSaverItem(typeof(string)));
     }
 }

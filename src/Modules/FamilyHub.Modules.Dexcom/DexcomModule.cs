@@ -29,6 +29,10 @@ public sealed class DexcomModule : HubModule
     public override IReadOnlyList<DashboardWidget> Widgets =>
         [DashboardWidget.For<GlucoseWidget>(WidgetSize.Medium, order: 30)];
 
+    /// <summary>The glucose in a ring beside the clock on the screen saver – quiet, like the clock.</summary>
+    public override IReadOnlyList<ScreenSaverItem> ScreenSaverItems =>
+        [ScreenSaverItem.For<GlucoseSaverBubble>(order: 30)];
+
     public override void ConfigureServices(IServiceCollection services, IConfiguration configuration)
     {
         // The API client (IDexcomService) lives in Core – see docs/dexcom.md. One copy of the readings for every screen.

@@ -34,6 +34,9 @@ public abstract class HubModule
     /// <summary>Components shown on the home screen overview.</summary>
     public virtual IReadOnlyList<DashboardWidget> Widgets => [];
 
+    /// <summary>Small extra values on the screen saver, each in a ring beside the clock (e.g. the glucose).</summary>
+    public virtual IReadOnlyList<ScreenSaverItem> ScreenSaverItems => [];
+
     /// <summary>Register the module's own services (data access, sync jobs, …).</summary>
     public virtual void ConfigureServices(IServiceCollection services, IConfiguration configuration)
     {

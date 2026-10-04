@@ -17,6 +17,9 @@ altid sammen med ikon og ord ("Lav", "Høj", "I målområdet"), aldrig farve ale
 Forsiden får kortet **Blodsukker** (`GlucoseWidget`): tallet, trendpilen og om det er lavt, i målområdet eller højt.
 Det vises kun, mens målingen er aktuel (8 minutter) – ellers fylder det ingenting, ligesom »I aften«.
 
+Pauseskærmen får tallet i en tynd ring ved siden af uret (`GlucoseSaverBubble`) – i urets dæmpede farver, uden
+statusfarver. Efter 8 minutter uden ny måling står der »–«. Uden opsætning eller målinger er der ingen ring.
+
 ## Regler
 
 | Regel | Hvor |
@@ -34,7 +37,7 @@ Det vises kun, mens målingen er aktuel (8 minutter) – ellers fylder det ingen
 | Mappe | Indhold |
 |---|---|
 | `Glucose/` | `GlucoseMonitor` (singleton: 90 dages målinger i hukommelsen, indstillinger, `Changed`), `GlucoseSyncWorker` (hvert minut), `GlucoseRules`, `TimeInRange`, `GlucoseHistory` (flet og udsnit), `GlucoseSettings` – ren logik med tests |
-| `Components/` | `GlucoseWidget` (forsiden), `CurrentGlucose` (lige nu), `GlucoseChart` + `GlucoseChartLayout` (SVG uden JavaScript), `TimeInRangeCard`, `TrendArrow` |
+| `Components/` | `GlucoseWidget` (forsiden), `GlucoseSaverBubble` (pauseskærmen), `GlucoseLook`, `CurrentGlucose` (lige nu), `GlucoseChart` + `GlucoseChartLayout` (SVG uden JavaScript), `TimeInRangeCard`, `TrendArrow` |
 | `Pages/` | `DexcomPage`, `DexcomSettingsPage` |
 
 ## Hentning
