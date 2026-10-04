@@ -29,7 +29,7 @@
                         {
                             @if (percent > 0)
                             {
-                                <span class="dx-tir__segment dx-tir__segment--@Slug(level)" style="flex-grow: @percent"></span>
+                                <span class="dx-tir__segment dx-tir__segment--@GlucoseLook.CssName(level)" style="flex-grow: @percent"></span>
                             }
                         }
                     </div>
@@ -37,8 +37,8 @@
                         @foreach (var (level, percent) in Segments)
                         {
                             <li>
-                                <span class="dx-tir__swatch dx-tir__segment--@Slug(level)"></span>
-                                <span>@LegendLabel(level)</span>
+                                <span class="dx-tir__swatch dx-tir__segment--@GlucoseLook.CssName(level)"></span>
+                                <span>@level.Label()</span>
                                 <strong class="hub-numeric">@Percent(percent)</strong>
                             </li>
                         }
@@ -83,18 +83,4 @@
 
     /// <summary>"75 %" – Danish style, with a space that never breaks.</summary>
     private static string Percent(int value) => $"{value}\u00a0%";
-
-    private static string Slug(GlucoseLevel level) => level switch
-    {
-        GlucoseLevel.Low => "low",
-        GlucoseLevel.High => "high",
-        _ => "in-range",
-    };
-
-    private static string LegendLabel(GlucoseLevel level) => level switch
-    {
-        GlucoseLevel.Low => "Lav",
-        GlucoseLevel.High => "Høj",
-        _ => "I målområdet",
-    };
 }

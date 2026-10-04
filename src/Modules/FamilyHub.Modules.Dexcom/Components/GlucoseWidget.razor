@@ -1,0 +1,54 @@
+@implements IDisposable
+@inject GlucoseMonitor Glucose
+@inject IHubClock Clock
+
+@*
+    Home screen card: the glucose right now, like "I dag" and "I aften" beside it – the whole card leads to Dexcom.
+    Only while the reading is current (8 minutes, the same rule as the Dexcom page). Without a current number it
+    renders nothing, so the home screen never shows an old value as if it were now. Low and high tint the card,
+    always together with an icon and a word. No sound, no blinking.
+*@
+@if (Glucose.IsConfigured && Glucose.Latest is { } reading && GlucoseRules.IsFresh(reading, now))
+{
+    var level = GlucoseRules.Classify(reading.MmolL, Glucose.Settings);
+    <div class="dx-widget dx-widget--@GlucoseLook.CssName(level)">
+        <HubCard Title="Blodsukker" Icon="IconName.Droplet" Href="@DexcomModule.Path.TrimStart('/')">
+            <div class="dx-widget__reading">
+                <span class="dx-widget__value hub-numeric">@GlucoseRules.Format(reading.MmolL)</span>
+                <TrendArrow Trend="reading.Trend" Class="dx-widget__arrow" />
+                <span class="dx-widget__unit">mmol/L</span>
+            </div>
+            <p class="dx-widget__status">
+                <Icon Name="@GlucoseLook.Icon(level)" />
+                <span>@level.Label()</span>
+                <span class="dx-widget__age">· @GlucoseRules.Age(reading.Time, now).ToLower(DanishFormat.Culture)</span>
+            </p>
+        </HubCard>
+    </div>
+}
+
+@code {
+    private DateTimeOffset now;
+    private IDisposable? tick;
+
+    protected override void OnInitialized()
+    {
+        now = Clock.Now;
+        Glucose.Changed += OnChanged;
+
+        // Every minute: "3 min siden" counts up, and after 8 minutes without a new reading the card steps aside.
+        tick = Clock.SubscribeMinuteTick(time => OnChanged());
+    }
+
+    private void OnChanged() => _ = InvokeAsync(() =>
+    {
+        now = Clock.Now;
+        StateHasChanged();
+    });
+
+    public void Dispose()
+    {
+        Glucose.Changed -= OnChanged;
+        tick?.Dispose();
+    }
+}

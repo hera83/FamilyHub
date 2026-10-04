@@ -14,7 +14,8 @@ altid sammen med ikon og ord ("Lav", "Høj", "I målområdet"), aldrig farve ale
 | `/dexcom` | Lige nu, graf og tid i målområdet. Tandhjulet øverst til højre fører til indstillingerne. |
 | `/dexcom/indstillinger` | Målområde (lav/høj med steppere), grafens periode ved start, forbindelsens status. |
 
-Ingen widget på forsiden endnu.
+Forsiden får kortet **Blodsukker** (`GlucoseWidget`): tallet, trendpilen og om det er lavt, i målområdet eller højt.
+Det vises kun, mens målingen er aktuel (8 minutter) – ellers fylder det ingenting, ligesom »I aften«.
 
 ## Regler
 
@@ -33,7 +34,7 @@ Ingen widget på forsiden endnu.
 | Mappe | Indhold |
 |---|---|
 | `Glucose/` | `GlucoseMonitor` (singleton: 90 dages målinger i hukommelsen, indstillinger, `Changed`), `GlucoseSyncWorker` (hvert minut), `GlucoseRules`, `TimeInRange`, `GlucoseHistory` (flet og udsnit), `GlucoseSettings` – ren logik med tests |
-| `Components/` | `CurrentGlucose` (lige nu), `GlucoseChart` + `GlucoseChartLayout` (SVG uden JavaScript), `TimeInRangeCard`, `TrendArrow` |
+| `Components/` | `GlucoseWidget` (forsiden), `CurrentGlucose` (lige nu), `GlucoseChart` + `GlucoseChartLayout` (SVG uden JavaScript), `TimeInRangeCard`, `TrendArrow` |
 | `Pages/` | `DexcomPage`, `DexcomSettingsPage` |
 
 ## Hentning

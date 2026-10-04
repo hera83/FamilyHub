@@ -5,6 +5,7 @@ using FamilyHub.Core.Dexcom;
 using FamilyHub.Core.Notifications;
 using FamilyHub.Core.Storage;
 using FamilyHub.Core.Time;
+using FamilyHub.Modules.Dexcom.Components;
 using FamilyHub.Modules.Dexcom.Glucose;
 using FamilyHub.Modules.Dexcom.Pages;
 using Microsoft.AspNetCore.Components.Web;
@@ -164,5 +165,63 @@ public sealed class DexcomPageTests : BunitContext
         // The file is written just after the screen changes – a restarted Family Hub reads the new limit.
         GlucoseMonitor Restarted() => new(api, new AppDataPaths(Options.Create(new FamilyHubOptions { DataDirectory = directory })), clock, NullLogger<GlucoseMonitor>.Instance);
         Assert.True(SpinWait.SpinUntil(() => Restarted().Settings.LowMmolL == 4.0m, TimeSpan.FromSeconds(5)));
+    }
+
+    // ------------------------------------------------------------------ home screen card
+
+    [Fact]
+    public async Task The_home_card_shows_the_current_number_and_leads_to_dexcom()
+    {
+        await WithReadingsAsync(8.5);
+
+        var cut = Render<GlucoseWidget>();
+
+        Assert.Equal("dexcom", cut.Find("a.hub-card").GetAttribute("href"));
+        Assert.Equal("Blodsukker", cut.Find(".hub-card__title").TextContent);
+        Assert.Equal("8,5", cut.Find(".dx-widget__value").TextContent);
+        Assert.Equal("Stiger", cut.Find(".dx-trend").GetAttribute("aria-label"));
+        Assert.Contains("I målområdet", cut.Find(".dx-widget__status").TextContent);
+        Assert.Contains("2 min siden", cut.Find(".dx-widget__age").TextContent);
+    }
+
+    [Theory]
+    [InlineData(3.2, "low", "Lav")]
+    [InlineData(13.4, "high", "Høj")]
+    public async Task The_home_card_is_tinted_when_low_or_high_and_says_so(double mmolL, string state, string word)
+    {
+        await WithReadingsAsync(mmolL);
+
+        var cut = Render<GlucoseWidget>();
+
+        Assert.NotNull(cut.Find($".dx-widget--{state}"));
+        Assert.Contains(word, cut.Find(".dx-widget__status").TextContent);
+    }
+
+    [Fact]
+    public async Task The_home_card_steps_aside_when_the_number_is_no_longer_current()
+    {
+        await WithReadingsAsync(8.5, minutesOld: 2);
+        var cut = Render<GlucoseWidget>();
+        Assert.NotEmpty(cut.FindAll(".dx-widget"));
+
+        time.Advance(TimeSpan.FromMinutes(7));
+
+        cut.WaitForAssertion(() => Assert.Equal("", cut.Markup.Trim()));
+    }
+
+    [Fact]
+    public void Without_readings_or_setup_the_home_card_takes_no_room()
+    {
+        Assert.Equal("", Render<GlucoseWidget>().Markup.Trim());
+
+        api.Configured = false;
+        Assert.Equal("", Render<GlucoseWidget>().Markup.Trim());
+    }
+
+    [Fact]
+    public void Each_level_has_its_own_look()
+    {
+        Assert.Equal(["low", "in-range", "high", "missing"], new GlucoseLevel?[] { GlucoseLevel.Low, GlucoseLevel.InRange, GlucoseLevel.High, null }.Select(GlucoseLook.CssName));
+        Assert.Equal(3, Enum.GetValues<GlucoseLevel>().Select(GlucoseLook.Icon).Distinct().Count());
     }
 }

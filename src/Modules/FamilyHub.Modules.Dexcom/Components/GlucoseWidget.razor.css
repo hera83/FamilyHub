@@ -1,0 +1,70 @@
+/* The wrapper passes the home screen's full height on to the card, like the other cards get it. */
+.dx-widget {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+}
+
+/* Low: red. High: yellow. The same soft tints as "Lige nu" on the Dexcom page. */
+.dx-widget--low ::deep .hub-card {
+    background: var(--hub-danger-soft);
+    border-color: color-mix(in srgb, var(--hub-danger) 35%, transparent);
+}
+
+.dx-widget--high ::deep .hub-card {
+    background: var(--hub-warning-soft);
+    border-color: color-mix(in srgb, var(--hub-warning) 35%, transparent);
+}
+
+.dx-widget__reading {
+    display: flex;
+    align-items: baseline;
+    gap: var(--hub-space-2);
+}
+
+/* Big enough to read across the kitchen, but in step with the other cards' headlines. */
+.dx-widget__value {
+    font-size: calc(var(--hub-text-2xl) * 1.5);
+    font-weight: var(--hub-weight-bold);
+    line-height: 1;
+    letter-spacing: -0.01em;
+}
+
+.dx-widget ::deep .dx-widget__arrow {
+    align-self: center;
+    font-size: var(--hub-text-2xl);
+}
+
+.dx-widget__unit {
+    color: var(--hub-text-muted);
+    font-size: var(--hub-text-md);
+}
+
+.dx-widget__status {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--hub-space-2);
+    margin-top: var(--hub-space-3);
+    font-weight: var(--hub-weight-bold);
+}
+
+.dx-widget--in-range .dx-widget__status {
+    color: var(--hub-success);
+}
+
+.dx-widget--low .dx-widget__value,
+.dx-widget--low ::deep .dx-widget__arrow,
+.dx-widget--low .dx-widget__status {
+    color: var(--hub-danger);
+}
+
+.dx-widget--high .dx-widget__value,
+.dx-widget--high ::deep .dx-widget__arrow,
+.dx-widget--high .dx-widget__status {
+    color: var(--hub-warning);
+}
+
+.dx-widget__age {
+    color: var(--hub-text-muted);
+    font-weight: var(--hub-weight-regular);
+}

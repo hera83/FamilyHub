@@ -29,9 +29,13 @@
     gap: var(--hub-space-6);
 }
 
+/*
+   Every card in a row is as tall as the tallest, so the home screen looks even whatever each card has to say.
+   A grid cell stretches its one child to the full height; minmax(0, 1fr) keeps long titles from widening it.
+*/
 .home-widget {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
     min-width: 0;
 }
 

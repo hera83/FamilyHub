@@ -1,3 +1,4 @@
+using FamilyHub.Modules.Dexcom.Components;
 using FamilyHub.Modules.Dexcom.Glucose;
 using FamilyHub.UI.Components;
 using FamilyHub.UI.Modules;
@@ -23,6 +24,10 @@ public sealed class DexcomModule : HubModule
     public override string Route => Path;
 
     public override int Order => 30;
+
+    /// <summary>"Blodsukker" – the reading right now, only while it is current (8 minutes).</summary>
+    public override IReadOnlyList<DashboardWidget> Widgets =>
+        [DashboardWidget.For<GlucoseWidget>(WidgetSize.Medium, order: 30)];
 
     public override void ConfigureServices(IServiceCollection services, IConfiguration configuration)
     {

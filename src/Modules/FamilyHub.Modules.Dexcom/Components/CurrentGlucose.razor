@@ -7,7 +7,7 @@
     var fresh = Reading is { } current && GlucoseRules.IsFresh(current, Now) ? current : null;
     var level = fresh is null ? (GlucoseLevel?)null : GlucoseRules.Classify(fresh.MmolL, Settings);
 }
-<div class="dx-now dx-now--@State(level)">
+<div class="dx-now dx-now--@GlucoseLook.CssName(level)">
     <HubCard Title="Lige nu" Icon="IconName.Droplet">
         @if (fresh is not null && level is { } shown)
         {
@@ -23,7 +23,7 @@
                 }
             </p>
             <p class="dx-now__status">
-                <Icon Name="@StatusIcon(shown)" />
+                <Icon Name="@GlucoseLook.Icon(shown)" />
                 <span>@shown.Label()</span>
             </p>
             <p class="dx-now__age">Målt @GlucoseRules.When(fresh.Time, Now, Zone) · @GlucoseRules.Age(fresh.Time, Now).ToLower(DanishFormat.Culture)</p>
@@ -65,19 +65,4 @@
 
     [Parameter, EditorRequired]
     public TimeZoneInfo Zone { get; set; } = TimeZoneInfo.Utc;
-
-    private static string State(GlucoseLevel? level) => level switch
-    {
-        GlucoseLevel.Low => "low",
-        GlucoseLevel.High => "high",
-        GlucoseLevel.InRange => "in-range",
-        _ => "missing",
-    };
-
-    private static IconName StatusIcon(GlucoseLevel level) => level switch
-    {
-        GlucoseLevel.Low => IconName.AlertCircle,
-        GlucoseLevel.High => IconName.AlertTriangle,
-        _ => IconName.CheckCircle,
-    };
 }
