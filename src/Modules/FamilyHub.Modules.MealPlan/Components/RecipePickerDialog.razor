@@ -2,92 +2,150 @@
     Choose a dish for a day: first which course (starter, main course, dessert – the planned ones are greyed out),
     then the recipe book as a list, narrowed by category chips and search. Choosing a course starts on its category
     ("Dessert") when the book has one. What is typed in the search can also be used as the family's own dish
-    ("Rester", "Pizza ude"). Searching is local (the copy of the recipe book) – instant, and it works without internet.
+    ("Rester", "Pizza ude"). Searching the book is local (the copy of the recipe book) – instant, and it works without internet.
     "Skift ret" (Replacing) keeps the course, so the choice is left out.
+
+    "Inspiration" swaps the book for Mambeno's ~4,800 recipes (InspirationResults). The search text is kept, so
+    "lasagne" can be looked up in both. Tapping a Mambeno recipe shows it first (InspirationPreview); "Vælg retten"
+    copies it into the recipe book, so the meal plan only ever points at the book, and the family can edit it there.
+    The book is always where the picker starts.
 *@
 @inject RecipeService Recipes
+@inject IMambenoService Mambeno
+@inject IToastService Toasts
+@inject IJSRuntime JS
+@implements IAsyncDisposable
 
-<HubDialog Open="Day is not null" OpenChanged="OnOpenChanged" Title="@DialogTitle" Size="DialogSize.Large">
-    <div class="mp-picker">
-        @if (!Recipes.IsConfigured)
+<HubDialog Open="Day is not null" OpenChanged="OnOpenChanged" Title="@DialogTitle" Size="DialogSize.Large" Footer="@(preview is null ? null : PreviewFooter)">
+    @if (preview is { } shown)
+    {
+        <InspirationPreview Recipe="shown" InBook="@(Inspiration.FindInBook(shown, Recipes.Recipes) is not null)" CanCopy="Recipes.IsConfigured" />
+    }
+
+    @* Kept alive (only hidden) behind the preview, so "Tilbage" returns to the same search, filters and pages. *@
+    <div class="mp-picker" hidden="@(preview is not null)" @ref="pickerElement">
+        @if (!Recipes.IsConfigured && source == PickerSource.Book)
         {
             <InfoBox Tone="HubTone.Warning" Title="Opskriftsbogen er ikke sat op">
                 Skriv retten i søgefeltet, så kan den bruges alligevel.
             </InfoBox>
         }
 
-        @if (!Replacing)
+        @if (!Replacing || Mambeno.IsConfigured)
         {
-            <HubChoice TValue="DinnerCourse" Label="Ret" Options="CourseOptions" Value="Course" ValueChanged="OnCourseChanged" />
-        }
-
-        <HubTextField Label="Søg" Kind="InputKind.Search" Placeholder="Fx lasagne eller kylling" MaxLength="MealPlanService.MaxTitleLength"
-                      Value="@search" ValueChanged="OnSearchChanged" OnEnter="UseTypedAsync"
-                      Help="Findes retten ikke i opskriftsbogen, kan du skrive den selv." />
-
-        @if (categoryOptions.Count > 2)
-        {
-            <HubChoice TValue="int?" Appearance="ChoiceAppearance.Chips" Options="categoryOptions" Value="categoryId" ValueChanged="OnCategoryChanged" />
-        }
-
-        <div class="mp-picker__results">
-            @if (Recipes.IsConfigured && !Recipes.HasData)
-            {
-                <HubSkeleton Lines="6" />
-            }
-            else
-            {
-                @if (results.Count > 0 || Typed is not null)
+            <div class="mp-picker__modes">
+                @if (!Replacing)
                 {
-                    <HubList>
-                        @foreach (var recipe in results)
-                        {
-                            <HubListItem Title="@recipe.Title" Subtitle="@NullIfEmpty(DinnerLook.Summary(recipe))" OnClick="() => OnPickRecipe.InvokeAsync(recipe)">
-                                <Leading>
-                                    @if (recipe.ImageUrl is { } image)
-                                    {
-                                        <img class="mp-picker__thumb" src="@image" alt="" loading="lazy" onerror="this.remove()" />
-                                    }
-                                    else
-                                    {
-                                        <span class="mp-picker__icon"><Icon Name="DinnerLook.Icon(recipe)" /></span>
-                                    }
-                                </Leading>
-                                <Trailing>
-                                    @if (recipe.Id == CurrentRecipeId)
-                                    {
-                                        <HubBadge Tone="HubTone.Success">Valgt</HubBadge>
-                                    }
-                                </Trailing>
-                            </HubListItem>
-                        }
+                    <HubChoice TValue="DinnerCourse" Label="Ret" Options="CourseOptions" Value="Course" ValueChanged="OnCourseChanged" />
+                }
+                @if (Mambeno.IsConfigured)
+                {
+                    <HubChoice TValue="PickerSource" Label="Find retten i" Options="SourceOptions" Value="source" ValueChanged="OnSourceChanged" />
+                }
+            </div>
+        }
 
-                        @if (Typed is { } typed)
-                        {
-                            <HubListItem Title="@($"Brug »{typed}«")" Subtitle="Egen ret – kommer ikke i opskriftsbogen" Icon="IconName.Edit" OnClick="UseTypedAsync" />
-                        }
-                    </HubList>
+        <HubTextField Label="Søg" Kind="InputKind.Search" Placeholder="@SearchPlaceholder" MaxLength="MealPlanService.MaxTitleLength"
+                      Value="@search" ValueChanged="OnSearchChanged" OnEnter="OnSearchEnterAsync" Help="@SearchHelp" />
+
+        @if (source == PickerSource.Inspiration)
+        {
+            <InspirationResults Search="@search" Course="Course" OnSelect="ShowPreview" />
+        }
+        else
+        {
+            @if (categoryOptions.Count > 2)
+            {
+                <HubChoice TValue="int?" Appearance="ChoiceAppearance.Chips" Options="categoryOptions" Value="categoryId" ValueChanged="OnCategoryChanged" />
+            }
+
+            <div class="mp-picker__results">
+                @if (Recipes.IsConfigured && !Recipes.HasData)
+                {
+                    <HubSkeleton Lines="6" />
                 }
                 else
                 {
-                    <EmptyState Icon="IconName.Search" Title="Ingen retter her" Compact="true">
-                        <ChildContent>Vælg en anden kategori, eller skriv retten selv.</ChildContent>
-                        <Actions>
-                            <HubButton OnClick="() => OnCategoryChanged(null)">Vis alle</HubButton>
-                        </Actions>
-                    </EmptyState>
+                    @if (results.Count > 0 || Typed is not null)
+                    {
+                        <HubList>
+                            @foreach (var recipe in results)
+                            {
+                                <HubListItem Title="@recipe.Title" Subtitle="@NullIfEmpty(DinnerLook.Summary(recipe))" OnClick="() => OnPickRecipe.InvokeAsync(recipe)">
+                                    <Leading>
+                                        @if (recipe.ImageUrl is { } image)
+                                        {
+                                            <img class="mp-picker__thumb" src="@image" alt="" loading="lazy" onerror="this.remove()" />
+                                        }
+                                        else
+                                        {
+                                            <span class="mp-picker__icon"><Icon Name="DinnerLook.Icon(recipe)" /></span>
+                                        }
+                                    </Leading>
+                                    <Trailing>
+                                        @if (recipe.Id == CurrentRecipeId)
+                                        {
+                                            <HubBadge Tone="HubTone.Success">Valgt</HubBadge>
+                                        }
+                                    </Trailing>
+                                </HubListItem>
+                            }
+
+                            @if (Typed is { } typed)
+                            {
+                                <HubListItem Title="@($"Brug »{typed}«")" Subtitle="Egen ret – kommer ikke i opskriftsbogen" Icon="IconName.Edit" OnClick="UseTypedAsync" />
+                                @if (Mambeno.IsConfigured)
+                                {
+                                    <HubListItem Title="@($"Find »{typed}« i Mambeno")" Subtitle="Inspiration – flere tusinde opskrifter" Icon="IconName.Sparkles"
+                                                 OnClick="() => OnSourceChanged(PickerSource.Inspiration)" />
+                                }
+                            }
+                        </HubList>
+                    }
+                    else
+                    {
+                        <EmptyState Icon="IconName.Search" Title="Ingen retter her" Compact="true">
+                            <ChildContent>Vælg en anden kategori, eller skriv retten selv.</ChildContent>
+                            <Actions>
+                                <HubButton OnClick="() => OnCategoryChanged(null)">Vis alle</HubButton>
+                                @if (Mambeno.IsConfigured)
+                                {
+                                    <HubButton Icon="IconName.Sparkles" OnClick="() => OnSourceChanged(PickerSource.Inspiration)">Find inspiration</HubButton>
+                                }
+                            </Actions>
+                        </EmptyState>
+                    }
                 }
-            }
-        </div>
+            </div>
+        }
     </div>
 </HubDialog>
 
 @code {
+    private enum PickerSource
+    {
+        Book,
+        Inspiration,
+    }
+
+    private static readonly IReadOnlyList<ChoiceOption<PickerSource>> SourceOptions =
+    [
+        new(PickerSource.Book, "Opskriftsbogen", IconName.BookOpen),
+        new(PickerSource.Inspiration, "Inspiration", IconName.Sparkles),
+    ];
+
     private string search = "";
     private int? categoryId;
     private DateOnly? shownDay;
     private IReadOnlyList<Recipe> results = [];
     private IReadOnlyList<ChoiceOption<int?>> categoryOptions = [];
+    private PickerSource source;
+    private MambenoRecipe? preview;
+
+    private ElementReference pickerElement;
+    private IJSObjectReference? module;
+    private bool scrollPending;
+    private double listScroll;
 
     /// <summary>The day to choose a dinner for. Null = closed.</summary>
     [Parameter]
@@ -112,6 +170,7 @@
     [Parameter]
     public int? CurrentRecipeId { get; set; }
 
+    /// <summary>A recipe from the book – also a Mambeno recipe, once it has been copied into the book.</summary>
     [Parameter]
     public EventCallback<Recipe> OnPickRecipe { get; set; }
 
@@ -129,16 +188,27 @@
     private IReadOnlyList<ChoiceOption<DinnerCourse>> CourseOptions =>
         [.. DinnerCourses.MenuOrder.Select(c => new ChoiceOption<DinnerCourse>(c, c.Label(), Disabled: TakenCourses.Contains(c)))];
 
+    private string SearchPlaceholder => source == PickerSource.Inspiration ? "Fx laks, gryderet eller kylling i karry" : "Fx lasagne eller kylling";
+
+    private string? SearchHelp => source == PickerSource.Inspiration ? null : "Findes retten ikke i opskriftsbogen, kan du skrive den selv.";
+
     /// <summary>The search text, cleaned – offered as the family's own dish.</summary>
     private string? Typed => MealPlanService.CleanTitle(search);
+
+    private RenderFragment PreviewFooter => @<text>
+        <HubButton Variant="ButtonVariant.Quiet" Icon="IconName.ArrowLeft" OnClick="BackToList">Tilbage</HubButton>
+        <HubButton Variant="ButtonVariant.Primary" Icon="IconName.Check" OnClick="ChooseInspirationAsync" ErrorMessage="Retten blev ikke gemt i opskriftsbogen">Vælg retten</HubButton>
+    </text>;
 
     protected override void OnParametersSet()
     {
         if (Day != shownDay)
         {
-            // A new day starts fresh: no search, and the course's category ("Dessert") or the whole book.
+            // A new day starts fresh: the recipe book, no search, and the course's category ("Dessert") or the whole book.
             shownDay = Day;
             search = "";
+            source = PickerSource.Book;
+            preview = null;
             categoryId = Replacing ? null : MealPlanRules.CategoryFor(Course, Recipes.Categories);
         }
 
@@ -174,8 +244,17 @@
         Filter();
     }
 
+    private void OnSourceChanged(PickerSource value)
+    {
+        source = value;
+        preview = null;
+    }
+
     private void Filter() =>
         results = Recipes.Search(new RecipeQuery { Search = search, CategoryId = categoryId });
+
+    // Enter uses the typed dish in the book; in Mambeno the search already runs while typing.
+    private Task OnSearchEnterAsync() => source == PickerSource.Book ? UseTypedAsync() : Task.CompletedTask;
 
     private async Task UseTypedAsync()
     {
@@ -183,6 +262,74 @@
         {
             await OnPickText.InvokeAsync(typed);
         }
+    }
+
+    // The preview starts at the top; "Tilbage" returns to the same place in the list.
+    private void ShowPreview(MambenoRecipe recipe)
+    {
+        preview = recipe;
+        scrollPending = true;
+    }
+
+    private void BackToList()
+    {
+        preview = null;
+        scrollPending = true;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!scrollPending || Day is null)
+        {
+            return;
+        }
+
+        scrollPending = false;
+        try
+        {
+            module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./_content/FamilyHub.Modules.MealPlan/Components/RecipePickerDialog.razor.js");
+            if (module is null)
+            {
+                return;
+            }
+
+            var previous = await module.InvokeAsync<double>("scrollDialogTo", pickerElement, preview is null ? listScroll : 0);
+            if (preview is not null)
+            {
+                listScroll = previous;
+            }
+        }
+        catch (Exception ex) when (ex is JSException or JSDisconnectedException or InvalidOperationException or TaskCanceledException)
+        {
+            // Only a convenience – the content is there either way.
+        }
+    }
+
+    // Called by the footer's HubButton, which shows busy and the error toast if it fails.
+    private async Task ChooseInspirationAsync()
+    {
+        if (preview is not { } recipe)
+        {
+            return;
+        }
+
+        // Already copied (same title): use the book's recipe – also if the family has edited it since.
+        if (Inspiration.FindInBook(recipe, Recipes.Recipes) is { } existing)
+        {
+            await OnPickRecipe.InvokeAsync(existing);
+            return;
+        }
+
+        // Without the recipe book the dish can still be planned by name.
+        if (!Recipes.IsConfigured)
+        {
+            await OnPickText.InvokeAsync(MealPlanService.CleanTitle(recipe.Title) ?? recipe.Title);
+            return;
+        }
+
+        var copy = await Recipes.CreateRecipeAsync(Inspiration.ToDraft(recipe, Recipes.Categories, Course));
+        Toasts.Success($"{copy.Title} er gemt i opskriftsbogen");
+        await OnPickRecipe.InvokeAsync(copy);
     }
 
     private async Task OnOpenChanged(bool open)
@@ -194,4 +341,18 @@
     }
 
     private static string? NullIfEmpty(string text) => text.Length == 0 ? null : text;
+
+    public async ValueTask DisposeAsync()
+    {
+        if (module is not null)
+        {
+            try
+            {
+                await module.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+    }
 }

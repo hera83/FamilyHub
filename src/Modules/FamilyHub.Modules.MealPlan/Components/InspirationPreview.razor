@@ -1,0 +1,119 @@
+@*
+    A Mambeno recipe shown in the recipe picker before it is chosen: facts, introduction, ingredients (by group) and
+    steps – enough to decide. "Vælg retten" (in the picker's footer) copies it into the recipe book.
+*@
+
+<article class="mp-preview">
+    <h3 class="mp-preview__title">@Recipe.Title</h3>
+
+    @if (Facts.Count > 0)
+    {
+        <p class="mp-preview__facts">
+            @foreach (var (icon, text) in Facts)
+            {
+                <span class="mp-preview__fact"><Icon Name="icon" /><span>@text</span></span>
+            }
+        </p>
+    }
+
+    @if (InBook)
+    {
+        <InfoBox Tone="HubTone.Success" Title="Retten ligger allerede i opskriftsbogen">
+            Den bliver ikke kopieret igen – madplanen bruger opskriftsbogens udgave.
+        </InfoBox>
+    }
+    else if (CanCopy)
+    {
+        <p class="mp-preview__hint">
+            <Icon Name="IconName.BookOpen" />
+            <span>Vælger du retten, gemmes opskriften i opskriftsbogen, så I kan rette i den.</span>
+        </p>
+    }
+
+    @if (Recipe.Description.Length > 0)
+    {
+        <p class="mp-preview__description">@Recipe.Description</p>
+    }
+
+    @if (Recipe.Ingredients.Count > 0)
+    {
+        <section class="mp-preview__section">
+            <h4 class="mp-preview__heading">Ingredienser</h4>
+            @foreach (var group in Groups)
+            {
+                <ul class="mp-preview__ingredients">
+                    @if (group.Name is { } name && Groups.Count > 1)
+                    {
+                        <li class="mp-preview__subheading">@name</li>
+                    }
+                    @foreach (var ingredient in group.Lines)
+                    {
+                        <li>@Inspiration.LineText(ingredient)</li>
+                    }
+                </ul>
+            }
+        </section>
+    }
+
+    @if (Recipe.Steps.Count > 0)
+    {
+        <section class="mp-preview__section">
+            <h4 class="mp-preview__heading">Sådan gør du</h4>
+            <ol class="mp-preview__steps">
+                @foreach (var step in Recipe.Steps)
+                {
+                    <li>@step</li>
+                }
+            </ol>
+        </section>
+    }
+
+    @if (Recipe.Notes.Length > 0)
+    {
+        <p class="mp-preview__notes">@Recipe.Notes</p>
+    }
+</article>
+
+@code {
+    [Parameter, EditorRequired]
+    public MambenoRecipe Recipe { get; set; } = null!;
+
+    /// <summary>The recipe book already has it (same title).</summary>
+    [Parameter]
+    public bool InBook { get; set; }
+
+    /// <summary>The recipe book is set up, so choosing the dish copies it there.</summary>
+    [Parameter]
+    public bool CanCopy { get; set; } = true;
+
+    private IReadOnlyList<(IconName Icon, string Text)> Facts =>
+        new (IconName, string?)[]
+        {
+            (IconName.Clock, Inspiration.Time(Recipe)),
+            (IconName.Users, Inspiration.Servings(Recipe)),
+            (IconName.Utensils, Recipe.Category.Length > 0 ? Recipe.Category : null),
+        }
+        .Where(f => f.Item2 is not null)
+        .Select(f => (f.Item1, f.Item2!))
+        .ToList();
+
+    // Consecutive lines with the same group, in the recipe's order.
+    private IReadOnlyList<(string? Name, List<MambenoIngredient> Lines)> Groups
+    {
+        get
+        {
+            var groups = new List<(string? Name, List<MambenoIngredient> Lines)>();
+            foreach (var ingredient in Recipe.Ingredients)
+            {
+                if (groups.Count == 0 || groups[^1].Name != ingredient.Group)
+                {
+                    groups.Add((ingredient.Group, []));
+                }
+
+                groups[^1].Lines.Add(ingredient);
+            }
+
+            return groups;
+        }
+    }
+}

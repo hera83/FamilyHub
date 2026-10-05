@@ -1,6 +1,7 @@
 using FamilyHub.Core.Configuration;
 using FamilyHub.Core.Dexcom;
 using FamilyHub.Core.Household;
+using FamilyHub.Core.Mambeno;
 using FamilyHub.Core.Notifications;
 using FamilyHub.Core.Printing;
 using FamilyHub.Core.Storage;
@@ -17,7 +18,7 @@ namespace FamilyHub.Core;
 
 public static class CoreServiceCollectionExtensions
 {
-    /// <summary>Registers configuration, clock, storage, household settings, printing, glucose readings and toasts.</summary>
+    /// <summary>Registers configuration, clock, storage, household settings, printing, glucose readings, Mambeno recipes and toasts.</summary>
     public static IServiceCollection AddFamilyHubCore(this IServiceCollection services, IConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(configuration);
@@ -59,6 +60,15 @@ public static class CoreServiceCollectionExtensions
             .ValidateOnStart();
         services.AddHttpClient(DexcomService.HttpClientName);
         services.TryAddSingleton<IDexcomService, DexcomService>();
+
+        // Recipes from the family's own API in front of Mambeno (read only). Empty key = not set up. See docs/mambeno.md.
+        services.AddOptions<MambenoOptions>()
+            .Bind(configuration.GetSection(MambenoOptions.SectionName))
+            .Validate(o => string.IsNullOrWhiteSpace(o.BaseUrl) || o.TryGetBaseUri(out _),
+                $"{MambenoOptions.SectionName}:BaseUrl skal være tom eller en http(s)-adresse, fx https://mambeno.appcore.cc.")
+            .ValidateOnStart();
+        services.AddHttpClient(MambenoService.HttpClientName);
+        services.TryAddSingleton<IMambenoService, MambenoService>();
 
         // Scoped = one per screen (Blazor circuit).
         services.TryAddScoped<IToastService, ToastService>();

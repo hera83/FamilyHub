@@ -22,6 +22,7 @@ public enum IconName
     Star,
     Heart,
     Droplet,
+    Sparkles,
 
     // Actions
     Plus,

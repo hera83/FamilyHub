@@ -4,6 +4,17 @@
     gap: var(--hub-space-4);
 }
 
+.mp-picker[hidden] {
+    display: none;
+}
+
+/* "Ret" (course) and "Find retten i" (book or Mambeno) side by side when there is room. */
+.mp-picker__modes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--hub-space-4) var(--hub-space-8);
+}
+
 .mp-picker__results {
     min-height: 16rem;
 }

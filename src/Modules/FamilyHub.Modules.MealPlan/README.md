@@ -14,6 +14,7 @@ Madplanen handler **kun om aftensmad**: pr. dag en **hovedret** og, hvis man vil
 | En ret mere | Det lille stiplede **»+ Tilføj«** under dagens retter (kun når en ret-type er ledig, og ikke på tidligere dage). Foreslår dessert, derefter forret – optagne ret-typer er nedtonede. Vælges Dessert/Forret, starter listen på kategorien af samme navn, hvis bogen har den (`MealPlanRules.CategoryFor`). |
 | Visning | Menurækkefølge: forret, hovedret, dessert. Hovedretten stort med billede; forret og dessert som små kort med ret-typen øverst. |
 | Egen ret | Skriv i søgefeltet → »Brug »Rester««. Gemmes kun i madplanen, ikke i opskriftsbogen. |
+| Inspiration | »Find retten i: Opskriftsbogen \| Inspiration« i vælgeren (kun når Mambeno er sat op). Inspiration viser Mambenos ca. 4.800 opskrifter: søgning i Mambeno (lidt efter sidste tast), kategorier i to rækker, der ruller sidelæns (Hovedret starter på »Aftensmad«, Dessert på »Kager, bagværk og sødt«), tidsfilter og 30 ad gangen med »Vis flere«. Søgeteksten følger med mellem de to. Tryk på en ret → forhåndsvisning; **»Vælg retten« kopierer opskriften til opskriftsbogen** (forfatter »Mambeno«, en af bogens egne kategorier) og planlægger den. Findes en ret med samme titel allerede i bogen, bruges den. Bogen er altid udgangspunktet. |
 | Se retten | Tryk på en ret → billede, tid, personer, ingredienser og noter. |
 | Skift ret | »Skift ret« i dialogen → vælgeren for samme ret-type (den nuværende ret er markeret »Valgt«). |
 | Flyt dag | **Hold fingeren** på en ret og træk til en anden dag (med mus: bare træk). **Hele dagens menu** (forret, hovedret, dessert) flytter med. Har måldagen retter, bytter de to dage menu. |
@@ -30,7 +31,9 @@ Swipe og træk er genveje. Alt kan også gøres med tryk alene (standarderne: in
 |---|---|
 | `Pages/MealPlanPage.razor` | Siden: værktøjslinje, status (InfoBox), ugen og de to dialoger |
 | `Components/MealPlanWeek.razor` (+ `.razor.js`) | De syv dage. JS-modulet står for swipe og træk-og-slip af dagens menu (`.mp-menu`) (pointer events – finger og mus) |
-| `Components/RecipePickerDialog.razor` | Vælg ret: søgning, kategori-chips, egen ret |
+| `Components/RecipePickerDialog.razor` (+ `.razor.js`) | Vælg ret: opskriftsbogen eller Inspiration, søgning, kategori-chips, egen ret. JS-modulet sætter rullepositionen ved forhåndsvisning/»Tilbage« |
+| `Components/InspirationResults.razor` (+ `.razor.js`) | Inspiration: Mambeno-søgning, kategorier i to niveauer, tidsfilter, »Vis flere«. JS-modulet ruller den valgte kategori frem |
+| `Components/InspirationPreview.razor` | En Mambeno-opskrift før den vælges: fakta, introduktion, ingredienser (i grupper) og trin |
 | `Components/DinnerDialog.razor` | En planlagt ret: vis den, skift, fjern, print |
 | `Print/RecipePdf.cs` + `Print/RecipePrinter.cs` | Opskriften som A4-PDF (QuestPDF) og afsendelse til printeren (`PrintService` i Core) |
 | `Components/ShoppingListDialog.razor` | Indkøbslisten: varerne efter afdeling, faste varer, basisvarer, print |
@@ -62,6 +65,9 @@ kopi frisk (hvert 15. minut), så siderne aldrig venter på nettet.
 Madplanen gemmer kun opskriftens **id** (+ titlen, så retten kan vises, selvom opskriftsbogen ikke kan nås).
 Omdøbes en opskrift i bogen, viser madplanen det nye navn.
 
+Inspiration fra Mambeno (`IMambenoService` i Core – se [docs/mambeno.md](../../../docs/mambeno.md)) planlægges aldrig
+direkte: en valgt Mambeno-ret kopieres først til opskriftsbogen (`Recipes/Inspiration.cs`), så madplanen altid peger på bogen.
+
 | Fil (`Recipes/`) | Indhold |
 |---|---|
 | `RecipeService.cs` | Singleton til brugerfladen: lokal kopi (virker offline), søgning, skrivninger, `Changed`, `Status` |
@@ -71,6 +77,7 @@ Omdøbes en opskrift i bogen, viser madplanen det nye navn.
 | `RecipeMath.cs` | Skalering til antal personer, danske mængder (1½), samlet indkøbsliste |
 | `RecipeSearch.cs` / `RecipeValidation.cs` | Lokal søgning; tjek af felter før afsendelse |
 | `RecipeApiOptions.cs` / `RecipeApiException.cs` | Opsætning (adresse + nøgle) og fejl med danske beskeder |
+| `Inspiration.cs` | Mambeno → opskriftsbogen: `ToDraft` (grupper bliver underoverskrifter »Dressing:«, beskrivelse + noter + link i noterne, kun bogens egne kategorier), `FindInBook` (samme titel), startkategori pr. ret-type og tekster til listen. Rene funktioner med tests |
 
 ## Indkøbslisten
 

@@ -1,0 +1,67 @@
+.mp-inspiration {
+    display: flex;
+    flex-direction: column;
+    gap: var(--hub-space-3);
+}
+
+/* Many categories: one row that scrolls sideways with a finger, instead of chips wrapping over half the dialog.
+   The right edge fades, so it is clear there is more; the padding lets the last chip scroll clear of the fade. */
+.mp-inspiration ::deep .mp-inspiration__chips .hub-choice {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    padding-block: var(--hub-space-1);
+    padding-inline-end: var(--hub-space-10);
+    mask-image: linear-gradient(to right, black calc(100% - var(--hub-space-10)), transparent);
+}
+
+.mp-inspiration ::deep .mp-inspiration__chips .hub-choice::-webkit-scrollbar {
+    display: none;
+}
+
+.mp-inspiration ::deep .mp-inspiration__chips .hub-choice__option {
+    flex: none;
+    white-space: nowrap;
+}
+
+/* The second level ("Fisk", "Supper" …) is a little quieter than the first. */
+.mp-inspiration ::deep .mp-inspiration__chips--sub .hub-choice__option {
+    min-height: var(--hub-touch-min);
+    font-size: var(--hub-text-sm);
+}
+
+.mp-inspiration__bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--hub-space-3);
+}
+
+.mp-inspiration__count {
+    color: var(--hub-text-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.mp-inspiration__results {
+    display: flex;
+    flex-direction: column;
+    gap: var(--hub-space-4);
+    min-height: 16rem;
+}
+
+.mp-inspiration__icon {
+    display: inline-grid;
+    place-items: center;
+    width: 3rem;
+    height: 3rem;
+    border-radius: var(--hub-radius-sm);
+    background: var(--hub-accent-softer);
+    color: var(--hub-accent-strong);
+}
+
+.mp-inspiration__more {
+    display: flex;
+    justify-content: center;
+}

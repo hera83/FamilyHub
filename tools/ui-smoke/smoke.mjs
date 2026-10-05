@@ -325,8 +325,56 @@ async function open(page, path) {
   log('meal plan: picker lists the recipe book', recipes > 1, `${recipes} rows`);
   log('meal plan: no keyboard until the search is tapped', (await page.locator('.hub-osk[data-visibility="expanded"]').count()) === 0);
   log('meal plan: an empty day suggests the main course',
-    (await page.locator('.hub-dialog .hub-choice--segmented [aria-checked="true"]').innerText()).trim() === 'Hovedret');
+    (await page.locator('.hub-dialog .hub-choice--segmented [aria-checked="true"]').first().innerText()).trim() === 'Hovedret');
   await page.screenshot({ path: `${OUT}/24-madplan-picker.png` });
+
+  // Inspiration: Mambeno's recipes in the same picker (only when Mambeno is set up). Nothing is chosen here –
+  // choosing copies the recipe into the family's real recipe book.
+  const inspiration = page.locator('.hub-dialog .hub-choice__option', { hasText: 'Inspiration' });
+  if (await inspiration.count()) {
+    const mambenoRows = page.locator('.hub-dialog .mp-inspiration .hub-list__row');
+    await inspiration.tap();
+    await mambenoRows.first().waitFor({ timeout: 15000 });
+    const count = (await page.locator('.mp-inspiration__count').innerText()).trim();
+    log('inspiration: Mambeno recipes, starting on "Aftensmad" for a main course',
+      (await page.locator('.mp-inspiration__chips [aria-checked="true"]').first().innerText()).trim() === 'Aftensmad', count);
+    log('inspiration: no keyboard until the search is tapped', (await page.locator('.hub-osk[data-visibility="expanded"]').count()) === 0);
+    await page.screenshot({ path: `${OUT}/24b-inspiration.png` });
+
+    await page.locator('.mp-inspiration__chips--sub .hub-choice__option', { hasText: 'Fisk' }).tap();
+    await page.waitForFunction(c => document.querySelector('.mp-inspiration__count')?.textContent.trim() !== c, count, { timeout: 15000 });
+    const fish = (await page.locator('.mp-inspiration__count').innerText()).trim();
+    log('inspiration: a sub-category narrows the list', parseInt(fish.replace('.', '')) < parseInt(count.replace('.', '')), `${fish} of ${count}`);
+
+    const shown = await mambenoRows.count();
+    await page.locator('.mp-inspiration__more .hub-btn').tap();
+    await page.waitForFunction(n => document.querySelectorAll('.mp-inspiration .hub-list__row').length > n, shown, { timeout: 15000 });
+    log('inspiration: "Vis flere" adds the next 30', (await mambenoRows.count()) === shown + 30, `${shown} → ${await mambenoRows.count()}`);
+
+    const title = (await mambenoRows.first().locator('.hub-list__title').innerText()).trim();
+    await mambenoRows.first().tap();
+    await page.locator('.mp-preview').waitFor();
+    log('inspiration: a recipe opens a preview with ingredients and steps',
+      (await page.locator('.mp-preview__title').innerText()).trim() === title
+      && (await page.locator('.mp-preview__ingredients li').count()) > 0 && (await page.locator('.mp-preview__steps li').count()) > 0, title);
+    log('inspiration: the preview starts at the top', (await page.locator('.hub-dialog').evaluate(d => d.scrollTop)) === 0);
+    log('inspiration: "Vælg retten" and "Tilbage" in the footer', (await page.locator('.hub-dialog__footer .hub-btn', { hasText: 'Vælg retten' }).count()) === 1);
+    await page.screenshot({ path: `${OUT}/24c-inspiration-preview.png` });
+    await page.evaluate(() => document.documentElement.dataset.theme = 'dark');
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: `${OUT}/24d-inspiration-preview-dark.png` });
+    await page.locator('.hub-dialog__footer .hub-btn', { hasText: 'Tilbage' }).tap();
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: `${OUT}/24e-inspiration-dark.png` });
+    await page.evaluate(() => document.documentElement.dataset.theme = 'light');
+    log('inspiration: "Tilbage" returns to the same list', (await mambenoRows.count()) === shown + 30);
+
+    await page.locator('.hub-dialog .hub-choice__option', { hasText: 'Opskriftsbogen' }).tap();
+    await page.waitForTimeout(400);
+    log('inspiration: back to the recipe book', (await page.locator('.hub-dialog .hub-list__row').count()) === recipes);
+  } else {
+    log('inspiration: Mambeno is not set up – no Inspiration (set FamilyHub__Mambeno__ApiKey to check it)', true);
+  }
 
   const chips = page.locator('.hub-dialog .hub-choice--chips .hub-choice__option');
   if (await chips.count() > 2) {
@@ -426,14 +474,14 @@ async function open(page, path) {
   await page.waitForTimeout(700);
   const segment = page.locator('.hub-dialog .hub-choice--segmented .hub-choice__option');
   log('meal plan: "Tilføj" suggests a dessert and greys out the main course',
-    (await page.locator('.hub-dialog .hub-choice--segmented [aria-checked="true"]').innerText()).trim() === 'Dessert'
+    (await page.locator('.hub-dialog .hub-choice--segmented [aria-checked="true"]').first().innerText()).trim() === 'Dessert'
     && await segment.filter({ hasText: 'Hovedret' }).isDisabled());
   await page.screenshot({ path: `${OUT}/27b-madplan-add-course.png` });
   await page.locator('.hub-dialog .hub-list__row').first().tap();
   await page.waitForTimeout(700);
   await day('2030-01-10').locator('.mp-day__add').tap();
   await page.waitForTimeout(700);
-  log('meal plan: then a starter', (await page.locator('.hub-dialog .hub-choice--segmented [aria-checked="true"]').innerText()).trim() === 'Forret');
+  log('meal plan: then a starter', (await page.locator('.hub-dialog .hub-choice--segmented [aria-checked="true"]').first().innerText()).trim() === 'Forret');
   await page.getByLabel('Søg').tap();
   await page.waitForTimeout(400);
   for (const ch of 'suppe') await key(ch);

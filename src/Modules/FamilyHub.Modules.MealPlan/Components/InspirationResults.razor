@@ -1,0 +1,363 @@
+@*
+    "Inspiration": Mambeno's ~4,800 recipes in the recipe picker. Built for a big catalogue: the search runs in Mambeno
+    (a moment after the last key), categories come in two levels of sideways-scrolling chips ("Aftensmad" → "Fisk"),
+    a time filter, and the list grows 30 at a time with "Vis flere". Tapping a recipe opens a preview in the picker –
+    the recipe is only copied into the recipe book when the family chooses it there.
+*@
+@inject IMambenoService Mambeno
+@inject RecipeService Recipes
+@inject IJSRuntime JS
+@inject ILogger<InspirationResults> Logger
+@implements IAsyncDisposable
+
+<div class="mp-inspiration" @ref="root">
+    @if (categories.Count > 0)
+    {
+        <HubChoice TValue="int?" Appearance="ChoiceAppearance.Chips" Class="mp-inspiration__chips" Options="TopOptions" Value="topId" ValueChanged="OnTopChanged" />
+        @if (SubOptions.Count > 1)
+        {
+            <HubChoice TValue="int?" Appearance="ChoiceAppearance.Chips" Class="mp-inspiration__chips mp-inspiration__chips--sub" Options="SubOptions" Value="subId" ValueChanged="OnSubChanged" />
+        }
+    }
+
+    <div class="mp-inspiration__bar">
+        <HubChoice TValue="int?" Options="TimeOptions" Value="maxMinutes" ValueChanged="OnTimeChanged" />
+        @if (!loading && error is null)
+        {
+            <p class="mp-inspiration__count">@CountText</p>
+        }
+    </div>
+
+    <div class="mp-inspiration__results">
+        @if (error is not null)
+        {
+            <InfoBox Tone="HubTone.Warning" Title="@error.Message" Icon="@(error.Error == MambenoError.Offline ? IconName.WifiOff : null)">
+                <ChildContent>Opskriftsbogen virker stadig.</ChildContent>
+                <Actions>
+                    <HubButton Icon="IconName.Refresh" OnClick="RetryAsync">Prøv igen</HubButton>
+                </Actions>
+            </InfoBox>
+        }
+        else if (loading)
+        {
+            <HubSkeleton Lines="6" />
+        }
+        else if (items.Count == 0)
+        {
+            <EmptyState Icon="IconName.Search" Title="Ingen retter fundet" Compact="true" Actions="@(HasFilters ? ShowAllAction : null)">
+                Prøv et andet ord, eller vælg en anden kategori.
+            </EmptyState>
+        }
+        else
+        {
+            <HubList>
+                @foreach (var recipe in items)
+                {
+                    <HubListItem Title="@recipe.Title" Subtitle="@NullIfEmpty(Inspiration.Summary(recipe))" OnClick="() => OnSelect.InvokeAsync(recipe)">
+                        <Leading>
+                            <span class="mp-inspiration__icon"><Icon Name="IconName.Sparkles" /></span>
+                        </Leading>
+                        <Trailing>
+                            @if (Inspiration.FindInBook(recipe, Recipes.Recipes) is not null)
+                            {
+                                <HubBadge Tone="HubTone.Success">I opskriftsbogen</HubBadge>
+                            }
+                        </Trailing>
+                    </HubListItem>
+                }
+            </HubList>
+
+            @if (page < totalPages)
+            {
+                <div class="mp-inspiration__more">
+                    <HubButton Icon="IconName.ChevronsDown" OnClick="MoreAsync" ErrorMessage="Flere retter kunne ikke hentes">
+                        Vis flere (@Number(totalCount - items.Count) tilbage)
+                    </HubButton>
+                </div>
+            }
+        }
+    </div>
+</div>
+
+@code {
+    private const int PageSize = 30;
+
+    /// <summary>How long to wait after the last key before searching – one call per word, not per letter.</summary>
+    internal static TimeSpan SearchDelay { get; set; } = TimeSpan.FromMilliseconds(400);
+
+    private ElementReference root;
+    private IJSObjectReference? module;
+    private bool revealSelected;
+
+    private IReadOnlyList<MambenoCategory> categories = [];
+    private int? topId;
+    private int? subId;
+    private int? maxMinutes;
+    private bool categoryChosen;
+
+    private List<MambenoRecipe> items = [];
+    private int page;
+    private int totalPages;
+    private int totalCount;
+    private bool loading = true;
+    private MambenoException? error;
+
+    private string? shownSearch;
+    private DinnerCourse shownCourse;
+    private bool started;
+    private CancellationTokenSource? pending;
+    private int version;
+
+    /// <summary>The text in the picker's search field.</summary>
+    [Parameter]
+    public string Search { get; set; } = "";
+
+    /// <summary>The course being planned – decides the starting category ("Aftensmad", "Kager, bagværk og sødt").</summary>
+    [Parameter]
+    public DinnerCourse Course { get; set; }
+
+    [Parameter]
+    public EventCallback<MambenoRecipe> OnSelect { get; set; }
+
+    private IReadOnlyList<ChoiceOption<int?>> TopOptions =>
+    [
+        new(null, "Alle"),
+        .. categories.Where(c => c.IsTopLevel && c.RecipeCount > 0).OrderByDescending(c => c.RecipeCount).Select(c => new ChoiceOption<int?>(c.Id, c.Name)),
+    ];
+
+    private IReadOnlyList<ChoiceOption<int?>> SubOptions => topId is not { } top
+        ? []
+        :
+        [
+            new(null, $"Alt i {categories.FirstOrDefault(c => c.Id == top)?.Name.ToLower(DanishFormat.Culture)}"),
+            .. categories.Where(c => c.ParentId == top && c.RecipeCount > 0).OrderByDescending(c => c.RecipeCount).Select(c => new ChoiceOption<int?>(c.Id, c.Name)),
+        ];
+
+    private static readonly IReadOnlyList<ChoiceOption<int?>> TimeOptions =
+    [
+        new(null, "Al tid"),
+        new(20, "Højst 20 min"),
+        new(30, "Højst 30 min"),
+        new(45, "Højst 45 min"),
+    ];
+
+    private RenderFragment ShowAllAction => @<HubButton OnClick="ShowAllAsync">Vis alle retter</HubButton>;
+
+    private bool HasFilters => topId is not null || maxMinutes is not null;
+
+    private string CountText => totalCount == 1 ? "1 ret" : $"{Number(totalCount)} retter";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var searchChanged = shownSearch != Search;
+        var courseChanged = shownCourse != Course;
+        shownSearch = Search;
+        shownCourse = Course;
+
+        if (!started)
+        {
+            started = true;
+            await LoadCategoriesAsync();
+            SetDefaultCategory();
+            await LoadAsync(delay: false);
+            return;
+        }
+
+        if (!searchChanged && !courseChanged)
+        {
+            return;
+        }
+
+        // The course's own category is only a starting point: typing searches everything, clearing goes back.
+        // A category the family picked themselves stays.
+        if (!categoryChosen)
+        {
+            SetDefaultCategory();
+        }
+
+        await LoadAsync(delay: searchChanged);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!revealSelected)
+        {
+            return;
+        }
+
+        revealSelected = false;
+        try
+        {
+            module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./_content/FamilyHub.Modules.MealPlan/Components/InspirationResults.razor.js");
+            if (module is not null)
+            {
+                await module.InvokeVoidAsync("revealSelected", root);
+            }
+        }
+        catch (Exception ex) when (ex is JSException or JSDisconnectedException or InvalidOperationException or TaskCanceledException)
+        {
+            // Only a convenience – the chip is still selected.
+        }
+    }
+
+    private async Task LoadCategoriesAsync()
+    {
+        try
+        {
+            categories = await Mambeno.GetCategoriesAsync();
+        }
+        catch (MambenoException ex)
+        {
+            // The search still works without the chips; the list shows the problem if Mambeno is down.
+            Logger.LogInformation("Mambeno categories not shown: {Message}", ex.Message);
+        }
+    }
+
+    private void SetDefaultCategory()
+    {
+        topId = string.IsNullOrWhiteSpace(Search) ? Inspiration.CategoryFor(Course, categories) : null;
+        subId = null;
+        revealSelected = true;
+    }
+
+    private async Task OnTopChanged(int? value)
+    {
+        topId = value;
+        subId = null;
+        categoryChosen = true;
+        await LoadAsync(delay: false);
+    }
+
+    private async Task OnSubChanged(int? value)
+    {
+        subId = value;
+        categoryChosen = true;
+        await LoadAsync(delay: false);
+    }
+
+    private async Task OnTimeChanged(int? value)
+    {
+        maxMinutes = value;
+        await LoadAsync(delay: false);
+    }
+
+    private async Task ShowAllAsync()
+    {
+        topId = subId = maxMinutes = null;
+        categoryChosen = true;
+        revealSelected = true;
+        await LoadAsync(delay: false);
+    }
+
+    private Task RetryAsync() => categories.Count == 0
+        ? RetryWithCategoriesAsync()
+        : LoadAsync(delay: false);
+
+    private async Task RetryWithCategoriesAsync()
+    {
+        await LoadCategoriesAsync();
+        if (!categoryChosen)
+        {
+            SetDefaultCategory();
+        }
+
+        await LoadAsync(delay: false);
+    }
+
+    private MambenoQuery Query(int pageNumber) => new()
+    {
+        Search = Search,
+        CategoryId = subId ?? topId,
+        MaxTotalMinutes = maxMinutes,
+        Page = pageNumber,
+        PageSize = PageSize,
+    };
+
+    /// <summary>The first page for the current search and filters. A newer search cancels an older one.</summary>
+    private async Task LoadAsync(bool delay)
+    {
+        pending?.Cancel();
+        pending?.Dispose();
+        pending = new CancellationTokenSource();
+        var token = pending.Token;
+        var current = ++version;
+        loading = true;
+        error = null;
+
+        try
+        {
+            if (delay)
+            {
+                await Task.Delay(SearchDelay, token);
+            }
+
+            var result = await Mambeno.SearchRecipesAsync(Query(1), token);
+            if (current != version)
+            {
+                return;
+            }
+
+            items = [.. result.Items];
+            page = result.Page;
+            totalPages = result.TotalPages;
+            totalCount = result.TotalCount;
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+        catch (MambenoException ex)
+        {
+            if (current == version)
+            {
+                error = ex;
+                items = [];
+            }
+        }
+        finally
+        {
+            if (current == version)
+            {
+                loading = false;
+            }
+        }
+    }
+
+    // Called by the HubButton, which shows the error toast if it fails.
+    private async Task MoreAsync()
+    {
+        var current = version;
+        var result = await Mambeno.SearchRecipesAsync(Query(page + 1));
+        if (current != version)
+        {
+            return;
+        }
+
+        var known = items.Select(r => r.Id).ToHashSet();
+        items.AddRange(result.Items.Where(r => known.Add(r.Id)));
+        page = result.Page;
+        totalPages = result.TotalPages;
+        totalCount = result.TotalCount;
+    }
+
+    private static string? NullIfEmpty(string text) => text.Length == 0 ? null : text;
+
+    /// <summary>4837 → "4.837".</summary>
+    private static string Number(int value) => value.ToString("N0", DanishFormat.Culture);
+
+    public async ValueTask DisposeAsync()
+    {
+        pending?.Cancel();
+        pending?.Dispose();
+        if (module is not null)
+        {
+            try
+            {
+                await module.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+    }
+}

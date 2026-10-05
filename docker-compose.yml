@@ -35,6 +35,9 @@ services:
       # Blodsukker (familiens API foran Dexcom). Tom nøgle = ikke sat op. Se docs/dexcom.md.
       FamilyHub__Dexcom__BaseUrl: ${DEXCOM_API_URL:-https://dexcom.appcore.cc}
       FamilyHub__Dexcom__ApiKey: ${DEXCOM_API_KEY:-}
+      # Opskrifter fra Mambeno (familiens API foran Mambeno). Tom nøgle = ikke sat op. Se docs/mambeno.md.
+      FamilyHub__Mambeno__BaseUrl: ${MAMBENO_API_URL:-https://mambeno.appcore.cc}
+      FamilyHub__Mambeno__ApiKey: ${MAMBENO_API_KEY:-}
 
     volumes:
       # Et navn = Docker-volumen. En sti (./data, /mnt/ssd/familyhub) = mappe på serveren.
