@@ -268,6 +268,56 @@ public sealed class SchoolPageTests : BunitContext
     }
 
     [Fact]
+    public async Task The_family_can_look_ahead_week_by_week_and_back_to_this_week()
+    {
+        await household.UpdateAsync(h => h with { Members = [emma] });
+        var schedule = await School.AddAsync(new SchoolSchedule
+        {
+            MemberId = emma.Id,
+            Level = SchoolLevel.University,
+            Grade = 3,
+            Periods = PeriodPlanner.StandardDay(SchoolLevel.University),
+            FeedUrl = "https://www.moodle.aau.dk/calendar/export_execute.php?authtoken=hemmelig",
+        });
+        Http.Respond(FeedTests.Moodle);
+        await Feeds.RefreshAsync(schedule.Id);
+
+        var cut = Render<SchoolPage>();
+        Assert.True(cut.Find("[aria-label='Forrige uge']").HasAttribute("disabled")); // the page is for looking ahead
+        Assert.True(cut.FindAll(".hub-btn").Single(b => b.TextContent.Trim() == "Denne uge").HasAttribute("disabled"));
+
+        await cut.Find("[aria-label='Næste uge']").ClickAsync(new());
+
+        Assert.Equal("Næste uge · uge 42", cut.Find(".hub-page__subtitle").TextContent);
+        Assert.Equal(["Statistik - forelæsning 4"], cut.FindAll(".st-lesson__subject").Select(e => e.TextContent));
+        Assert.Empty(cut.FindAll(".st-day--today"));
+        Assert.Equal("3. semester · fri 16:15", cut.Find(".st-tab__meta").TextContent); // still about today
+        Assert.False(cut.Find("[aria-label='Forrige uge']").HasAttribute("disabled"));
+
+        // Beyond the last lesson in the school's calendar, the page says how far it goes.
+        await cut.Find("[aria-label='Næste uge']").ClickAsync(new());
+        Assert.Equal("Om 2 uger · uge 43", cut.Find(".hub-page__subtitle").TextContent);
+        Assert.Contains("Den har timer til og med mandag 12. oktober", cut.Markup);
+
+        await cut.FindAll(".hub-btn").Single(b => b.TextContent.Trim() == "Denne uge").ClickAsync(new());
+        Assert.Equal("Uge 41", cut.Find(".hub-page__subtitle").TextContent);
+        Assert.Equal("Tirsdag", cut.Find(".st-day--today .st-day__name").TextContent);
+        Assert.DoesNotContain("rækker ikke så langt", cut.Markup);
+    }
+
+    [Fact]
+    public async Task A_fixed_timetable_shows_next_weeks_alternating_lessons()
+    {
+        await WithTwoChildrenAsync();
+
+        var cut = Render<SchoolPage>();
+        await cut.Find("[aria-label='Næste uge']").ClickAsync(new());
+
+        Assert.Equal("Næste uge · uge 42 · lige uge", cut.Find(".hub-page__subtitle").TextContent);
+        Assert.Contains("Næste uge: Billedkunst", cut.Markup);
+    }
+
+    [Fact]
     public async Task When_the_calendar_has_failed_for_hours_the_page_says_so_calmly()
     {
         await household.UpdateAsync(h => h with { Members = [emma] });

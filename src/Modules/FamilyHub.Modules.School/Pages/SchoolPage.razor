@@ -22,11 +22,26 @@
         else
         {
             <div class="st-page">
-                <ChildTabs Tabs="tabs" SelectedId="selected.Schedule.Id" SelectedIdChanged="Select" />
+                @* The week buttons share the row with the tabs, so looking ahead costs the timetable no height. *@
+                <div class="st-bar">
+                    <ChildTabs Tabs="tabs" SelectedId="selected.Schedule.Id" SelectedIdChanged="Select" />
+                    <div class="st-bar__weeks">
+                        <HubButton Size="ButtonSize.Small" Icon="IconName.ChevronLeft" AriaLabel="Forrige uge" OnClick="() => Step(-1)" Disabled="ShowsFirstWeek" />
+                        <HubButton Size="ButtonSize.Small" OnClick="GoToThisWeek" Disabled="ShowsFirstWeek">Denne uge</HubButton>
+                        <HubButton Size="ButtonSize.Small" Icon="IconName.ChevronRight" AriaLabel="Næste uge" OnClick="() => Step(1)" />
+                    </div>
+                </div>
+
+                @if (CalendarEnds is { } last)
+                {
+                    <InfoBox Tone="HubTone.Info" Icon="IconName.Calendar" Title="Skolens kalender rækker ikke så langt">
+                        Den har timer til og med @DanishFormat.LongDate(last).ToLower(DanishFormat.Culture).
+                    </InfoBox>
+                }
 
                 @if (selected.Changes is { Count: > 0 } changes)
                 {
-                    <InfoBox Tone="HubTone.Warning" Title="@(today is null ? "Skemaet er ændret i næste uge" : "Skemaet er ændret i denne uge")" Class="st-changes">
+                    <InfoBox Tone="HubTone.Warning" Title="@($"Skemaet er ændret {ScheduleRules.InWeekText(monday, date)}")" Class="st-changes">
                         <ChildContent>
                             <ul class="st-changes__list">
                                 @foreach (var change in changes)
@@ -48,7 +63,7 @@
                 }
 
                 <HubCard Class="st-page__card">
-                    <SchoolTimetable View="selected" Today="today" Now="time" OnLessonClick="ShowLesson" />
+                    <SchoolTimetable View="selected" Today="ShownToday" Now="time" OnLessonClick="ShowLesson" />
                 </HubCard>
 
                 @if (selected.Outside is { Count: > 0 } outside)
@@ -82,13 +97,16 @@
     private IReadOnlyList<ChildTabs.Tab> tabs = [];
     private SchoolWeek? selected;
     private Guid? selectedId;
+    private DateOnly date;
     private DateOnly monday;
+    private DateOnly firstMonday;
+    private DateOnly? chosenMonday;
     private DayOfWeek? today;
     private TimeOnly time;
     private IDisposable? tick;
     private IReadOnlyList<CalendarLesson>? details;
 
-    /// <summary>"Uge 41 · ulige uge" – at the weekend it is next week that matters.</summary>
+    /// <summary>"Uge 41 · ulige uge" – "Næste uge · uge 42 · lige uge" when looking ahead (and at the weekend).</summary>
     private string? Subtitle
     {
         get
@@ -98,11 +116,22 @@
                 return null;
             }
 
-            var week = ScheduleRules.WeekOf(monday);
-            var text = today is null ? $"Næste uge · uge {week}" : $"Uge {week}";
-            return ScheduleRules.UsesAlternatingWeeks(schedules) ? $"{text} · {ScheduleRules.ParityText(week)}" : text;
+            var text = ScheduleRules.WeekText(monday, date);
+            return ScheduleRules.UsesAlternatingWeeks(schedules) ? $"{text} · {ScheduleRules.ParityText(ScheduleRules.WeekOf(monday))}" : text;
         }
     }
+
+    /// <summary>The week the page opens on – there is no going back from it, the page is for looking ahead.</summary>
+    private bool ShowsFirstWeek => monday == firstMonday;
+
+    /// <summary>Today is only marked in its own week.</summary>
+    private DayOfWeek? ShownToday => monday == ScheduleRules.MondayOf(date) ? today : null;
+
+    /// <summary>The last day in the school's calendar – when the week shown lies beyond it.</summary>
+    private DateOnly? CalendarEnds =>
+        selected is { IsLive: true } week && Feeds.EventsFor(week.Schedule.Id) is [.., var last] && DateOnly.FromDateTime(last.End) < monday
+            ? DateOnly.FromDateTime(last.End)
+            : null;
 
     /// <summary>When the selected schedule's calendar could not be fetched for a while.</summary>
     private (string Title, string Text)? FeedWarning
@@ -144,10 +173,18 @@
     private void Refresh()
     {
         var now = Clock.Now;
-        var date = DateOnly.FromDateTime(now.DateTime);
+        date = DateOnly.FromDateTime(now.DateTime);
         time = TimeOnly.FromDateTime(now.DateTime);
         today = ScheduleRules.IsSchoolDay(date.DayOfWeek) ? date.DayOfWeek : null;
-        monday = ScheduleRules.DisplayedMonday(date);
+        firstMonday = ScheduleRules.DisplayedMonday(date);
+
+        // A week chosen ahead stays until it has come (or "Denne uge" is tapped).
+        if (chosenMonday <= firstMonday)
+        {
+            chosenMonday = null;
+        }
+
+        monday = chosenMonday ?? firstMonday;
 
         var household = Household.Current;
         schedules = ScheduleLook.Ordered(School.Schedules, household);
@@ -156,9 +193,32 @@
         tabs = [.. weeks.Select(w => new ChildTabs.Tab(w.Schedule, ScheduleLook.Name(w.Schedule, household), ScheduleLook.Color(w.Schedule, household), Hint(w), w.Changes.Count > 0))];
     }
 
-    /// <summary>On a school day: "Fri 14:15" (or "Ingen skole") under the name. Nothing at the weekend.</summary>
-    private string? Hint(SchoolWeek week) =>
-        today is { } day ? ScheduleRules.EndText(week.DaySpan(day)).ToLower(DanishFormat.Culture) : null;
+    /// <summary>
+    /// On a school day: "Fri 14:15" (or "Ingen skole") after the name – always about today, also while looking ahead.
+    /// Nothing at the weekend.
+    /// </summary>
+    private string? Hint(SchoolWeek week)
+    {
+        if (today is not { } day)
+        {
+            return null;
+        }
+
+        var thisWeek = week.Monday == firstMonday ? week : SchoolWeek.For(week.Schedule, firstMonday, Feeds.EventsFor(week.Schedule.Id));
+        return ScheduleRules.EndText(thisWeek.DaySpan(day)).ToLower(DanishFormat.Culture);
+    }
+
+    private void Step(int weeks)
+    {
+        chosenMonday = monday.AddDays(7 * weeks);
+        Refresh();
+    }
+
+    private void GoToThisWeek()
+    {
+        chosenMonday = null;
+        Refresh();
+    }
 
     // The box goes away on every screen – the result is visible, so no message.
     private Task AcknowledgeAsync() => selected is { } week ? Feeds.AcknowledgeAsync(week.Schedule.Id) : Task.CompletedTask;

@@ -69,6 +69,31 @@ public static class ScheduleRules
 
     public static int WeekOf(DateOnly date) => DanishFormat.WeekNumber(date);
 
+    /// <summary>Whole weeks from today's week to the week starting <paramref name="monday"/> – 0 this week, 1 next week.</summary>
+    public static int WeeksAhead(DateOnly monday, DateOnly today) => (MondayOf(monday).DayNumber - MondayOf(today).DayNumber) / 7;
+
+    /// <summary>"Uge 41" this week – "Næste uge · uge 42", "Om 3 uger · uge 44" further on.</summary>
+    public static string WeekText(DateOnly monday, DateOnly today)
+    {
+        var week = WeekOf(monday);
+        return WeeksAhead(monday, today) switch
+        {
+            0 => $"Uge {week}",
+            1 => $"Næste uge · uge {week}",
+            -1 => $"Sidste uge · uge {week}",
+            > 1 and var ahead => $"Om {ahead} uger · uge {week}",
+            var behind => $"For {-behind} uger siden · uge {week}",
+        };
+    }
+
+    /// <summary>"i denne uge", "i næste uge" – or "i uge 44" further on.</summary>
+    public static string InWeekText(DateOnly monday, DateOnly today) => WeeksAhead(monday, today) switch
+    {
+        0 => "i denne uge",
+        1 => "i næste uge",
+        _ => $"i uge {WeekOf(monday)}",
+    };
+
     /// <summary>"ulige uge" / "lige uge".</summary>
     public static string ParityText(int isoWeek) => isoWeek % 2 == 0 ? "lige uge" : "ulige uge";
 

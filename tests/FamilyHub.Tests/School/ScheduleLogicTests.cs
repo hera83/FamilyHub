@@ -94,6 +94,19 @@ public sealed class ScheduleLogicTests
     public void At_the_weekend_the_page_shows_next_week(string today, string monday) =>
         Assert.Equal(DateOnly.Parse(monday), ScheduleRules.DisplayedMonday(DateOnly.Parse(today)));
 
+    [Theory]
+    [InlineData("2026-10-05", "2026-10-06", "Uge 41", "i denne uge")]
+    [InlineData("2026-10-12", "2026-10-06", "Næste uge · uge 42", "i næste uge")]
+    [InlineData("2026-10-12", "2026-10-11", "Næste uge · uge 42", "i næste uge")] // Sunday: Monday is next week
+    [InlineData("2026-10-26", "2026-10-06", "Om 3 uger · uge 44", "i uge 44")]
+    [InlineData("2026-09-28", "2026-10-06", "Sidste uge · uge 40", "i uge 40")]
+    [InlineData("2026-12-28", "2026-12-22", "Næste uge · uge 53", "i næste uge")] // across New Year
+    public void The_week_shown_is_named_from_today(string monday, string today, string text, string inWeek)
+    {
+        Assert.Equal(text, ScheduleRules.WeekText(DateOnly.Parse(monday), DateOnly.Parse(today)));
+        Assert.Equal(inWeek, ScheduleRules.InWeekText(DateOnly.Parse(monday), DateOnly.Parse(today)));
+    }
+
     [Fact]
     public void The_day_ends_with_the_last_lesson_that_has_a_subject()
     {

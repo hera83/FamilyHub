@@ -10,7 +10,7 @@
         <HubPressable Class="@($"st-tab{(selected ? " st-tab--selected" : null)}")" OnClick="() => SelectedIdChanged.InvokeAsync(tab.Schedule.Id)"
                       role="tab" aria-selected="@(selected ? "true" : "false")"
                       style="@($"--st-tab-color: {MemberColors.CssVariable(tab.Color)}")">
-            <HubAvatar Name="@tab.Name" Color="tab.Color" />
+            <HubAvatar Name="@tab.Name" Color="tab.Color" Size="AvatarSize.Small" />
             <span class="st-tab__text">
                 <span class="st-tab__name">@tab.Name</span>
                 <span class="st-tab__meta hub-numeric">@tab.Schedule.ClassName@(tab.Hint is { } hint ? $" · {hint}" : null)</span>

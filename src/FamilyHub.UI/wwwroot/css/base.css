@@ -257,7 +257,9 @@ html.hub-touch-input * {
   margin: 0 auto;
   padding: var(--hub-page-padding);
   padding-bottom: var(--hub-space-16);
-  animation: hub-page-in var(--hub-duration-slow) var(--hub-ease) both; /* a new page fades in gently */
+  /* A new page fades in gently. Only "backwards": a transform that stays applied after the animation would make the
+     page the frame for fixed elements, so a dialog's backdrop would cover the page instead of the whole screen. */
+  animation: hub-page-in var(--hub-duration-slow) var(--hub-ease) backwards;
 }
 
 .hub-page--narrow {

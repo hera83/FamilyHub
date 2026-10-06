@@ -4,6 +4,21 @@
     gap: var(--hub-space-5);
 }
 
+/* The tabs on the left, the week buttons quietly to the right – one row, so the timetable keeps its place. */
+.st-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--hub-space-3) var(--hub-space-6);
+}
+
+.st-bar__weeks {
+    display: flex;
+    gap: var(--hub-space-2);
+    margin-left: auto;
+}
+
 /* The table brings its own spacing – the card only frames it. */
 .st-page ::deep .st-page__card {
     padding: var(--hub-space-4) var(--hub-space-5) var(--hub-space-5);

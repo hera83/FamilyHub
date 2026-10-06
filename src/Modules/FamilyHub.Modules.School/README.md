@@ -8,7 +8,7 @@ Visningen kan ikke redigeres; skemaerne sættes op under tandhjulet.
 
 | Rute | Indhold |
 |---|---|
-| `/skole` | Skemaet for det valgte barn. Dagens kolonne og timen lige nu er markeret. Weekend: næste uge vises. |
+| `/skole` | Skemaet for det valgte barn. Dagens kolonne og timen lige nu er markeret. Weekend: næste uge vises. ‹ **Denne uge** › i fanernes række bladrer frem (ikke tilbage før den aktuelle uge); undertitlen siger hvilken uge (»Næste uge · uge 42«), fanernes »fri 14:15« gælder stadig i dag. Rækker skolens kalender ikke så langt, siger en InfoBox, hvor den slutter. |
 | `/skole/indstillinger` | Listen over skemaer og »Tilføj skema« (barn, klassetrin, klasse, tider – kun valg). |
 | `/skole/indstillinger/{id}` | Ét skema: timer, tider, fag og klasse. Alt gemmes med det samme. |
 
