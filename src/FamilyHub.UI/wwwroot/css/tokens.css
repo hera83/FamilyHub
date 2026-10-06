@@ -148,6 +148,19 @@
   --hub-osk-max: 74rem;
 }
 
+/*
+  Compact text – one step smaller, for the home screen's cards so four fit side by side on the kitchen screen.
+  Everything inside .hub-compact that uses the text tokens follows; still in rem, so Visningsstørrelse works.
+*/
+.hub-compact {
+  --hub-text-xs: 0.8125rem;   /* 13px */
+  --hub-text-sm: 0.9375rem;   /* 15px */
+  --hub-text-md: 1rem;        /* 16px */
+  --hub-text-lg: 1.125rem;    /* 18px */
+  --hub-text-xl: 1.375rem;    /* 22px */
+  --hub-text-2xl: 1.75rem;    /* 28px */
+}
+
 /* Night mode: warm dark, low glare in a dim kitchen. */
 :root[data-theme="dark"] {
   color-scheme: dark;

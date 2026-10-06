@@ -15,10 +15,10 @@ public sealed class ModuleCatalog
             .OrderBy(m => m.Order)
             .ThenBy(m => m.Title, StringComparer.Create(CultureInfo.GetCultureInfo("da-DK"), ignoreCase: true))];
         NavigationModules = [.. Modules.Where(m => m.ShowInNavigation)];
-        Widgets = [.. Modules
-            .SelectMany(m => m.Widgets.Select(w => new ModuleWidget(m, w)))
-            .OrderBy(w => w.Widget.Order)
-            .ThenBy(w => w.Module.Order)];
+        // The home screen follows the menu: module by module, then each module's own widget order.
+        Widgets = [.. Modules.SelectMany(m => m.Widgets
+            .Select(w => new ModuleWidget(m, w))
+            .OrderBy(w => w.Widget.Order))];
         ScreenSaverItems = [.. Modules
             .SelectMany(m => m.ScreenSaverItems)
             .OrderBy(i => i.Order)];

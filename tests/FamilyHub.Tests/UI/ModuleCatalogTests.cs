@@ -68,14 +68,23 @@ public class ModuleCatalogTests
     }
 
     [Fact]
-    public void Widgets_from_all_modules_are_collected_in_order()
+    public void Widgets_follow_the_menu_order_of_their_modules()
     {
         var catalog = Build(
-            new TestModule("a", "A", "/a", widgets: [DashboardWidget.For<WidgetA>(order: 20)]),
-            new TestModule("b", "B", "/b", widgets: [DashboardWidget.For<WidgetB>(WidgetSize.Large, order: 10)]));
+            new TestModule("b", "B", "/b", order: 20, widgets: [DashboardWidget.For<WidgetB>(WidgetSize.Large, order: 10)]),
+            new TestModule("a", "A", "/a", order: 10, widgets: [DashboardWidget.For<WidgetA>(order: 20)]));
+
+        Assert.Equal([typeof(WidgetA), typeof(WidgetB)], catalog.Widgets.Select(w => w.Widget.Component));
+        Assert.Equal("a", catalog.Widgets[0].Module.Id);
+    }
+
+    [Fact]
+    public void Widgets_within_a_module_follow_their_own_order()
+    {
+        var catalog = Build(
+            new TestModule("a", "A", "/a", widgets: [DashboardWidget.For<WidgetA>(order: 20), DashboardWidget.For<WidgetB>(order: 10)]));
 
         Assert.Equal([typeof(WidgetB), typeof(WidgetA)], catalog.Widgets.Select(w => w.Widget.Component));
-        Assert.Equal("b", catalog.Widgets[0].Module.Id);
     }
 
     [Theory]

@@ -38,7 +38,10 @@ public sealed record DashboardWidget
 
     public WidgetSize Size { get; }
 
-    /// <summary>Position on the home screen – lower comes first.</summary>
+    /// <summary>
+    /// Position among the module's own widgets – lower comes first. The home screen shows the modules
+    /// in menu order (<see cref="HubModule.Order"/>), so this only matters when a module has several widgets.
+    /// </summary>
     public int Order { get; }
 
     public static DashboardWidget For<TComponent>(WidgetSize size = WidgetSize.Medium, int order = 100)

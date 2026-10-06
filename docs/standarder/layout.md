@@ -73,6 +73,8 @@ Skrifttypen er **Inter** og følger med appen, så den virker uden internet.
 | `--hub-text-sm` | 16 px | Hjælpetekst, labels, detaljer |
 | `--hub-text-xs` | 14 px | Kun korte etiketter (navigation, mærkater) |
 
+Inde i `hub-compact` (forsidens kort) er teksttokens et trin mindre: 13, 15, 16, 18, 22 og 28 px.
+
 Vægte: 400 til tekst, 500 til labels, 600 til titler. Tal, der ændrer sig (ure, antal), bruger
 `hub-numeric`, så cifrene står stille. Hjælpeklasser: `hub-muted` (dæmpet), `hub-subtle` (endnu mere dæmpet), `hub-small`.
 

@@ -23,9 +23,10 @@
     font-weight: var(--hub-weight-medium);
 }
 
+/* Compact text (hub-compact) and 18rem columns: four cards side by side on the 1920 px kitchen screen. */
 .home-widgets {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(min(100%, 22rem), 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 1fr));
     gap: var(--hub-space-6);
 }
 

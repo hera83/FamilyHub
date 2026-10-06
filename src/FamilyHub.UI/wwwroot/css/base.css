@@ -32,6 +32,11 @@ body {
   transition: background-color var(--hub-duration-slow) ease;
 }
 
+/* Body text inside the compact scope (tokens.css) – text without its own size would keep the body's. */
+.hub-compact {
+  font-size: var(--hub-text-md);
+}
+
 input,
 textarea,
 .hub-selectable {
