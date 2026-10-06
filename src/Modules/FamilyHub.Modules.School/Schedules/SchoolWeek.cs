@@ -4,6 +4,9 @@ using FamilyHub.Modules.School.Feeds;
 
 namespace FamilyHub.Modules.School.Schedules;
 
+/// <summary>A lesson from the school's calendar as the details dialog shows it – with its change, if not yet marked as seen.</summary>
+public sealed record CalendarLesson(FeedEvent Lesson, FeedChange? Change);
+
 /// <summary>
 /// What one schedule shows in one week – the fixed timetable, or this week's lessons from the school's calendar.
 /// With a link everything is bound to the calendar: also the rows, made from its recurring lesson times on every fetch
@@ -84,9 +87,34 @@ public sealed class SchoolWeek
         }
 
         var first = inRow[0];
-        var change = Changes.FirstOrDefault(c => c.After is { } after && FeedChanges.KeyOf(after) == FeedChanges.KeyOf(first) && after.Start == first.Start)?.Kind;
-        return new LessonView(SubjectFor(first.Title), first.Location, false, null, OwnTime(first, period), inRow.Count - 1, change);
+        return new LessonView(SubjectFor(first.Title), first.Location, false, null, OwnTime(first, period), inRow.Count - 1, ChangeOf(first)?.Kind);
     }
+
+    /// <summary>Every calendar lesson in the cell, for the details dialog – or the cancelled one still shown there.</summary>
+    public IReadOnlyList<CalendarLesson> CalendarLessonsAt(DayOfWeek day, SchoolPeriod period)
+    {
+        if (!IsLive || period.IsBreak)
+        {
+            return [];
+        }
+
+        var date = DateOf(day);
+        var inRow = EventsIn(date, period);
+        if (inRow.Count > 0)
+        {
+            return [.. inRow.Select(Details)];
+        }
+
+        return Changes.FirstOrDefault(c => c.Kind == FeedChangeKind.Cancelled && Overlaps(c.Before!, date, period)) is { } cancelled
+            ? [new CalendarLesson(cancelled.Before!, cancelled)]
+            : [];
+    }
+
+    /// <summary>One calendar lesson with its change – also for the lessons under the table.</summary>
+    public CalendarLesson Details(FeedEvent lesson) => new(lesson, ChangeOf(lesson));
+
+    private FeedChange? ChangeOf(FeedEvent lesson) =>
+        Changes.FirstOrDefault(c => c.After is { } after && FeedChanges.KeyOf(after) == FeedChanges.KeyOf(lesson) && after.Start == lesson.Start);
 
     /// <summary>The lesson's own time when it differs from the row ("10:15–12:00").</summary>
     private static string? OwnTime(FeedEvent lesson, SchoolPeriod period) =>

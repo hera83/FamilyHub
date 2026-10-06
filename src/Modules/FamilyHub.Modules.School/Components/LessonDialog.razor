@@ -1,0 +1,91 @@
+@*
+    Everything the school's calendar says about a lesson: when, where, what it is about, the course and the teachers.
+    Read-only – the calendar is changed at school. Opened by tapping a lesson in a schedule with a calendar link; a cell
+    with several lessons ("+1 mere") shows them all.
+*@
+<HubDialog Open="Lessons is { Count: > 0 }" OpenChanged="OnOpenChanged" Title="@Title" Size="DialogSize.Medium">
+    @if (Lessons is { Count: > 0 } lessons)
+    {
+        <div class="sl-lessons">
+            @foreach (var (lesson, change) in lessons)
+            {
+                <section class="sl-lesson">
+                    @if (lessons.Count > 1)
+                    {
+                        <h3 class="sl-lesson__title">@lesson.Title</h3>
+                    }
+
+                    @if (change is not null)
+                    {
+                        <InfoBox Tone="HubTone.Warning" Icon="IconName.AlertTriangle" Title="@FeedChanges.Label(change.Kind)">
+                            @FeedChanges.Describe(change)
+                        </InfoBox>
+                    }
+
+                    <p class="sl-row">
+                        <Icon Name="IconName.Clock" />
+                        <span class="hub-numeric">@When(lesson)</span>
+                    </p>
+                    @if (lesson.Location is { } location)
+                    {
+                        <p class="sl-row">
+                            <Icon Name="IconName.MapPin" />
+                            <span>@location</span>
+                        </p>
+                    }
+                    @foreach (var section in LessonDetails.Sections(lesson.Description))
+                    {
+                        <div class="sl-row">
+                            <Icon Name="IconFor(section)" />
+                            <div class="sl-row__text">
+                                <span class="sl-row__label">@(section.Label ?? "Om timen")</span>
+                                @foreach (var line in section.Lines)
+                                {
+                                    <span>@line</span>
+                                }
+                            </div>
+                        </div>
+                    }
+                </section>
+            }
+        </div>
+    }
+</HubDialog>
+
+@code {
+    /// <summary>The lessons to show. Null or empty closes the dialog.</summary>
+    [Parameter]
+    public IReadOnlyList<CalendarLesson>? Lessons { get; set; }
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    /// <summary>The lesson's name – or the day, when the cell holds several lessons.</summary>
+    private string Title => Lessons switch
+    {
+        [var only] => only.Lesson.Title,
+        [var first, ..] => DanishFormat.LongDate(DateOnly.FromDateTime(first.Lesson.Start)),
+        _ => "",
+    };
+
+    /// <summary>"Tirsdag 6. oktober · 12:30–16:15".</summary>
+    private static string When(FeedEvent lesson) =>
+        $"{DanishFormat.LongDate(DateOnly.FromDateTime(lesson.Start))} · {DanishFormat.TimeRange(TimeOnly.FromDateTime(lesson.Start), TimeOnly.FromDateTime(lesson.End))}";
+
+    private static IconName IconFor(DetailSection section) => section.Label switch
+    {
+        "Kursus" => IconName.GraduationCap,
+        "Underviser" => IconName.User,
+        "Undervisere" or "Hold" => IconName.Users,
+        "Lokale" => IconName.MapPin,
+        _ => IconName.Info,
+    };
+
+    private async Task OnOpenChanged(bool open)
+    {
+        if (!open)
+        {
+            await OnClose.InvokeAsync();
+        }
+    }
+}

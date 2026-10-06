@@ -2,6 +2,7 @@
     The timetable as a table, like the paper on the fridge: Monday to Friday across the top, the times down the left side.
     Breaks are a quiet band across the whole week. Subjects get a soft tint in their colour, with the name always written.
     Today's column and the lesson going on right now are marked. Read-only – unless OnCellClick is set (the settings).
+    With a calendar link, OnLessonClick makes each lesson a touch target that opens its details.
     The week comes from SchoolWeek: the fixed timetable, or this week's lessons from the school's calendar.
 *@
 <table class="st-table @(Editable ? "st-table--editable" : null)">
@@ -54,6 +55,13 @@
                                     @Lesson(lesson)
                                 </HubPressable>
                             }
+                            else if (ShowsDetails && !lesson.IsEmpty)
+                            {
+                                <HubPressable Class="st-cell__press" OnClick="() => OnLessonClick.InvokeAsync(new TimetableCell(day, period))"
+                                              AriaLabel="@($"Vis detaljer: {CellLabel(day, period, lesson)}")">
+                                    @Lesson(lesson)
+                                </HubPressable>
+                            }
                             else
                             {
                                 @Lesson(lesson)
@@ -85,9 +93,15 @@
     [Parameter]
     public EventCallback<TimetableCell> OnCellClick { get; set; }
 
+    /// <summary>Makes every calendar lesson a touch target that shows its details – only with a calendar link.</summary>
+    [Parameter]
+    public EventCallback<TimetableCell> OnLessonClick { get; set; }
+
     private SchoolSchedule Schedule => View.Schedule;
 
     private bool Editable => OnCellClick.HasDelegate && !View.IsLive;
+
+    private bool ShowsDetails => OnLessonClick.HasDelegate && View.IsLive;
 
     protected override void OnParametersSet() =>
         current = Today is not null && Now is { } now ? ScheduleRules.CurrentPeriod(Schedule, now) : null;

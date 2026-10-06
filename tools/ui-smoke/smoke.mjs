@@ -852,6 +852,21 @@ async function open(page, path) {
     await page.screenshot({ path: `${OUT}/73-skole-universitet-dark.png` });
     await page.evaluate(() => document.documentElement.dataset.theme = 'light');
 
+    // Tapping a lesson shows what the calendar says about it – teachers and course, no links or e-mail addresses.
+    await page.locator('.st-cell__press', { hasText: 'Programmering - forelæsning' }).first().tap();
+    await page.waitForSelector('.hub-dialog', { timeout: 5000 });
+    await page.waitForTimeout(400);
+    const details = await page.locator('.hub-dialog').innerText();
+    log('school calendar: a tapped lesson shows its details', details.includes('Undervisere') && details.includes('Carla Dam'), details.replace(/\s+/g, ' ').slice(0, 90));
+    log('school calendar: details leave out links and e-mail', !details.includes('@') && !details.includes('http'));
+    await page.screenshot({ path: `${OUT}/73b-skole-time-detaljer.png` });
+    await page.evaluate(() => document.documentElement.dataset.theme = 'dark');
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: `${OUT}/73c-skole-time-detaljer-dark.png` });
+    await page.evaluate(() => document.documentElement.dataset.theme = 'light');
+    await page.locator('.hub-dialog [aria-label="Luk"]').tap();
+    await page.waitForTimeout(300);
+
     // The school changes rooms – "Opdater nu" finds it, and the page warns until someone marks it as seen.
     ics = ics.replaceAll('Auditorium 2', 'Auditorium 5').replaceAll('Grupperum 3.117', 'Grupperum 4.201');
     await open(page, '/skole/indstillinger');

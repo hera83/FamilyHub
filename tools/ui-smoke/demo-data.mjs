@@ -172,8 +172,24 @@ write('skole/skemaer.json', { schedules: [emmaSchedule, oliverSchedule, uniSched
 
 // An iCal file like Moodle's, with this week's and next week's lectures – served by smoke.mjs on http://localhost:5091/aau.ics.
 const icsTime = (offset, time) => { const d = day(offset); return `${ymd(d).replaceAll('-', '')}T${time.replace(':', '')}00`; };
+// Moodle's description: what the lesson is about, COURSE, TEACHER and a list of links – folded at 75 characters with a tab.
+const teachers = {
+  statistik: ['Anne Hansen (ah@math.example)'],
+  programmering: ['Bo Berg (bb@cs.example)', 'Carla Dam (cd@cs.example)'],
+  'lineær algebra': ['Dorte Kjær (dk@math.example)'],
+};
+const fold = line => line.length <= 75 ? line : line.slice(0, 75) + '\r\n\t' + fold(line.slice(75));
+const description = (n, title) => {
+  const course = title.split(/ - | \(/)[0];
+  const who = teachers[course.toLowerCase()];
+  if (!who) return null;
+  const text = [`${title} (Hold X)`, '', 'COURSE', `2. semester / ${course} - E26 [1]`, '', 'TEACHER', ...who, '', ' ', '',
+    'Links:', '------', `[1] https://moodle.example/local/planning/eventcourselink.php?c=${n}&amp;e=1`, ''].join('\n');
+  const escaped = text.replaceAll('\\', '\\\\').replaceAll(';', '\\;').replaceAll(',', '\\,').replaceAll('\n', '\\n');
+  return fold(`DESCRIPTION:${escaped}`) + '\r\n\t';
+};
 const lecture = (n, offset, from, to, title, place) => [
-  'BEGIN:VEVENT', `UID:demo-${n}@moodle.example`, `SUMMARY:${title}`, place ? `LOCATION:${place.replaceAll(',', '\\,')}` : null,
+  'BEGIN:VEVENT', `UID:demo-${n}@moodle.example`, `SUMMARY:${title}`, description(n, title), place ?`LOCATION:${place.replaceAll(',', '\\,')}` : null,
   `DTSTART;TZID=Europe/Copenhagen:${icsTime(offset, from)}`, `DTEND;TZID=Europe/Copenhagen:${icsTime(offset, to)}`, 'END:VEVENT',
 ].filter(Boolean).join('\r\n');
 let lectureNo = 0;

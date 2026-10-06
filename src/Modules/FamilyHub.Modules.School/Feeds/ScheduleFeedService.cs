@@ -12,7 +12,8 @@ namespace FamilyHub.Modules.School.Feeds;
 
 /// <summary>A lesson from the school's calendar, in the household's own time (Copenhagen).</summary>
 /// <param name="Key">The feed's key for the lesson (see <see cref="IcsOccurrence.Key"/>) – null in caches from before it existed.</param>
-public sealed record FeedEvent(DateTime Start, DateTime End, string Title, string? Location, string? Key = null);
+/// <param name="Description">The calendar's description – shown when the lesson is tapped (<see cref="LessonDetails"/>).</param>
+public sealed record FeedEvent(DateTime Start, DateTime End, string Title, string? Location, string? Key = null, string? Description = null);
 
 /// <summary>Why a calendar link could not be read – shown with an InfoBox or under the field, never as a toast.</summary>
 public enum FeedProblem
@@ -228,7 +229,8 @@ public sealed partial class ScheduleFeedService
                 TimeZoneInfo.ConvertTime(o.End, clock.TimeZone).DateTime,
                 o.Title,
                 o.Location,
-                o.Key))];
+                o.Key,
+                o.Description))];
         }
         catch (IcsFormatException ex)
         {

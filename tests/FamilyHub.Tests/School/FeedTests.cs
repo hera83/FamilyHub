@@ -14,7 +14,7 @@ namespace FamilyHub.Tests.School;
 
 public sealed class FeedTests : IDisposable
 {
-    /// <summary>Like Moodle's export: UTC times (CEST is UTC+2 in October), a deadline without length and an all-day event.</summary>
+    /// <summary>Like Moodle's export: UTC times (CEST is UTC+2 in October), a folded description, a deadline without length and an all-day event.</summary>
     internal const string Moodle = """
         BEGIN:VCALENDAR
         VERSION:2.0
@@ -30,6 +30,9 @@ public sealed class FeedTests : IDisposable
         BEGIN:VEVENT
         UID:2@moodle.aau.dk
         SUMMARY:Statistik - øvelser
+        DESCRIPTION:Statistik 2 (Hold X)\n\nCOURSE\n3. semester / Statisti
+        	k - E26 [1]\n\nTEACHER\nAnne Hansen (ah@math.aau.dk)\nBo Berg (bb@math.aau.dk)\n\n \n\nLinks:\n------\n[1] https://www.moodle.aau.dk/local/planning/eventcourselink.php?c=1&amp\;e=2\n
+        	
         DTSTART:20261006T061500Z
         DTEND:20261006T100000Z
         END:VEVENT
@@ -139,6 +142,16 @@ public sealed class FeedTests : IDisposable
         Assert.Equal("Fib 14, lokale 2.1", first.Location);
         Assert.Equal(new DateTimeOffset(2026, 10, 5, 8, 15, 0, TimeSpan.FromHours(2)), first.Start);
         Assert.Equal(TimeSpan.FromMinutes(225), first.End - first.Start);
+    }
+
+    [Fact]
+    public void A_description_keeps_its_line_breaks_and_is_unfolded()
+    {
+        var exercises = Parse(Moodle).Single(l => l.Title == "Statistik - øvelser");
+
+        Assert.StartsWith("Statistik 2 (Hold X)\n\nCOURSE\n3. semester / Statistik - E26 [1]\n\nTEACHER\nAnne Hansen", exercises.Description);
+        Assert.EndsWith("eventcourselink.php?c=1&amp;e=2", exercises.Description);
+        Assert.Null(Parse(Moodle)[0].Description);
     }
 
     [Fact]
@@ -268,7 +281,7 @@ public sealed class FeedTests : IDisposable
 
     private static string ScheduleRulesText(SchoolPeriod period) => ScheduleRules.TimeText(period);
 
-    private static SchoolSchedule University(IReadOnlyList<SchoolSubject>? subjects = null) => new SchoolSchedule
+    internal static SchoolSchedule University(IReadOnlyList<SchoolSubject>? subjects = null) => new SchoolSchedule
     {
         Level = SchoolLevel.University,
         Grade = 3,

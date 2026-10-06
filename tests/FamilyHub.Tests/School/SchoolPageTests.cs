@@ -325,6 +325,47 @@ public sealed class SchoolPageTests : BunitContext
     }
 
     [Fact]
+    public async Task A_lesson_from_the_calendar_is_tapped_and_its_details_are_shown()
+    {
+        await household.UpdateAsync(h => h with { Members = [emma] });
+        var schedule = await School.AddAsync(new SchoolSchedule
+        {
+            MemberId = emma.Id,
+            Level = SchoolLevel.University,
+            Grade = 3,
+            Periods = PeriodPlanner.StandardDay(SchoolLevel.University),
+            FeedUrl = "https://www.moodle.aau.dk/calendar/export_execute.php?authtoken=hemmelig",
+        });
+        Http.Respond(FeedTests.Moodle);
+        await Feeds.SaveAsync(schedule.Id, await Feeds.FetchAsync(schedule.FeedUrl!));
+
+        var cut = Render<SchoolPage>();
+        cut.FindAll(".st-cell__press").First(p => p.TextContent.Contains("Statistik - øvelser")).Click();
+
+        var dialog = cut.Find(".hub-dialog");
+        Assert.Equal("Statistik - øvelser", dialog.QuerySelector(".hub-dialog__title")!.TextContent);
+        Assert.Contains("Tirsdag 6. oktober · 08:15–12:00", dialog.TextContent);
+        Assert.Equal(["Om timen", "Kursus", "Undervisere"], dialog.QuerySelectorAll(".sl-row__label").Select(l => l.TextContent));
+        Assert.Contains("Bo Berg", dialog.TextContent);
+        Assert.DoesNotContain("@", dialog.TextContent);
+        Assert.DoesNotContain("https", dialog.TextContent);
+
+        cut.Find(".hub-dialog [aria-label='Luk']").Click();
+        Assert.Empty(cut.FindAll(".hub-dialog"));
+    }
+
+    [Fact]
+    public async Task A_fixed_timetable_has_no_details_to_tap()
+    {
+        await WithTwoChildrenAsync();
+
+        var cut = Render<SchoolPage>();
+
+        Assert.NotEmpty(cut.FindAll(".st-lesson"));
+        Assert.Empty(cut.FindAll(".st-cell__press"));
+    }
+
+    [Fact]
     public async Task With_a_link_the_schedule_is_bound_to_the_calendar_and_nothing_can_be_edited()
     {
         await household.UpdateAsync(h => h with { Members = [emma] });

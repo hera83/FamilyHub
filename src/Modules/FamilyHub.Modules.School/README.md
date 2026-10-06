@@ -57,6 +57,11 @@ Under skemaets indstillinger: **Hent skemaet fra et link → Tilføj link**.
 - **Visningen** viser ugens rigtige timer: hver time står i de rækker, den overlapper (en forelæsning 08:15–12:00 står i begge
   moduler). Har timen sin egen tid, står den under navnet (»10:15–12:00 · Auditorium 1«). Flere timer i samme række: »+1 mere«.
   Timer, der ikke rammer nogen række, står under tabellen i »Uden for skemaets tider«.
+- **Detaljer om en time:** kun i skemaer med link er hver time på skolesiden et trykmål (`SchoolTimetable.OnLessonClick`),
+  ligesom timerne under »Uden for skemaets tider«. `LessonDialog` viser tid, sted og kalenderens beskrivelse – læst af
+  `LessonDetails.Sections`: Moodles blokke (»COURSE«, »TEACHER«) bliver »Kursus« og »Underviser(e)«, første blok »Om timen«.
+  Links, linknumre (»[1]«) og e-mailadresser udelades – skærmen kan ikke åbne dem. Flere timer i én celle vises alle; en
+  ændring står øverst. Beskrivelsen gemmes i cachen (højst 2000 tegn) og tæller ikke som en ændring.
 - **Farver:** en time med samme navn som et fag får fagets farve; ellers en fast farve ud fra navnet før » - «, »(« eller »:«
   (`SchoolWeek.SubjectFor`) – »Programmering (PBL)« og »Programmering - forelæsning« får samme farve.
 - **Udeladt:** heldagsbegivenheder, aflyste timer og alt under 10 minutter (Moodles afleveringsfrister har ingen længde).

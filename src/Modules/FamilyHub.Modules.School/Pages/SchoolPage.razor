@@ -48,7 +48,7 @@
                 }
 
                 <HubCard Class="st-page__card">
-                    <SchoolTimetable View="selected" Today="today" Now="time" />
+                    <SchoolTimetable View="selected" Today="today" Now="time" OnLessonClick="ShowLesson" />
                 </HubCard>
 
                 @if (selected.Outside is { Count: > 0 } outside)
@@ -58,14 +58,18 @@
                             @foreach (var lesson in outside)
                             {
                                 <li>
-                                    <span class="st-outside__when hub-numeric">@ScheduleRules.DayName(lesson.Start.DayOfWeek) @DanishFormat.TimeRange(TimeOnly.FromDateTime(lesson.Start), TimeOnly.FromDateTime(lesson.End))</span>
-                                    <span>@lesson.Title@(lesson.Location is { } place ? $" · {place}" : null)</span>
+                                    <HubPressable Class="st-outside__press" OnClick="() => details = [selected.Details(lesson)]" AriaLabel="@($"Vis detaljer: {lesson.Title}")">
+                                        <span class="st-outside__when hub-numeric">@ScheduleRules.DayName(lesson.Start.DayOfWeek) @DanishFormat.TimeRange(TimeOnly.FromDateTime(lesson.Start), TimeOnly.FromDateTime(lesson.End))</span>
+                                        <span>@lesson.Title@(lesson.Location is { } place ? $" · {place}" : null)</span>
+                                    </HubPressable>
                                 </li>
                             }
                         </ul>
                     </HubCard>
                 }
             </div>
+
+            <LessonDialog Lessons="details" OnClose="() => details = null" />
         }
     </ChildContent>
 </HubPage>
@@ -82,6 +86,7 @@
     private DayOfWeek? today;
     private TimeOnly time;
     private IDisposable? tick;
+    private IReadOnlyList<CalendarLesson>? details;
 
     /// <summary>"Uge 41 · ulige uge" – at the weekend it is next week that matters.</summary>
     private string? Subtitle
@@ -157,6 +162,9 @@
 
     // The box goes away on every screen – the result is visible, so no message.
     private Task AcknowledgeAsync() => selected is { } week ? Feeds.AcknowledgeAsync(week.Schedule.Id) : Task.CompletedTask;
+
+    // Only schedules with a calendar link have details – the timetable only offers the tap there.
+    private void ShowLesson(TimetableCell cell) => details = selected?.CalendarLessonsAt(cell.Day, cell.Period);
 
     private void Select(Guid id)
     {

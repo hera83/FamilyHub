@@ -19,8 +19,10 @@
     list-style: none;
 }
 
-.st-outside li {
+.st-outside ::deep .st-outside__press {
     display: flex;
+    align-items: center;
+    min-height: var(--hub-touch-min);
     flex-wrap: wrap;
     gap: var(--hub-space-1) var(--hub-space-4);
 }

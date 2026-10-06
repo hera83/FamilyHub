@@ -9,7 +9,8 @@ namespace FamilyHub.Modules.School.Feeds;
 /// Stays the same when the lesson is moved or renamed, so a change can be told from "cancelled + new": the UID – plus the
 /// original start for one occurrence of a repeating event. Null when the feed has no UIDs.
 /// </param>
-public sealed record IcsOccurrence(DateTimeOffset Start, DateTimeOffset End, string Title, string? Location, string? Key = null);
+/// <param name="Description">The event's description with its line breaks (see <see cref="LessonDetails"/>) – null when empty.</param>
+public sealed record IcsOccurrence(DateTimeOffset Start, DateTimeOffset End, string Title, string? Location, string? Key = null, string? Description = null);
 
 /// <summary>The text was not an iCalendar file (e.g. a login page from an expired link).</summary>
 public sealed class IcsFormatException(string message) : Exception(message);
@@ -29,6 +30,9 @@ public static partial class IcsParser
     public static readonly TimeSpan MaxLength = TimeSpan.FromHours(12);
 
     private const int MaxOccurrencesPerSeries = 2000;
+
+    /// <summary>Moodle's are a few hundred characters – a longer one is cut, so the cache stays small.</summary>
+    public const int MaxDescriptionLength = 2000;
 
     private sealed record Property(string Name, IReadOnlyDictionary<string, string> Parameters, string Value);
 
@@ -71,6 +75,9 @@ public static partial class IcsParser
 
             var title = Unescape(Get(properties, "SUMMARY")?.Value) is { Length: > 0 } summary ? summary : "Uden titel";
             var location = Unescape(Get(properties, "LOCATION")?.Value) is { Length: > 0 } place ? place : null;
+            var description = UnescapeText(Get(properties, "DESCRIPTION")?.Value) is { Length: > 0 } about
+                ? about.Length > MaxDescriptionLength ? about[..MaxDescriptionLength] : about
+                : null;
             var uid = Get(properties, "UID")?.Value;
             var isOverride = Get(properties, "RECURRENCE-ID") is not null;
             var repeats = !isOverride && Get(properties, "RRULE") is not null;
@@ -92,7 +99,7 @@ public static partial class IcsParser
                         : repeats ? $"{uid}@{at.UtcTicks}"
                         : originalStart is { } original ? $"{uid}@{original.UtcTicks}"
                         : uid;
-                    result.Add(new IcsOccurrence(at, end, title, location, key));
+                    result.Add(new IcsOccurrence(at, end, title, location, key, description));
                 }
             }
         }
@@ -244,9 +251,32 @@ public static partial class IcsParser
     private static Property? Get(List<Property> properties, string name) => properties.FirstOrDefault(p => p.Name == name);
 
     /// <summary>"Lokale 2.1\, Fib 14" → "Lokale 2.1, Fib 14". Line breaks become spaces – a cell has one line.</summary>
-    private static string Unescape(string? value) => value is null
-        ? ""
-        : value.Replace("\\n", " ").Replace("\\N", " ").Replace("\\,", ",").Replace("\\;", ";").Replace("\\\\", "\\").Trim();
+    private static string Unescape(string? value) => UnescapeText(value).Replace('\n', ' ').Trim();
+
+    /// <summary>The text with its line breaks: "\n" is a new line, "\," a comma, "\\" a backslash.</summary>
+    private static string UnescapeText(string? value)
+    {
+        if (value is null)
+        {
+            return "";
+        }
+
+        var text = new StringBuilder(value.Length);
+        for (var i = 0; i < value.Length; i++)
+        {
+            if (value[i] == '\\' && i + 1 < value.Length)
+            {
+                i++;
+                text.Append(value[i] is 'n' or 'N' ? '\n' : value[i]);
+            }
+            else
+            {
+                text.Append(value[i]);
+            }
+        }
+
+        return text.ToString().Trim();
+    }
 
     // ------------------------------------------------------------------ times
 

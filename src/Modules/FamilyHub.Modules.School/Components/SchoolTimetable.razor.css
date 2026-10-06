@@ -209,9 +209,9 @@ tbody tr:last-child .st-cell--today {
     font-weight: var(--hub-weight-bold);
 }
 
-/* ---- Editing (settings only) ---- */
+/* ---- Touch targets: editing (settings) and a calendar lesson's details ---- */
 
-.st-table--editable ::deep .st-cell__press {
+.st-table ::deep .st-cell__press {
     height: 100%;
     min-height: 3.75rem;
 }
@@ -238,7 +238,7 @@ tbody tr:last-child .st-cell--today {
         color: var(--hub-accent-strong);
     }
 
-    .st-table--editable ::deep .st-cell__press:hover .st-lesson {
+    .st-table ::deep .st-cell__press:hover .st-lesson {
         box-shadow: 0 0 0 2px var(--hub-border-strong);
     }
 }

@@ -1,0 +1,50 @@
+.sl-lessons {
+    display: flex;
+    flex-direction: column;
+    gap: var(--hub-space-6);
+}
+
+.sl-lesson {
+    display: flex;
+    flex-direction: column;
+    gap: var(--hub-space-4);
+}
+
+/* Several lessons in one cell: a line between them. */
+.sl-lesson + .sl-lesson {
+    padding-top: var(--hub-space-6);
+    border-top: 1px solid var(--hub-border);
+}
+
+.sl-lesson__title {
+    margin: 0;
+    font-size: var(--hub-text-lg);
+}
+
+.sl-row {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--hub-space-3);
+    margin: 0;
+    font-size: var(--hub-text-md);
+}
+
+.sl-row ::deep .hub-icon {
+    flex: none;
+    width: 1.5rem;
+    height: 1.5rem;
+    color: var(--hub-text-muted);
+}
+
+.sl-row__text {
+    display: flex;
+    flex-direction: column;
+    gap: var(--hub-space-1);
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.sl-row__label {
+    color: var(--hub-text-muted);
+    font-size: var(--hub-text-sm);
+}
