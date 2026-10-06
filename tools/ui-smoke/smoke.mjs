@@ -11,7 +11,8 @@
 // Environment variables:
 //   FAMILYHUB_URL   default http://localhost:5080
 //   BROWSER_PATH    default: installed Chrome, else Edge
-import { existsSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { createServer } from 'node:http';
 import { chromium } from 'playwright-core';
 
 const BASE = process.env.FAMILYHUB_URL || 'http://localhost:5080';
@@ -708,6 +709,180 @@ async function open(page, path) {
   log('screen saver: the waking key typed nothing', (await field.inputValue()) === '', JSON.stringify(await field.inputValue()));
 
   await context.close();
+}
+
+// ---------------------------------------------------------------- school (Skole) – needs the demo data's timetables
+{
+  const { context, page } = await newPage();
+  await open(page, '/skole');
+  if (await page.locator('.st-table').count() === 0) {
+    log('school: demo timetables found (run node demo-data.mjs)', false);
+  } else {
+    await page.locator('.st-tab', { hasText: 'Emma' }).tap();
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: `${OUT}/50-skole.png` });
+    const days = await page.locator('.st-day__name').allInnerTexts();
+    log('school: Monday to Friday across the top', days.join(',').toLowerCase() === 'mandag,tirsdag,onsdag,torsdag,fredag', days.join(','));
+    log('school: times down the side', (await page.locator('.st-time__range').first().innerText()) === '08:00–08:45');
+    log('school: read-only (no buttons in the table)', (await page.locator('.st-table button').count()) === 0);
+    const table = await page.locator('.st-table').boundingBox();
+    log('school: the whole week fits on the kitchen screen', table.y + table.height <= 1080, `table bottom ${Math.round(table.y + table.height)}`);
+
+    // Tap another child's tab with a finger.
+    const oliver = page.locator('.st-tab', { hasText: 'Oliver' });
+    await oliver.tap();
+    await page.waitForTimeout(400);
+    log('school: a tap on a tab shows that child', (await oliver.getAttribute('aria-selected')) === 'true');
+    await page.screenshot({ path: `${OUT}/51-skole-oliver.png` });
+
+    await page.evaluate(() => document.documentElement.dataset.theme = 'dark');
+    await page.locator('.st-tab', { hasText: 'Emma' }).tap();
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: `${OUT}/52-skole-dark.png` });
+    await page.evaluate(() => document.documentElement.dataset.theme = 'light');
+
+    // Settings: the list, then Emma's schedule.
+    await open(page, '/skole/indstillinger');
+    await page.screenshot({ path: `${OUT}/53-skole-indstillinger.png` });
+
+    // "Tilføj skema": the grade follows the kind of school (folkeskole 0–10, gymnasium 1.g–3.g, universitet semestre).
+    await page.locator('.hub-btn', { hasText: 'Tilføj skema' }).tap();
+    await page.waitForTimeout(500);
+    await page.locator('.hub-dialog .hub-choice__option', { hasText: 'Gymnasium' }).tap();
+    await page.waitForTimeout(300);
+    const gym = (await page.locator('.hub-dialog .hub-stepper__value').innerText()).trim();
+    log('school: gymnasium years (1.g)', gym === '1.g', gym);
+    await page.screenshot({ path: `${OUT}/53b-skole-tilfoej-gymnasium.png` });
+    await page.locator('.hub-dialog .hub-choice__option', { hasText: 'Universitet' }).tap();
+    await page.waitForTimeout(300);
+    const uni = (await page.locator('.hub-dialog .hub-stepper__value').innerText()).trim();
+    log('school: university semesters, no class letter', uni === '1. semester' && (await page.locator('.hub-dialog .hub-field__label', { hasText: /^Klasse$/ }).count()) === 0, uni);
+    await page.locator('.hub-dialog .hub-btn', { hasText: 'Annuller' }).tap();
+    await page.waitForTimeout(300);
+    await page.locator('.hub-list__row', { hasText: 'Emma' }).tap();
+    await page.waitForSelector('.st-table--editable', { timeout: 5000 });
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: `${OUT}/54-skole-rediger.png`, fullPage: true });
+
+    // Tap a lesson -> its dialog, with no keyboard (nothing has to be typed).
+    await page.locator('.st-cell__press').first().tap();
+    await page.waitForTimeout(500);
+    log('school: tapping a lesson opens it', await page.locator('.hub-dialog').isVisible());
+    log('school: no keyboard when the lesson opens', (await page.locator('.hub-osk[data-visibility="expanded"]').count()) === 0);
+    await page.screenshot({ path: `${OUT}/55-skole-time.png` });
+    await page.locator('.hub-dialog .hub-btn', { hasText: 'Annuller' }).tap();
+    await page.waitForTimeout(300);
+
+    // Paint: pick Musik and tap an empty lesson (Wednesday, 7th).
+    await page.locator('.hub-choice__option', { hasText: 'Musik' }).tap();
+    const empty = page.locator('[aria-label="Onsdag, 7. time: ingen time"]');
+    await empty.tap();
+    await page.waitForTimeout(500);
+    log('school: painting a subject onto a lesson', (await page.locator('[aria-label="Onsdag, 7. time: Musik"]').count()) === 1);
+    await page.locator('.hub-choice__option', { hasText: 'Ryd' }).tap();
+    await page.locator('[aria-label="Onsdag, 7. time: Musik"]').tap();
+    await page.waitForTimeout(500);
+    log('school: clearing a lesson again', (await page.locator('[aria-label="Onsdag, 7. time: ingen time"]').count()) === 1);
+    await page.locator('.hub-choice__option', { hasText: 'Redigér' }).tap();
+
+    // Add a break: steppers and choices only.
+    await page.locator('.hub-btn', { hasText: 'Tilføj pause' }).tap();
+    await page.waitForTimeout(500);
+    await page.screenshot({ path: `${OUT}/56-skole-pause.png` });
+    log('school: break dialog without keyboard', (await page.locator('.hub-dialog input').count()) === 0);
+    await page.locator('.hub-dialog .hub-btn', { hasText: 'Annuller' }).tap();
+
+    await page.evaluate(() => document.documentElement.dataset.theme = 'dark');
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: `${OUT}/57-skole-rediger-dark.png`, fullPage: true });
+  }
+  await context.close();
+}
+{
+  const { context, page } = await newPage({ viewport: { width: 1280, height: 1024 } });
+  await open(page, '/skole');
+  await page.screenshot({ path: `${OUT}/58-skole-1280x1024.png` });
+  await context.close();
+}
+
+// ---------------------------------------------------------------- school calendar link (iCal) – Mette at university
+{
+  // A tiny "school server" with the demo data's Moodle-like calendar.
+  const icsPath = './demo-data/skole/demo-kalender.ics';
+  let ics = existsSync(icsPath) ? readFileSync(icsPath, 'utf8') : null;
+  const server = ics
+    ? createServer((req, res) => { res.writeHead(200, { 'Content-Type': 'text/calendar; charset=utf-8' }); res.end(ics); }).listen(5091)
+    : null;
+  const { context, page } = await newPage();
+  await open(page, '/skole/indstillinger');
+  const mette = page.locator('.hub-list__row', { hasText: 'Mette' });
+  if (!server || (await mette.count()) === 0) {
+    log('school calendar: demo university schedule found (run node demo-data.mjs)', false);
+  } else {
+    await mette.tap();
+    await page.waitForSelector('.st-table--editable', { timeout: 5000 });
+    await page.waitForTimeout(400);
+    await page.locator('.hub-btn', { hasText: 'Tilføj link' }).tap();
+    await page.waitForTimeout(500);
+    await page.screenshot({ path: `${OUT}/70-skole-link.png` });
+
+    // A wrong link gets a calm message under the field.
+    const field = page.locator('.hub-dialog input');
+    await field.fill('https://localhost:1/findes-ikke.ics');
+    await page.locator('.hub-dialog .hub-btn', { hasText: 'Hent skema' }).tap();
+    await page.waitForSelector('.hub-dialog .hub-field__error', { timeout: 40000 });
+    log('school calendar: a link that fails is explained under the field', (await page.locator('.hub-dialog .hub-field__error').count()) === 1,
+      (await page.locator('.hub-dialog .hub-field__error').innerText()).slice(0, 60));
+
+    await field.fill('http://localhost:5091/aau.ics'); // a real webcal:// link becomes https://
+    await page.locator('.hub-dialog .hub-btn', { hasText: 'Hent skema' }).tap();
+    await page.waitForTimeout(1500);
+    const lessons = await page.locator('.st-lesson__subject').allInnerTexts();
+    log('school calendar: lessons fetched from the link', lessons.some(t => t.startsWith('Statistik')), lessons.slice(0, 3).join(' | '));
+    log('school calendar: the private link is not shown', !(await page.content()).includes('aau.ics'));
+    await page.screenshot({ path: `${OUT}/71-skole-link-rediger.png`, fullPage: true });
+
+    await open(page, '/skole');
+    await page.locator('.st-tab', { hasText: 'Mette' }).tap();
+    await page.waitForTimeout(500);
+    await page.screenshot({ path: `${OUT}/72-skole-universitet.png` });
+    log('school calendar: lessons outside the rows are listed', await page.locator('.st-outside').count() === 1 || (await page.locator('.st-lesson').count()) > 0);
+    await page.evaluate(() => document.documentElement.dataset.theme = 'dark');
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: `${OUT}/73-skole-universitet-dark.png` });
+    await page.evaluate(() => document.documentElement.dataset.theme = 'light');
+
+    // The school changes rooms – "Opdater nu" finds it, and the page warns until someone marks it as seen.
+    ics = ics.replaceAll('Auditorium 2', 'Auditorium 5').replaceAll('Grupperum 3.117', 'Grupperum 4.201');
+    await open(page, '/skole/indstillinger');
+    await page.locator('.hub-list__row', { hasText: 'Mette' }).tap();
+    await page.waitForSelector('.st-table', { timeout: 5000 });
+    await page.locator('.hub-btn', { hasText: 'Opdater nu' }).tap();
+    await page.waitForTimeout(1500);
+    await open(page, '/skole');
+    await page.locator('.st-tab', { hasText: 'Mette' }).tap();
+    await page.waitForTimeout(500);
+    const warning = page.locator('.st-changes');
+    log('school calendar: a change this week is warned about', (await warning.count()) === 1,
+      (await warning.count()) ? (await warning.innerText()).replace(/\s+/g, ' ').slice(0, 90) : 'no warning');
+    log('school calendar: the changed lessons are marked', (await page.locator('.st-lesson--changed').count()) > 0);
+    log('school calendar: the tab shows a warning sign', (await page.locator('.st-tab__alert').count()) === 1);
+    await page.screenshot({ path: `${OUT}/74-skole-aendret.png` });
+    await page.evaluate(() => document.documentElement.dataset.theme = 'dark');
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: `${OUT}/75-skole-aendret-dark.png` });
+    await page.evaluate(() => document.documentElement.dataset.theme = 'light');
+    await open(page, '/');
+    await page.screenshot({ path: `${OUT}/76-forside-aendret.png` });
+    await open(page, '/skole');
+    await page.locator('.st-tab', { hasText: 'Mette' }).tap();
+    await page.waitForTimeout(400);
+    await page.locator('.hub-btn', { hasText: 'Markér som set' }).tap();
+    await page.waitForTimeout(600);
+    log('school calendar: "Markér som set" removes the warning', (await page.locator('.st-changes').count()) === 0 && (await page.locator('.st-tab__alert').count()) === 0);
+  }
+  await context.close();
+  server?.close();
 }
 
 // ---------------------------------------------------------------- night mode + other sizes

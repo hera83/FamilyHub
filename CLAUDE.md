@@ -11,7 +11,7 @@ Kommunikér med brugeren på dansk. Brugerfladen er på dansk.
 | Kør | `dotnet run --project src/FamilyHub.Web` → http://localhost:5080 |
 | Test | `dotnet test FamilyHub.slnx` (xUnit, bUnit, WebApplicationFactory) |
 | UI-røgtest | Kør appen, derefter `cd tools/ui-smoke; npm install; node smoke.mjs` – tjekker touch/tastatur og gemmer skærmbilleder, som du skal se på |
-| Demodata (kalender uden Google) | `cd tools/ui-smoke; node demo-data.mjs`, start appen med `$env:FamilyHub__DataDirectory = (Resolve-Path ./demo-data)` |
+| Demodata (kalender og skoleskemaer uden Google) | `cd tools/ui-smoke; node demo-data.mjs`, start appen med `$env:FamilyHub__DataDirectory = (Resolve-Path ./demo-data)` |
 | Ny EF-migration (madplan) | `dotnet ef migrations add <Navn> --project src/Modules/FamilyHub.Modules.MealPlan --output-dir Plan/Migrations` |
 | Kildepakke til serveren | `.\deploy\publish-server.ps1 -SkipDeploy` |
 | Deploy til serveren (Docker) | `.\deploy\publish-server.ps1 -Server homelab.local -User <bruger>` |
@@ -85,3 +85,4 @@ Læs `docs/standarder/` før en ny menu bygges. Det vigtigste:
 | `docs/dexcom.md` + `src/FamilyHub.Core/Dexcom/` | Blodsukker: `IDexcomService` (seneste måling, periode, status) mod familiens Dexcom-API, nøgle i `.env` |
 | `docs/mambeno.md` + `src/FamilyHub.Core/Mambeno/` | Mambeno-opskrifter: `IMambenoService` (kategorier, søgning med sider, opskrift, status) mod familiens Mambeno-API – kun læsning, nøgle i `.env` |
 | `src/Modules/FamilyHub.Modules.Dexcom/` | Menuen Dexcom: lige nu, graf (SVG) og tid i målområdet; `GlucoseMonitor` deler målingerne mellem skærme – se modulets README |
+| `src/Modules/FamilyHub.Modules.School/` | Menuen Skole: børnenes skoleskemaer – folkeskole, gymnasium og universitet (tabel med faneblade pr. barn, ulige/lige uger, valgfrit iCal-link fx Moodle), opsætning under tandhjulet, forsidekortet »Skole i dag« – se modulets README |

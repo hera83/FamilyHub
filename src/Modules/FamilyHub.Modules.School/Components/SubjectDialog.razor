@@ -1,0 +1,86 @@
+@*
+    A subject: the name is typed (it is free text), the colour is picked. Opened with "Tilføj fag" the field gets focus –
+    the user started that flow themselves.
+*@
+@inject SchoolScheduleService School
+@inject IToastService Toasts
+@inject ILogger<SubjectDialog> Logger
+
+<HubDialog Open="Open" OpenChanged="OpenChanged" Title="@(Subject is null ? "Tilføj fag" : "Redigér fag")" CloseOnBackdrop="false">
+    <ChildContent>
+        <HubTextField Label="Fag" Kind="InputKind.Text" Placeholder="Fx Morgensang" AutoFocus="@(Subject is null)" MaxLength="SchoolSubject.MaxNameLength"
+                      Error="@nameError" @bind-Value="name" OnEnter="EnterAsync" EnterLabel="@(Subject is null ? "Tilføj" : null)" />
+        <MemberColorPicker @bind-Value="color" />
+    </ChildContent>
+    <Footer>
+        <HubButton Variant="ButtonVariant.Quiet" OnClick="() => OpenChanged.InvokeAsync(false)">Annuller</HubButton>
+        <HubButton Variant="ButtonVariant.Primary" Icon="@(Subject is null ? IconName.Plus : IconName.Check)" OnClick="SaveAsync"
+                   ErrorMessage="Faget blev ikke gemt">@(Subject is null ? "Tilføj" : "Gem")</HubButton>
+    </Footer>
+</HubDialog>
+
+@code {
+    private bool wasOpen;
+    private string name = "";
+    private string? nameError;
+    private MemberColor color;
+
+    [Parameter]
+    public bool Open { get; set; }
+
+    [Parameter]
+    public EventCallback<bool> OpenChanged { get; set; }
+
+    [Parameter, EditorRequired]
+    public SchoolSchedule Schedule { get; set; } = default!;
+
+    /// <summary>The subject to change – null to add one.</summary>
+    [Parameter]
+    public SchoolSubject? Subject { get; set; }
+
+    protected override void OnParametersSet()
+    {
+        // A fresh form every time the dialog opens.
+        if (Open && !wasOpen)
+        {
+            name = Subject?.Name ?? "";
+            color = Subject?.Color ?? SubjectCatalog.NextColor(Schedule.Subjects);
+            nameError = null;
+        }
+
+        wasOpen = Open;
+    }
+
+    private Task EnterAsync() => Toasts.TryAsync(SaveAsync, "Faget blev ikke gemt", Logger);
+
+    private async Task SaveAsync()
+    {
+        var clean = name.Trim();
+        if (clean.Length == 0)
+        {
+            nameError = "Skriv et fag";
+            return;
+        }
+
+        if (Schedule.Subjects.Any(s => s.Id != Subject?.Id && string.Equals(s.Name, clean, StringComparison.OrdinalIgnoreCase)))
+        {
+            nameError = $"{clean} findes allerede";
+            return;
+        }
+
+        nameError = null;
+        if (Subject is { } subject)
+        {
+            await School.UpdateAsync(Schedule.Id, s => s with
+            {
+                Subjects = [.. s.Subjects.Select(x => x.Id == subject.Id ? x with { Name = clean, Color = color } : x)],
+            });
+        }
+        else
+        {
+            await School.UpdateAsync(Schedule.Id, s => s with { Subjects = [.. s.Subjects, new SchoolSubject { Name = clean, Color = color }] });
+        }
+
+        await OpenChanged.InvokeAsync(false);
+    }
+}

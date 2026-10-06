@@ -3,6 +3,7 @@ using FamilyHub.Core;
 using FamilyHub.Modules.Calendar;
 using FamilyHub.Modules.Dexcom;
 using FamilyHub.Modules.MealPlan;
+using FamilyHub.Modules.School;
 using FamilyHub.UI;
 using FamilyHub.UI.Modules;
 using FamilyHub.Web.Components;
@@ -25,7 +26,8 @@ builder.Services.AddFamilyHubUI();
 var modules = builder.Services.AddFamilyHubModules(builder.Configuration, modules => modules
     .Add<CalendarModule>()
     .Add<MealPlanModule>()
-    .Add<DexcomModule>());
+    .Add<DexcomModule>()
+    .Add<SchoolModule>());
 
 var app = builder.Build();
 

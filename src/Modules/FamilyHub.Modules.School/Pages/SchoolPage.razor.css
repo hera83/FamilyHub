@@ -1,0 +1,41 @@
+.st-page {
+    display: flex;
+    flex-direction: column;
+    gap: var(--hub-space-5);
+}
+
+/* The table brings its own spacing – the card only frames it. */
+.st-page ::deep .st-page__card {
+    padding: var(--hub-space-4) var(--hub-space-5) var(--hub-space-5);
+}
+
+/* Lessons from the calendar that fit in none of the rows. */
+.st-outside {
+    display: flex;
+    flex-direction: column;
+    gap: var(--hub-space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.st-outside li {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--hub-space-1) var(--hub-space-4);
+}
+
+.st-outside__when {
+    min-width: 12rem;
+    color: var(--hub-text-muted);
+    font-weight: var(--hub-weight-medium);
+}
+
+/* The calendar's changes this week – one line each. */
+.st-changes__list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--hub-space-1);
+    margin: 0;
+    padding-left: var(--hub-space-5);
+}

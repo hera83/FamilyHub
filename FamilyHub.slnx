@@ -8,6 +8,7 @@
     <Project Path="src/Modules/FamilyHub.Modules.Calendar/FamilyHub.Modules.Calendar.csproj" />
     <Project Path="src/Modules/FamilyHub.Modules.MealPlan/FamilyHub.Modules.MealPlan.csproj" />
     <Project Path="src/Modules/FamilyHub.Modules.Dexcom/FamilyHub.Modules.Dexcom.csproj" />
+    <Project Path="src/Modules/FamilyHub.Modules.School/FamilyHub.Modules.School.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/FamilyHub.Tests/FamilyHub.Tests.csproj" />

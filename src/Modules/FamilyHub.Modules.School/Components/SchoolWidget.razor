@@ -1,0 +1,95 @@
+@implements IDisposable
+@inject SchoolScheduleService School
+@inject ScheduleFeedService Feeds
+@inject IHouseholdService Household
+@inject IHubClock Clock
+
+@*
+    Home screen card: where each child is in the school day – "Møder 08:15" before the first lesson, "Fri 14:15" during
+    a lesson, "Pause til 10:15" between lessons, "Har fri" with no lessons or after the last. In the afternoon and evening
+    tomorrow's school day ("08:00–14:15"), so the morning can be planned the night before. Renders nothing at other times
+    or without schedules.
+*@
+@if (day is { } d)
+{
+    <HubCard Title="@(d.IsToday ? "Skole i dag" : "Skole i morgen")" Icon="IconName.GraduationCap" Href="@SchoolModule.Path.TrimStart('/')">
+        <ul class="st-widget">
+            @foreach (var row in rows)
+            {
+                <li class="st-widget__row @(row.Done ? "st-widget__row--done" : null)">
+                    <HubAvatar Name="@row.Name" Color="row.Color" Size="AvatarSize.Small" />
+                    <span class="st-widget__name">@row.Name</span>
+                    @if (row.Changed)
+                    {
+                        <span class="st-widget__alert" role="img" aria-label="Skemaet er ændret"><Icon Name="IconName.AlertTriangle" /></span>
+                    }
+                    <span class="st-widget__time hub-numeric">@row.Text</span>
+                </li>
+            }
+        </ul>
+    </HubCard>
+}
+
+@code {
+    private sealed record Row(string Name, MemberColor Color, string Text, bool Done, bool Changed);
+
+    private SchoolWidgetDay? day;
+    private IReadOnlyList<Row> rows = [];
+    private IDisposable? tick;
+
+    protected override void OnInitialized()
+    {
+        Refresh();
+        School.Changed += OnChanged;
+        Feeds.Changed += OnChanged;
+        Household.Changed += OnHouseholdChanged;
+
+        // Every minute: "Har fri" when a child has finished, and the switch from today to tomorrow.
+        tick = Clock.SubscribeMinuteTick(now => OnChanged());
+    }
+
+    private void Refresh()
+    {
+        var now = Clock.Now;
+        var time = TimeOnly.FromDateTime(now.DateTime);
+        var household = Household.Current;
+        var schedules = ScheduleLook.Ordered(School.Schedules, household);
+        SchoolWeek WeekOf(SchoolSchedule schedule, DateOnly date) =>
+            SchoolWeek.For(schedule, ScheduleRules.MondayOf(date), Feeds.EventsFor(schedule.Id));
+        SchoolDaySpan? SpanOf(SchoolSchedule schedule, DateOnly date) => WeekOf(schedule, date).DaySpan(date.DayOfWeek);
+
+        day = ScheduleRules.WidgetDay(schedules, DateOnly.FromDateTime(now.DateTime), time, SpanOf);
+        if (day is not { } d)
+        {
+            rows = [];
+            return;
+        }
+
+        rows = [.. schedules.Select(s =>
+        {
+            var lessons = WeekOf(s, d.Date).LessonsOn(d.Date.DayOfWeek);
+            var status = ScheduleRules.StatusAt(lessons, d.IsToday ? time : TimeOnly.MinValue);
+            var text = !d.IsToday && lessons.Count > 0
+                ? DanishFormat.TimeRange(lessons.Min(l => l.Start), lessons.Max(l => l.End))
+                : ScheduleRules.StatusText(status);
+            var free = status.State == SchoolDayState.Free;
+            return new Row(ScheduleLook.Name(s, household), ScheduleLook.Color(s, household), text, free, Feeds.ChangesFor(s.Id).Count > 0);
+        })];
+    }
+
+    private void OnChanged() => _ = InvokeAsync(() =>
+    {
+        Refresh();
+        StateHasChanged();
+    });
+
+    private void OnHouseholdChanged(HouseholdSettings settings) => OnChanged();
+
+    public void Dispose()
+    {
+        School.Changed -= OnChanged;
+        Feeds.Changed -= OnChanged;
+        Household.Changed -= OnHouseholdChanged;
+        tick?.Dispose();
+    }
+}

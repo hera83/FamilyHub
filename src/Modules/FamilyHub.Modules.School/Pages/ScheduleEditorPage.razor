@@ -1,0 +1,376 @@
+@attribute [Microsoft.AspNetCore.Components.Route(SchoolModule.EditorRoute)]
+@implements IDisposable
+@inject SchoolScheduleService School
+@inject ScheduleFeedService Feeds
+@inject IHouseholdService Household
+@inject IHubClock Clock
+@inject IToastService Toasts
+@inject NavigationManager Navigation
+@inject ILogger<ScheduleEditorPage> Logger
+
+@*
+    One child's schedule in the settings. Lessons: tap one to pick subject and note – or pick a subject in "Udfyld hurtigt"
+    and tap lessons one after another. Times and subjects below. Everything saves at once; removing offers "Fortryd".
+    Gymnasium and university can instead fetch the lessons from the school's calendar (an iCal link) – optional.
+    With a link the schedule is bound to it: lessons, times and subjects follow the calendar, and nothing can be edited here.
+*@
+<HubPage Title="@(schedule is null ? "Skema" : ScheduleLook.Title(schedule, household))" Subtitle="@schedule?.ClassName"
+         BackHref="@SchoolModule.SettingsPath.TrimStart('/')" BackLabel="Skoleskemaer" Width="PageWidth.Full">
+    <Actions>
+        @if (schedule is not null)
+        {
+            <HubButton Variant="ButtonVariant.Quiet" Icon="IconName.GraduationCap" Href="@SchoolModule.Path.TrimStart('/')">Vis skemaet</HubButton>
+        }
+    </Actions>
+    <ChildContent>
+        @if (schedule is null)
+        {
+            <EmptyState Icon="IconName.GraduationCap" Title="Skemaet findes ikke længere">
+                <ChildContent>Det kan være fjernet på en anden skærm.</ChildContent>
+                <Actions>
+                    <HubButton Href="@SchoolModule.SettingsPath.TrimStart('/')">Se skoleskemaer</HubButton>
+                </Actions>
+            </EmptyState>
+        }
+        else
+        {
+            <div class="se-page">
+                @if (schedule.Level.SupportsFeed())
+                {
+                    <HubSection Title="Hent skemaet fra et link"
+                                Description="Valgfrit. Har skolen en kalender, man kan abonnere på (iCal) – fx Moodle på universitetet – kan timerne hentes derfra og holde sig opdateret af sig selv.">
+                        <HubCard>
+                            <ChildContent>
+                                @if (!schedule.UsesFeed)
+                                {
+                                    <div>
+                                        <HubButton Icon="IconName.Link" OnClick="() => feedOpen = true">Tilføj link</HubButton>
+                                    </div>
+                                }
+                                else
+                                {
+                                    var status = Feeds.StatusOf(schedule.Id);
+                                    @if (status.Problem == FeedProblem.Rejected)
+                                    {
+                                        <InfoBox Tone="HubTone.Danger" Title="Linket virker ikke længere">Hent et nyt link fra skolens kalender, og vælg »Skift link«.</InfoBox>
+                                    }
+                                    else if (status.Problem != FeedProblem.None)
+                                    {
+                                        <InfoBox Tone="HubTone.Warning" Icon="IconName.WifiOff" Title="Kalenderen kunne ikke hentes">Family Hub prøver igen af sig selv om lidt.</InfoBox>
+                                    }
+                                    <div class="se-feed">
+                                        <span class="se-feed__icon"><Icon Name="IconName.Link" /></span>
+                                        <div>
+                                            <p class="se-feed__host">Henter fra @ScheduleFeedService.HostOf(schedule.FeedUrl!)</p>
+                                            <p class="hub-muted hub-small">@FeedStatusText(status)</p>
+                                            <p class="hub-muted hub-small">Timer og tider følger kalenderen og kan ikke rettes her. Fjern linket for at bruge det faste skema.</p>
+                                        </div>
+                                    </div>
+                                }
+                            </ChildContent>
+                            <Footer>
+                                @if (schedule.UsesFeed)
+                                {
+                                    <div class="se-feed__actions">
+                                        <HubButton Size="ButtonSize.Small" Icon="IconName.Refresh" OnClick="() => Feeds.RefreshAsync(Id)" ErrorMessage="Kalenderen blev ikke hentet">Opdater nu</HubButton>
+                                        <HubButton Size="ButtonSize.Small" Icon="IconName.Edit" OnClick="() => feedOpen = true">Skift link</HubButton>
+                                        <HubButton Variant="ButtonVariant.Quiet" Size="ButtonSize.Small" Icon="IconName.Trash" OnClick="RemoveFeedAsync" ErrorMessage="Linket blev ikke fjernet">Fjern link</HubButton>
+                                    </div>
+                                }
+                            </Footer>
+                        </HubCard>
+                    </HubSection>
+                }
+
+                @if (schedule.UsesFeed)
+                {
+                    <HubSection Title="Timer" Description="Hentes fra kalender-linket – her ses denne uge. Rækkerne er de tider, timerne oftest ligger på.">
+                        <HubCard Class="se-timetable">
+                            <SchoolTimetable View="view!" />
+                        </HubCard>
+                    </HubSection>
+                }
+                else
+                {
+                    <HubSection Title="Timer" Description="Tryk på en time for at vælge fag. Skal mange timer have samme fag, så vælg faget herunder og tryk på timerne efter hinanden.">
+                        @if (schedule.Subjects.Count == 0)
+                        {
+                            <InfoBox Tone="HubTone.Neutral" Icon="IconName.BookOpen" Title="Tilføj fagene først">
+                                <ChildContent>Så kan de vælges i skemaet. På universitetet er det kurserne.</ChildContent>
+                                <Actions>
+                                    <HubButton Variant="ButtonVariant.Primary" Size="ButtonSize.Small" Icon="IconName.Plus" OnClick="() => OpenSubject(null)">Tilføj fag</HubButton>
+                                </Actions>
+                            </InfoBox>
+                        }
+                        else
+                        {
+                            <HubChoice TValue="string" Label="Udfyld hurtigt" Appearance="ChoiceAppearance.Chips" Options="brushOptions" @bind-Value="brush" />
+                        }
+                        <HubCard Class="se-timetable">
+                            <SchoolTimetable View="view!" OnCellClick="CellClickedAsync" />
+                        </HubCard>
+                    </HubSection>
+                }
+
+                @if (!schedule.UsesFeed)
+                {
+                    <div class="se-columns">
+                        <HubSection Title="Tider" Description="Pauser vises som et bånd hen over hele ugen.">
+                            <Actions>
+                                <HubButton Size="ButtonSize.Small" Icon="IconName.Plus" OnClick="AddLessonAsync" Disabled="!CanAddPeriod" ErrorMessage="Rækken blev ikke tilføjet">Tilføj @schedule.Level.LessonWord()</HubButton>
+                                <HubButton Size="ButtonSize.Small" Icon="IconName.Plus" OnClick="() => OpenPeriod(null)" Disabled="!CanAddPeriod">Tilføj pause</HubButton>
+                            </Actions>
+                            <ChildContent>
+                                <HubCard>
+                                    @if (schedule.Periods.Count == 0)
+                                    {
+                                        <EmptyState Compact="true" Icon="IconName.Clock" Title="Ingen tider endnu">Tilføj den første time.</EmptyState>
+                                    }
+                                    else
+                                    {
+                                        <HubList>
+                                            @foreach (var period in schedule.Periods)
+                                            {
+                                                var title = ScheduleRules.PeriodTitle(schedule, period);
+                                                <HubListItem Title="@title" Subtitle="@($"{ScheduleRules.TimeText(period)} · {PeriodPlanner.FormatDuration(period.Minutes)}")"
+                                                             Icon="@(period.IsBreak ? IconName.Sun : IconName.Clock)">
+                                                    <Trailing>
+                                                        <HubButton Variant="ButtonVariant.Quiet" Icon="IconName.Edit" AriaLabel="@($"Redigér {title}")" OnClick="() => OpenPeriod(period)" />
+                                                        <HubButton Variant="ButtonVariant.Quiet" Icon="IconName.Trash" AriaLabel="@($"Fjern {title}")" OnClick="() => RemovePeriodAsync(period)"
+                                                                   ErrorMessage="Rækken blev ikke fjernet" />
+                                                    </Trailing>
+                                                </HubListItem>
+                                            }
+                                        </HubList>
+                                    }
+                                </HubCard>
+                            </ChildContent>
+                        </HubSection>
+
+                        <HubSection Title="Fag" Description="Farven bruges i skemaet.">
+                            <Actions>
+                                <HubButton Size="ButtonSize.Small" Icon="IconName.Plus" OnClick="() => OpenSubject(null)" Disabled="schedule.Subjects.Count >= SchoolSchedule.MaxSubjects">Tilføj fag</HubButton>
+                            </Actions>
+                            <ChildContent>
+                                <HubCard>
+                                    @if (schedule.Subjects.Count == 0)
+                                    {
+                                        <EmptyState Compact="true" Icon="IconName.BookOpen" Title="Ingen fag endnu">Tilføj de fag, der står på skemaet.</EmptyState>
+                                    }
+                                    else
+                                    {
+                                        <HubList>
+                                            @foreach (var subject in schedule.Subjects)
+                                            {
+                                                <HubListItem Title="@subject.Name" Subtitle="@SubjectSummary(subject)">
+                                                    <Leading><span class="se-swatch" style="--st-color: @ScheduleLook.ColorVariable(subject)" aria-hidden="true"></span></Leading>
+                                                    <Trailing>
+                                                        <HubButton Variant="ButtonVariant.Quiet" Icon="IconName.Edit" AriaLabel="@($"Redigér {subject.Name}")" OnClick="() => OpenSubject(subject)" />
+                                                        <HubButton Variant="ButtonVariant.Quiet" Icon="IconName.Trash" AriaLabel="@($"Fjern {subject.Name}")" OnClick="() => RemoveSubjectAsync(subject)"
+                                                                   ErrorMessage="Faget blev ikke fjernet" />
+                                                    </Trailing>
+                                                </HubListItem>
+                                            }
+                                        </HubList>
+                                    }
+                                </HubCard>
+                            </ChildContent>
+                        </HubSection>
+                    </div>
+                }
+
+                <HubSection Title="Skole og klasse" Description="Ændrer kun navnet på skemaet – timer, tider og fag bliver, som de er.">
+                    <HubCard>
+                        <ChildContent>
+                            <ClassFields Level="schedule.Level" LevelChanged="ChangeLevelAsync" Grade="schedule.Grade" GradeChanged="ChangeGradeAsync"
+                                         ClassLetter="@schedule.ClassLetter" ClassLetterChanged="ChangeLetterAsync" />
+                        </ChildContent>
+                        <Footer>
+                            <HubButton Variant="ButtonVariant.Quiet" Icon="IconName.Trash" OnClick="RemoveScheduleAsync" ErrorMessage="Skemaet blev ikke fjernet">Fjern skemaet</HubButton>
+                        </Footer>
+                    </HubCard>
+                </HubSection>
+            </div>
+        }
+    </ChildContent>
+</HubPage>
+
+@* Outside HubPage, like the other modules' dialogs – so they are centred on the screen, not on the long page. *@
+@if (schedule is not null)
+{
+    <CellDialog @bind-Open="cellOpen" Schedule="schedule" Cell="editingCell" Week="week" />
+    <PeriodDialog @bind-Open="periodOpen" Schedule="schedule" Period="editingPeriod" />
+    <SubjectDialog @bind-Open="subjectOpen" Schedule="schedule" Subject="editingSubject" />
+    <FeedDialog @bind-Open="feedOpen" Schedule="schedule" />
+}
+
+@code {
+    private const string EditBrush = "";
+    private const string ClearBrush = "ryd";
+
+    private HouseholdSettings household = HouseholdSettings.Empty;
+    private SchoolSchedule? schedule;
+    private IReadOnlyList<ChoiceOption<string>> brushOptions = [];
+    private string brush = EditBrush;
+    private int week;
+    private SchoolWeek? view;
+    private bool feedOpen;
+
+    private bool cellOpen;
+    private TimetableCell? editingCell;
+    private bool periodOpen;
+    private SchoolPeriod? editingPeriod;
+    private bool subjectOpen;
+    private SchoolSubject? editingSubject;
+
+    [Parameter]
+    public Guid Id { get; set; }
+
+    private bool CanAddPeriod => schedule is { } s && s.Periods.Count < SchoolSchedule.MaxPeriods;
+
+    protected override void OnInitialized()
+    {
+        School.Changed += OnChanged;
+        Feeds.Changed += OnChanged;
+        Household.Changed += OnHouseholdChanged;
+    }
+
+    protected override void OnParametersSet() => Refresh();
+
+    private void Refresh()
+    {
+        household = Household.Current;
+        schedule = School.Find(Id);
+        var monday = ScheduleRules.DisplayedMonday(Clock.Today);
+        week = ScheduleRules.WeekOf(monday);
+        view = schedule is null ? null : SchoolWeek.For(schedule, monday, Feeds.EventsFor(schedule.Id), Feeds.ChangesFor(schedule.Id));
+        brushOptions =
+        [
+            new(EditBrush, "Redigér", IconName.Edit),
+            .. (schedule?.Subjects ?? []).Select(s => new ChoiceOption<string>(s.Id.ToString(), s.Name)),
+            new(ClearBrush, "Ryd", IconName.X),
+        ];
+
+        // A subject removed meanwhile can no longer be painted with.
+        if (brushOptions.All(o => o.Value != brush))
+        {
+            brush = EditBrush;
+        }
+    }
+
+    /// <summary>"4 timer om ugen", "2 moduler om ugen" – or "Ikke i skemaet denne uge".</summary>
+    private string SubjectSummary(SchoolSubject subject)
+    {
+        var count = ScheduleRules.LessonsOf(schedule!, subject.Id, week);
+        return count == 0 ? "Ikke i skemaet denne uge" : $"{schedule!.Level.LessonCount(count)} om ugen";
+    }
+
+    private async Task CellClickedAsync(TimetableCell cell)
+    {
+        if (brush == EditBrush)
+        {
+            editingCell = cell;
+            cellOpen = true;
+            return;
+        }
+
+        // Painting: the result is visible at once, so no message – only a failure gets a toast.
+        var subjectId = brush == ClearBrush ? (Guid?)null : Guid.Parse(brush);
+        await Toasts.TryAsync(() => School.UpdateAsync(Id, s =>
+        {
+            if (subjectId is not { } id)
+            {
+                return s.WithCell(new ScheduleCell { Day = cell.Day, PeriodId = cell.Period.Id });
+            }
+
+            var existing = s.CellAt(cell.Day, cell.Period.Id) ?? new ScheduleCell { Day = cell.Day, PeriodId = cell.Period.Id };
+            return s.WithCell(existing with { SubjectId = id, AlternatesWeekly = false, EvenWeekSubjectId = null });
+        }), "Timen blev ikke gemt", Logger);
+    }
+
+    /// <summary>"Opdateret i dag kl. 09:30 · 8 moduler denne uge · henter igen hver halve time".</summary>
+    private string FeedStatusText(FeedStatus status)
+    {
+        if (status.LastSuccess is not { } last)
+        {
+            return "Ikke hentet endnu.";
+        }
+
+        var day = DanishFormat.RelativeDay(DateOnly.FromDateTime(last.DateTime), Clock.Today);
+        return $"Opdateret {day.ToLower(DanishFormat.Culture)} kl. {DanishFormat.Time(TimeOnly.FromDateTime(last.DateTime))} · "
+            + $"{schedule!.Level.LessonCount(view?.LessonCount ?? 0)} denne uge · henter igen hver halve time.";
+    }
+
+    /// <summary>Back to the fixed timetable (kept all along) – with "Fortryd".</summary>
+    private async Task RemoveFeedAsync()
+    {
+        var before = schedule!;
+        await School.UpdateAsync(Id, s => s with { FeedUrl = null });
+        Toasts.Undoable("Kalender-linket er fjernet", () => School.UpdateAsync(Id, _ => before));
+    }
+
+    private void OpenPeriod(SchoolPeriod? period)
+    {
+        editingPeriod = period;
+        periodOpen = true;
+    }
+
+    private void OpenSubject(SchoolSubject? subject)
+    {
+        editingSubject = subject;
+        subjectOpen = true;
+    }
+
+    private Task AddLessonAsync() => School.UpdateAsync(Id, s => s with { Periods = PeriodPlanner.AddLesson(s.Periods) });
+
+    private async Task RemovePeriodAsync(SchoolPeriod period)
+    {
+        var before = schedule!;
+        var title = ScheduleRules.PeriodTitle(before, period);
+        await School.UpdateAsync(Id, s => s with { Periods = PeriodPlanner.Remove(s.Periods, period.Id) });
+        Toasts.Undoable($"{title} er fjernet", () => School.UpdateAsync(Id, _ => before));
+    }
+
+    private async Task RemoveSubjectAsync(SchoolSubject subject)
+    {
+        var before = schedule!;
+        await School.UpdateAsync(Id, s => s with { Subjects = [.. s.Subjects.Where(x => x.Id != subject.Id)] });
+        Toasts.Undoable($"{subject.Name} er fjernet", () => School.UpdateAsync(Id, _ => before));
+    }
+
+    private Task ChangeGradeAsync(int grade) =>
+        Toasts.TryAsync(() => School.UpdateAsync(Id, s => s with { Grade = grade }), "Klassen blev ikke gemt", Logger);
+
+    private Task ChangeLevelAsync(SchoolLevel level) =>
+        Toasts.TryAsync(() => School.UpdateAsync(Id, s => s with { Level = level, Grade = level.DefaultGrade() }), "Skolen blev ikke gemt", Logger);
+
+    private Task ChangeLetterAsync(string? letter) =>
+        Toasts.TryAsync(() => School.UpdateAsync(Id, s => s with { ClassLetter = letter }), "Klassen blev ikke gemt", Logger);
+
+    private async Task RemoveScheduleAsync()
+    {
+        var name = ScheduleLook.Name(schedule!, household);
+        if (await School.RemoveAsync(Id) is not { } removed)
+        {
+            return;
+        }
+
+        Navigation.NavigateTo(SchoolModule.SettingsPath.TrimStart('/'));
+        Toasts.Undoable($"Skemaet for {name} er fjernet", () => School.RestoreAsync(removed.Schedule, removed.Index));
+    }
+
+    private void OnChanged() => _ = InvokeAsync(() =>
+    {
+        Refresh();
+        StateHasChanged();
+    });
+
+    private void OnHouseholdChanged(HouseholdSettings settings) => OnChanged();
+
+    public void Dispose()
+    {
+        School.Changed -= OnChanged;
+        Feeds.Changed -= OnChanged;
+        Household.Changed -= OnHouseholdChanged;
+    }
+}

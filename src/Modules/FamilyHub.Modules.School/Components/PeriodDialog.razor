@@ -1,0 +1,124 @@
+@*
+    A row's times – with steppers in 5-minute steps, no keyboard. "Ryk de næste tider med" moves the rows after it,
+    so a longer lesson or a new break leaves no gaps or overlaps. Without Period it adds a break.
+*@
+@inject SchoolScheduleService School
+
+<HubDialog Open="Open" OpenChanged="OpenChanged" Title="@Title">
+    <ChildContent>
+        @if (Period is null)
+        {
+            <HubChoice TValue="Guid" Label="Efter" Appearance="ChoiceAppearance.Chips" Options="afterOptions" @bind-Value="afterId" />
+        }
+
+        @if (IsBreak)
+        {
+            <HubChoice TValue="string" Label="Navn" Appearance="ChoiceAppearance.Chips" Options="labelOptions" @bind-Value="label" />
+        }
+
+        <div class="st-period__times">
+            @if (Period is not null)
+            {
+                <NumberStepper TValue="int" Label="Starter" @bind-Value="start" Min="PeriodPlanner.EarliestStart" Max="PeriodPlanner.LatestStart"
+                               Step="PeriodPlanner.StepMinutes" Format="PeriodPlanner.FormatMinutes" DecreaseLabel="Tidligere" IncreaseLabel="Senere" />
+            }
+            <NumberStepper TValue="int" Label="Varighed" @bind-Value="minutes" Min="PeriodPlanner.StepMinutes" Max="PeriodPlanner.MaxMinutes"
+                           Step="PeriodPlanner.StepMinutes" Format="PeriodPlanner.FormatDuration" DecreaseLabel="Kortere" IncreaseLabel="Længere"
+                           Help="@EndHelp" />
+        </div>
+
+        @if (HasFollowing)
+        {
+            <HubSwitch Label="Ryk de næste tider med" Description="@MoveDescription" @bind-Value="moveFollowing" />
+        }
+    </ChildContent>
+    <Footer>
+        <HubButton Variant="ButtonVariant.Quiet" OnClick="() => OpenChanged.InvokeAsync(false)">Annuller</HubButton>
+        @if (Period is null)
+        {
+            <HubButton Variant="ButtonVariant.Primary" Icon="IconName.Plus" OnClick="SaveAsync" ErrorMessage="Pausen blev ikke tilføjet">Tilføj</HubButton>
+        }
+        else
+        {
+            <HubButton Variant="ButtonVariant.Primary" Icon="IconName.Check" OnClick="SaveAsync" ErrorMessage="Tiden blev ikke gemt">Gem</HubButton>
+        }
+    </Footer>
+</HubDialog>
+
+@code {
+    private bool wasOpen;
+    private IReadOnlyList<ChoiceOption<Guid>> afterOptions = [];
+    private IReadOnlyList<ChoiceOption<string>> labelOptions = [];
+    private Guid afterId;
+    private string label = "";
+    private int start;
+    private int minutes;
+    private bool moveFollowing = true;
+
+    [Parameter]
+    public bool Open { get; set; }
+
+    [Parameter]
+    public EventCallback<bool> OpenChanged { get; set; }
+
+    [Parameter, EditorRequired]
+    public SchoolSchedule Schedule { get; set; } = default!;
+
+    /// <summary>The row to change – null to add a break.</summary>
+    [Parameter]
+    public SchoolPeriod? Period { get; set; }
+
+    private bool IsBreak => Period?.IsBreak ?? true;
+
+    private string Title => Period is { } period ? ScheduleRules.PeriodTitle(Schedule, period) : "Tilføj pause";
+
+    /// <summary>The row the change starts from: the row itself – or the one the new break comes after.</summary>
+    private int AnchorIndex => Schedule.Periods.ToList().FindIndex(p => p.Id == (Period?.Id ?? afterId));
+
+    private bool HasFollowing => AnchorIndex >= 0 && AnchorIndex < Schedule.Periods.Count - 1;
+
+    private int StartMinutes => Period is null && Schedule.FindPeriod(afterId) is { } after ? PeriodPlanner.ToMinutes(after.End) : start;
+
+    private string EndHelp => $"{PeriodPlanner.FormatMinutes(StartMinutes)}–{PeriodPlanner.FormatMinutes(StartMinutes + minutes)}";
+
+    private string MoveDescription => Period is null
+        ? $"Rækkerne efter pausen bliver {PeriodPlanner.FormatDuration(minutes)} senere."
+        : "Rækkerne efter flytter lige så meget, som slutningen flytter.";
+
+    protected override void OnParametersSet()
+    {
+        // A fresh form every time the dialog opens.
+        if (Open && !wasOpen)
+        {
+            afterOptions = [.. Schedule.Periods.Select(p => new ChoiceOption<Guid>(p.Id, $"{ScheduleRules.PeriodTitle(Schedule, p)} ({DanishFormat.Time(p.End)})"))];
+            var lessons = Schedule.Periods.Where(p => !p.IsBreak).ToList();
+            afterId = (lessons.Count > 1 ? lessons[1] : Schedule.Periods.LastOrDefault())?.Id ?? Guid.Empty;
+
+            label = Period?.Label ?? PeriodPlanner.BreakLabels[0];
+            labelOptions = [.. PeriodPlanner.BreakLabels.Append(label).Distinct().Select(l => new ChoiceOption<string>(l, l))];
+            start = Period is { } period ? PeriodPlanner.ToMinutes(period.Start) : 8 * 60;
+            minutes = Period?.Minutes ?? PeriodPlanner.DefaultBreakMinutes;
+            moveFollowing = true;
+        }
+
+        wasOpen = Open;
+    }
+
+    private async Task SaveAsync()
+    {
+        var move = moveFollowing && HasFollowing;
+        if (Period is { } period)
+        {
+            await School.UpdateAsync(Schedule.Id, s => s with { Periods = PeriodPlanner.Change(s.Periods, period.Id, start, minutes, label, move) });
+        }
+        else
+        {
+            await School.UpdateAsync(Schedule.Id, s => s with
+            {
+                Periods = PeriodPlanner.InsertBreak(s.Periods, afterId == Guid.Empty ? null : afterId, label, minutes, move),
+            });
+        }
+
+        await OpenChanged.InvokeAsync(false);
+    }
+}

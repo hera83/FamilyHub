@@ -1,0 +1,38 @@
+@*
+    One tab per child: the avatar in their colour, the name, the class – and a short hint for today ("Fri 14:15"),
+    so the family sees when every child has finished without switching tab. The whole tab is the touch target.
+    A warning sign when the child's calendar has changes this week that nobody has marked as seen.
+*@
+<div class="st-tabs" role="tablist" aria-label="Skemaer">
+    @foreach (var tab in Tabs)
+    {
+        var selected = tab.Schedule.Id == SelectedId;
+        <HubPressable Class="@($"st-tab{(selected ? " st-tab--selected" : null)}")" OnClick="() => SelectedIdChanged.InvokeAsync(tab.Schedule.Id)"
+                      role="tab" aria-selected="@(selected ? "true" : "false")"
+                      style="@($"--st-tab-color: {MemberColors.CssVariable(tab.Color)}")">
+            <HubAvatar Name="@tab.Name" Color="tab.Color" />
+            <span class="st-tab__text">
+                <span class="st-tab__name">@tab.Name</span>
+                <span class="st-tab__meta hub-numeric">@tab.Schedule.ClassName@(tab.Hint is { } hint ? $" · {hint}" : null)</span>
+            </span>
+            @if (tab.Changed)
+            {
+                <span class="st-tab__alert" role="img" aria-label="Skemaet er ændret" title="Skemaet er ændret"><Icon Name="IconName.AlertTriangle" /></span>
+            }
+        </HubPressable>
+    }
+</div>
+
+@code {
+    /// <summary>A tab: the schedule, the child's name and colour, an optional hint ("Fri 14:15") – and whether it changed.</summary>
+    public sealed record Tab(SchoolSchedule Schedule, string Name, MemberColor Color, string? Hint, bool Changed = false);
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<Tab> Tabs { get; set; } = [];
+
+    [Parameter]
+    public Guid SelectedId { get; set; }
+
+    [Parameter]
+    public EventCallback<Guid> SelectedIdChanged { get; set; }
+}

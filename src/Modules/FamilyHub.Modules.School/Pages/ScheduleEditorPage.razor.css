@@ -1,0 +1,57 @@
+/* The page's sections, with the usual distance between them. */
+.se-page {
+    display: flex;
+    flex-direction: column;
+    gap: var(--hub-space-10);
+}
+
+/* The table brings its own spacing – the card only frames it. */
+.se-page ::deep .se-timetable {
+    padding: var(--hub-space-4) var(--hub-space-5) var(--hub-space-5);
+}
+
+/* Times and subjects side by side on the big screen, under each other on small ones. */
+.se-columns {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(26rem, 1fr));
+    gap: var(--hub-space-10) var(--hub-space-8);
+    align-items: start;
+}
+
+/* The subject's colour, like the stripe in the timetable. */
+.se-swatch {
+    display: block;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-left: 0.3rem solid var(--st-color);
+    border-radius: var(--hub-radius-sm);
+    background: color-mix(in srgb, var(--st-color) 18%, var(--hub-surface));
+}
+
+/* The calendar link: where it comes from and how fresh it is – never the link itself. */
+.se-feed {
+    display: flex;
+    align-items: center;
+    gap: var(--hub-space-4);
+}
+
+.se-feed__icon {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: var(--hub-touch-min);
+    height: var(--hub-touch-min);
+    border-radius: var(--hub-radius-md);
+    background: var(--hub-accent-soft);
+    color: var(--hub-accent-strong);
+}
+
+.se-feed__host {
+    font-weight: var(--hub-weight-bold);
+}
+
+.se-feed__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--hub-space-3);
+}

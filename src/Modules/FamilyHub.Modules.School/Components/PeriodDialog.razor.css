@@ -1,0 +1,5 @@
+.st-period__times {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+    gap: var(--hub-space-5);
+}

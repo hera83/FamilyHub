@@ -1,0 +1,182 @@
+@attribute [Microsoft.AspNetCore.Components.Route(SchoolModule.Path)]
+@implements IDisposable
+@inject SchoolScheduleService School
+@inject ScheduleFeedService Feeds
+@inject IHouseholdService Household
+@inject IHubClock Clock
+
+<HubPage Title="Skole" Subtitle="@Subtitle" Width="PageWidth.Full">
+    <Actions>
+        <HubButton Variant="ButtonVariant.Quiet" Icon="IconName.Settings" Href="@SchoolModule.SettingsPath.TrimStart('/')" AriaLabel="Indstillinger for skole" />
+    </Actions>
+    <ChildContent>
+        @if (selected is null)
+        {
+            <EmptyState Icon="IconName.GraduationCap" Title="Ingen skoleskemaer endnu">
+                <ChildContent>Tilføj børnenes skemaer, så kan alle se, hvilke timer de har, og hvornår de har fri.</ChildContent>
+                <Actions>
+                    <HubButton Variant="ButtonVariant.Primary" Icon="IconName.Plus" Href="@SchoolModule.SettingsPath.TrimStart('/')">Tilføj skema</HubButton>
+                </Actions>
+            </EmptyState>
+        }
+        else
+        {
+            <div class="st-page">
+                <ChildTabs Tabs="tabs" SelectedId="selected.Schedule.Id" SelectedIdChanged="Select" />
+
+                @if (selected.Changes is { Count: > 0 } changes)
+                {
+                    <InfoBox Tone="HubTone.Warning" Title="@(today is null ? "Skemaet er ændret i næste uge" : "Skemaet er ændret i denne uge")" Class="st-changes">
+                        <ChildContent>
+                            <ul class="st-changes__list">
+                                @foreach (var change in changes)
+                                {
+                                    <li>@FeedChanges.Describe(change)</li>
+                                }
+                            </ul>
+                        </ChildContent>
+                        <Actions>
+                            <HubButton Variant="ButtonVariant.Primary" Size="ButtonSize.Small" Icon="IconName.Check" OnClick="AcknowledgeAsync"
+                                       ErrorMessage="Ændringerne blev ikke markeret">Markér som set</HubButton>
+                        </Actions>
+                    </InfoBox>
+                }
+
+                @if (FeedWarning is { } warning)
+                {
+                    <InfoBox Tone="HubTone.Warning" Icon="IconName.WifiOff" Title="@warning.Title">@warning.Text</InfoBox>
+                }
+
+                <HubCard Class="st-page__card">
+                    <SchoolTimetable View="selected" Today="today" Now="time" />
+                </HubCard>
+
+                @if (selected.Outside is { Count: > 0 } outside)
+                {
+                    <HubCard Title="Uden for skemaets tider" Icon="IconName.Clock" Variant="CardVariant.Subtle">
+                        <ul class="st-outside">
+                            @foreach (var lesson in outside)
+                            {
+                                <li>
+                                    <span class="st-outside__when hub-numeric">@ScheduleRules.DayName(lesson.Start.DayOfWeek) @DanishFormat.TimeRange(TimeOnly.FromDateTime(lesson.Start), TimeOnly.FromDateTime(lesson.End))</span>
+                                    <span>@lesson.Title@(lesson.Location is { } place ? $" · {place}" : null)</span>
+                                </li>
+                            }
+                        </ul>
+                    </HubCard>
+                }
+            </div>
+        }
+    </ChildContent>
+</HubPage>
+
+@code {
+    /// <summary>A calendar may fail now and then – only say so when the lessons shown are more than a few hours old.</summary>
+    private static readonly TimeSpan StaleAfter = TimeSpan.FromHours(3);
+
+    private IReadOnlyList<SchoolSchedule> schedules = [];
+    private IReadOnlyList<ChildTabs.Tab> tabs = [];
+    private SchoolWeek? selected;
+    private Guid? selectedId;
+    private DateOnly monday;
+    private DayOfWeek? today;
+    private TimeOnly time;
+    private IDisposable? tick;
+
+    /// <summary>"Uge 41 · ulige uge" – at the weekend it is next week that matters.</summary>
+    private string? Subtitle
+    {
+        get
+        {
+            if (selected is null)
+            {
+                return null;
+            }
+
+            var week = ScheduleRules.WeekOf(monday);
+            var text = today is null ? $"Næste uge · uge {week}" : $"Uge {week}";
+            return ScheduleRules.UsesAlternatingWeeks(schedules) ? $"{text} · {ScheduleRules.ParityText(week)}" : text;
+        }
+    }
+
+    /// <summary>When the selected schedule's calendar could not be fetched for a while.</summary>
+    private (string Title, string Text)? FeedWarning
+    {
+        get
+        {
+            if (selected is not { IsLive: true } week)
+            {
+                return null;
+            }
+
+            var status = Feeds.StatusOf(week.Schedule.Id);
+            var now = Clock.Now;
+            if (status.Problem == FeedProblem.None || (status.LastSuccess is { } last && now - last < StaleAfter))
+            {
+                return null;
+            }
+
+            var shown = status.LastSuccess is { } success
+                ? $"Viser timerne fra {DanishFormat.RelativeDay(DateOnly.FromDateTime(success.DateTime), Clock.Today).ToLower(DanishFormat.Culture)} kl. {DanishFormat.Time(TimeOnly.FromDateTime(success.DateTime))}. "
+                : "";
+            return status.Problem == FeedProblem.Rejected
+                ? ("Kalender-linket virker ikke længere", $"{shown}Hent et nyt link fra skolens kalender, og indsæt det under indstillingerne.")
+                : ("Skemaet kunne ikke opdateres", $"{shown}Family Hub prøver igen af sig selv.");
+        }
+    }
+
+    protected override void OnInitialized()
+    {
+        Refresh();
+        School.Changed += OnChanged;
+        Feeds.Changed += OnChanged;
+        Household.Changed += OnHouseholdChanged;
+
+        // Every minute: the lesson going on moves along, and at midnight the page turns to the new day.
+        tick = Clock.SubscribeMinuteTick(now => OnChanged());
+    }
+
+    private void Refresh()
+    {
+        var now = Clock.Now;
+        var date = DateOnly.FromDateTime(now.DateTime);
+        time = TimeOnly.FromDateTime(now.DateTime);
+        today = ScheduleRules.IsSchoolDay(date.DayOfWeek) ? date.DayOfWeek : null;
+        monday = ScheduleRules.DisplayedMonday(date);
+
+        var household = Household.Current;
+        schedules = ScheduleLook.Ordered(School.Schedules, household);
+        var weeks = schedules.Select(s => SchoolWeek.For(s, monday, Feeds.EventsFor(s.Id), Feeds.ChangesFor(s.Id))).ToList();
+        selected = weeks.FirstOrDefault(w => w.Schedule.Id == selectedId) ?? weeks.FirstOrDefault();
+        tabs = [.. weeks.Select(w => new ChildTabs.Tab(w.Schedule, ScheduleLook.Name(w.Schedule, household), ScheduleLook.Color(w.Schedule, household), Hint(w), w.Changes.Count > 0))];
+    }
+
+    /// <summary>On a school day: "Fri 14:15" (or "Ingen skole") under the name. Nothing at the weekend.</summary>
+    private string? Hint(SchoolWeek week) =>
+        today is { } day ? ScheduleRules.EndText(week.DaySpan(day)).ToLower(DanishFormat.Culture) : null;
+
+    // The box goes away on every screen – the result is visible, so no message.
+    private Task AcknowledgeAsync() => selected is { } week ? Feeds.AcknowledgeAsync(week.Schedule.Id) : Task.CompletedTask;
+
+    private void Select(Guid id)
+    {
+        selectedId = id;
+        Refresh();
+    }
+
+    private void OnChanged() => _ = InvokeAsync(() =>
+    {
+        Refresh();
+        StateHasChanged();
+    });
+
+    private void OnHouseholdChanged(HouseholdSettings settings) => OnChanged();
+
+    public void Dispose()
+    {
+        School.Changed -= OnChanged;
+        Feeds.Changed -= OnChanged;
+        Household.Changed -= OnHouseholdChanged;
+        tick?.Dispose();
+    }
+}

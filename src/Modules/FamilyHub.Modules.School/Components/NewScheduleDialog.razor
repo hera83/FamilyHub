@@ -1,0 +1,91 @@
+@*
+    "Tilføj skema": the child, the kind of school, the class and the times are picked – no keyboard. The subjects are suggested
+    from the kind of school and grade, and the times can be copied from a sibling at the same kind of school (same bells).
+    Opens the new schedule afterwards.
+*@
+@inject SchoolScheduleService School
+@inject IHouseholdService Household
+@inject NavigationManager Navigation
+
+<HubDialog Open="Open" OpenChanged="OpenChanged" Title="Tilføj skema">
+    <ChildContent>
+        <HubChoice TValue="Guid" Label="Hvem er skemaet til?" Appearance="ChoiceAppearance.Chips" Options="memberOptions" @bind-Value="memberId" />
+
+        <ClassFields Level="level" LevelChanged="ChangeLevel" @bind-Grade="grade" @bind-ClassLetter="letter" />
+
+        <HubChoice TValue="Guid" Label="Tider" Appearance="ChoiceAppearance.Chips" Options="timeOptions" @bind-Value="timesFrom"
+                   Help="Tiderne og fagene kan rettes bagefter." />
+    </ChildContent>
+    <Footer>
+        <HubButton Variant="ButtonVariant.Quiet" OnClick="() => OpenChanged.InvokeAsync(false)">Annuller</HubButton>
+        <HubButton Variant="ButtonVariant.Primary" Icon="IconName.Plus" OnClick="AddAsync" Disabled="memberId == Guid.Empty"
+                   ErrorMessage="Skemaet blev ikke tilføjet">Tilføj</HubButton>
+    </Footer>
+</HubDialog>
+
+@code {
+    private bool wasOpen;
+    private Guid memberId;
+    private SchoolLevel level;
+    private int grade = 1;
+    private string? letter;
+    private Guid timesFrom;
+    private IReadOnlyList<SchoolSchedule> schedules = [];
+    private IReadOnlyList<ChoiceOption<Guid>> memberOptions = [];
+    private IReadOnlyList<ChoiceOption<Guid>> timeOptions = [];
+
+    [Parameter]
+    public bool Open { get; set; }
+
+    [Parameter]
+    public EventCallback<bool> OpenChanged { get; set; }
+
+    protected override void OnParametersSet()
+    {
+        // A fresh form every time the dialog opens.
+        if (Open && !wasOpen)
+        {
+            var household = Household.Current;
+            schedules = ScheduleLook.Ordered(School.Schedules, household);
+            var taken = schedules.Select(s => s.MemberId).ToHashSet();
+
+            memberOptions = [.. household.Members.Where(m => !taken.Contains(m.Id)).Select(m => new ChoiceOption<Guid>(m.Id, m.Name))];
+            timeOptions =
+            [
+                new(Guid.Empty, "Almindelige tider"),
+                .. schedules.Select(s => new ChoiceOption<Guid>(s.Id, $"Som {ScheduleLook.Name(s, household)} ({s.ClassName})")),
+            ];
+
+            memberId = memberOptions.Count == 1 ? memberOptions[0].Value : Guid.Empty;
+            letter = null;
+            ChangeLevel(SchoolLevel.PrimarySchool);
+            grade = level.DefaultGrade();
+        }
+
+        wasOpen = Open;
+    }
+
+    // Siblings at the same kind of school usually share the bells – start from the first one's times.
+    private void ChangeLevel(SchoolLevel value)
+    {
+        level = value;
+        timesFrom = schedules.FirstOrDefault(s => s.Level == value)?.Id ?? Guid.Empty;
+    }
+
+    private async Task AddAsync()
+    {
+        var periods = School.Find(timesFrom) is { } sibling ? PeriodPlanner.CopyOf(sibling.Periods) : PeriodPlanner.StandardDay(level);
+        var schedule = await School.AddAsync(new SchoolSchedule
+        {
+            MemberId = memberId,
+            Level = level,
+            Grade = grade,
+            ClassLetter = letter,
+            Subjects = SubjectCatalog.For(level, grade),
+            Periods = periods,
+        });
+
+        await OpenChanged.InvokeAsync(false);
+        Navigation.NavigateTo(SchoolModule.EditorHref(schedule.Id));
+    }
+}

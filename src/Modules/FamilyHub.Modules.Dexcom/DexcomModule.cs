@@ -23,7 +23,7 @@ public sealed class DexcomModule : HubModule
 
     public override string Route => Path;
 
-    public override int Order => 30;
+    public override int Order => 40;
 
     /// <summary>"Blodsukker" – the reading right now, only while it is current (8 minutes).</summary>
     public override IReadOnlyList<DashboardWidget> Widgets =>

@@ -1,0 +1,103 @@
+@attribute [Microsoft.AspNetCore.Components.Route(SchoolModule.SettingsPath)]
+@implements IDisposable
+@inject SchoolScheduleService School
+@inject ScheduleFeedService Feeds
+@inject IHouseholdService Household
+@inject IHubClock Clock
+
+<HubPage Title="Skoleskemaer" Subtitle="Gælder med det samme på alle skærme." BackHref="@SchoolModule.Path.TrimStart('/')" BackLabel="Skole" Width="PageWidth.Narrow">
+    <Actions>
+        @if (schedules.Count > 0)
+        {
+            <HubButton Variant="ButtonVariant.Primary" Icon="IconName.Plus" OnClick="() => adding = true" Disabled="!CanAdd">Tilføj skema</HubButton>
+        }
+    </Actions>
+    <ChildContent>
+        @if (household.Members.Count == 0)
+        {
+            <InfoBox Tone="HubTone.Neutral" Icon="IconName.Users" Title="Tilføj børnene som familiemedlemmer først">
+                <ChildContent>Et skema hører til et familiemedlem – så får det navn og farve.</ChildContent>
+                <Actions>
+                    <HubButton Size="ButtonSize.Small" Href="indstillinger">Gå til Familien</HubButton>
+                </Actions>
+            </InfoBox>
+        }
+        else if (schedules.Count == 0)
+        {
+            <EmptyState Icon="IconName.GraduationCap" Title="Ingen skoleskemaer endnu">
+                <ChildContent>Vælg barnet og klassen – så foreslår Family Hub tider og fag, som du retter til.</ChildContent>
+                <Actions>
+                    <HubButton Variant="ButtonVariant.Primary" Icon="IconName.Plus" OnClick="() => adding = true">Tilføj skema</HubButton>
+                </Actions>
+            </EmptyState>
+        }
+        else
+        {
+            <HubSection Title="Skemaer" Description="Tryk på et skema for at rette timer, tider og fag.">
+                <HubCard>
+                    <HubList>
+                        @foreach (var schedule in schedules)
+                        {
+                            <HubListItem Title="@ScheduleLook.Name(schedule, household)" Subtitle="@Summary(schedule)" Href="@SchoolModule.EditorHref(schedule.Id)">
+                                <Leading><HubAvatar Name="@ScheduleLook.Name(schedule, household)" Color="ScheduleLook.Color(schedule, household)" /></Leading>
+                            </HubListItem>
+                        }
+                    </HubList>
+                </HubCard>
+                @if (!CanAdd)
+                {
+                    <p class="hub-muted hub-small">Alle familiemedlemmer har et skema. Tilføj flere under Indstillinger → Familien.</p>
+                }
+            </HubSection>
+        }
+    </ChildContent>
+</HubPage>
+
+<NewScheduleDialog @bind-Open="adding" />
+
+@code {
+    private HouseholdSettings household = HouseholdSettings.Empty;
+    private IReadOnlyList<SchoolSchedule> schedules = [];
+    private bool adding;
+
+    private bool CanAdd => household.Members.Any(m => schedules.All(s => s.MemberId != m.Id)) && schedules.Count < SchoolData.MaxSchedules;
+
+    protected override void OnInitialized()
+    {
+        Refresh();
+        School.Changed += OnChanged;
+        Household.Changed += OnHouseholdChanged;
+    }
+
+    private void Refresh()
+    {
+        household = Household.Current;
+        schedules = ScheduleLook.Ordered(School.Schedules, household);
+    }
+
+    /// <summary>"6.a · 28 timer om ugen", "3. semester · fra www.moodle.aau.dk · 8 moduler denne uge".</summary>
+    private string Summary(SchoolSchedule schedule)
+    {
+        var lessons = SchoolWeek.For(schedule, ScheduleRules.DisplayedMonday(Clock.Today), Feeds.EventsFor(schedule.Id)).LessonCount;
+        if (schedule.UsesFeed)
+        {
+            return $"{schedule.ClassName} · fra {ScheduleFeedService.HostOf(schedule.FeedUrl!)} · {schedule.Level.LessonCount(lessons)} denne uge";
+        }
+
+        return lessons == 0 ? $"{schedule.ClassName} · intet i skemaet endnu" : $"{schedule.ClassName} · {schedule.Level.LessonCount(lessons)} om ugen";
+    }
+
+    private void OnChanged() => _ = InvokeAsync(() =>
+    {
+        Refresh();
+        StateHasChanged();
+    });
+
+    private void OnHouseholdChanged(HouseholdSettings settings) => OnChanged();
+
+    public void Dispose()
+    {
+        School.Changed -= OnChanged;
+        Household.Changed -= OnHouseholdChanged;
+    }
+}

@@ -23,6 +23,7 @@ public enum IconName
     Heart,
     Droplet,
     Sparkles,
+    GraduationCap,
 
     // Actions
     Plus,

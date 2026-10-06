@@ -1,0 +1,53 @@
+@*
+    The kind of school, the grade and the class – all picked, nothing typed. The grade stepper follows the kind of school:
+    "6. klasse" (0–10), "2.g" (1–3) or "3. semester" (1–12). A university has no class letter.
+*@
+<div class="st-class">
+    <HubChoice TValue="SchoolLevel" Label="Skole" Options="LevelOptions" Value="Level" ValueChanged="ChangeLevelAsync" />
+    <div class="st-class__fields">
+        <NumberStepper TValue="int" Label="@Level.GradeLabel()" Value="Grade" ValueChanged="GradeChanged"
+                       Min="Level.MinGrade()" Max="Level.MaxGrade()" Format="@(g => Level.GradeText(g))"
+                       DecreaseLabel="Lavere" IncreaseLabel="Højere" />
+        @if (Level.HasClassLetter())
+        {
+            <HubChoice TValue="string" Label="Klasse" Appearance="ChoiceAppearance.Chips" Options="LetterOptions"
+                       Value="@(ClassLetter ?? "")" ValueChanged="ChangeLetterAsync" />
+        }
+    </div>
+</div>
+
+@code {
+    private static readonly IReadOnlyList<ChoiceOption<SchoolLevel>> LevelOptions =
+        [.. SchoolLevels.All.Select(l => new ChoiceOption<SchoolLevel>(l, l.Label()))];
+
+    private static readonly IReadOnlyList<ChoiceOption<string>> LetterOptions =
+        [new("", "Ingen"), .. SchoolSchedule.ClassLetters.Select(l => new ChoiceOption<string>(l, l.ToLowerInvariant()))];
+
+    [Parameter]
+    public SchoolLevel Level { get; set; }
+
+    /// <summary>Raised together with <see cref="GradeChanged"/> – a new kind of school starts at its first grade.</summary>
+    [Parameter]
+    public EventCallback<SchoolLevel> LevelChanged { get; set; }
+
+    [Parameter]
+    public int Grade { get; set; }
+
+    [Parameter]
+    public EventCallback<int> GradeChanged { get; set; }
+
+    /// <summary>"A", "B" … or null.</summary>
+    [Parameter]
+    public string? ClassLetter { get; set; }
+
+    [Parameter]
+    public EventCallback<string?> ClassLetterChanged { get; set; }
+
+    private async Task ChangeLevelAsync(SchoolLevel level)
+    {
+        await LevelChanged.InvokeAsync(level);
+        await GradeChanged.InvokeAsync(level.DefaultGrade());
+    }
+
+    private Task ChangeLetterAsync(string letter) => ClassLetterChanged.InvokeAsync(letter.Length == 0 ? null : letter);
+}

@@ -1,0 +1,271 @@
+.st-table {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+.st-table__time-col {
+    width: 9rem;
+}
+
+/* ---- Days across the top ---- */
+
+.st-corner,
+.st-day {
+    padding: var(--hub-space-2) var(--hub-space-3) var(--hub-space-3);
+    text-align: left;
+    vertical-align: bottom;
+}
+
+.st-day {
+    border-radius: var(--hub-radius-md) var(--hub-radius-md) 0 0;
+}
+
+.st-day__name {
+    display: block;
+    color: var(--hub-text-muted);
+    font-size: var(--hub-text-sm);
+    font-weight: var(--hub-weight-bold);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.st-day__end {
+    display: block;
+    color: var(--hub-text-subtle);
+    font-size: var(--hub-text-sm);
+    font-weight: var(--hub-weight-medium);
+}
+
+/* Today: a soft strip down the whole column, like the meal plan's "today". */
+.st-day--today,
+.st-cell--today {
+    background: var(--hub-accent-softer);
+}
+
+.st-day--today .st-day__name {
+    color: var(--hub-accent-strong);
+}
+
+.st-day--today .st-day__end {
+    color: var(--hub-text-muted);
+}
+
+tbody tr:last-child .st-cell--today {
+    border-radius: 0 0 var(--hub-radius-md) var(--hub-radius-md);
+}
+
+/* ---- Times down the left side ---- */
+
+.st-time {
+    padding: var(--hub-space-1) var(--hub-space-3) var(--hub-space-1) 0;
+    text-align: left;
+    vertical-align: middle;
+    font-weight: var(--hub-weight-regular);
+}
+
+.st-time__range {
+    display: block;
+    font-size: var(--hub-text-md);
+    font-weight: var(--hub-weight-medium);
+    white-space: nowrap;
+}
+
+.st-time__number {
+    display: block;
+    color: var(--hub-text-subtle);
+    font-size: var(--hub-text-sm);
+}
+
+.st-time--now .st-time__range,
+.st-time--now .st-time__number {
+    color: var(--hub-accent-strong);
+    font-weight: var(--hub-weight-bold);
+}
+
+/* ---- Lessons ---- */
+
+.st-row .st-cell {
+    height: 4.25rem;
+    padding: var(--hub-space-1);
+    vertical-align: top;
+}
+
+.st-lesson {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: var(--hub-space-1);
+    box-sizing: border-box;
+    height: 100%;
+    min-height: 3.75rem;
+    padding: var(--hub-space-2) var(--hub-space-3);
+    border-left: 0.3rem solid var(--st-color);
+    border-radius: var(--hub-radius-sm);
+    background: color-mix(in srgb, var(--st-color) 18%, var(--hub-surface));
+}
+
+.st-lesson__subject {
+    display: -webkit-box;
+    overflow: hidden;
+    font-size: var(--hub-text-md);
+    font-weight: var(--hub-weight-bold);
+    line-height: var(--hub-leading-tight);
+    overflow-wrap: anywhere;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+
+.st-lesson__note,
+.st-lesson__next {
+    overflow: hidden;
+    color: var(--hub-text-muted);
+    font-size: var(--hub-text-sm);
+    line-height: var(--hub-leading-tight);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* A lesson that alternates and is free this week. */
+.st-lesson--free {
+    border: 1.5px dashed var(--hub-border-strong);
+    background: var(--hub-surface-muted);
+}
+
+.st-lesson--free .st-lesson__subject {
+    color: var(--hub-text-muted);
+    font-weight: var(--hub-weight-medium);
+}
+
+/* Changed in the school's calendar and not yet marked as seen: a warning frame and a badge with the word. */
+.st-lesson--changed {
+    outline: 2px solid var(--hub-warning);
+    outline-offset: -2px;
+}
+
+.st-lesson__top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--hub-space-2);
+    min-width: 0;
+}
+
+.st-lesson ::deep .st-lesson__badge {
+    flex: none;
+}
+
+/* Cancelled: still in its place, struck through, so nobody goes there for nothing. */
+.st-lesson--cancelled {
+    background: var(--hub-surface-muted);
+}
+
+.st-lesson--cancelled .st-lesson__subject,
+.st-lesson--cancelled .st-lesson__note {
+    color: var(--hub-text-muted);
+    text-decoration: line-through;
+}
+
+/* Right now: a clear ring around today's lesson. */
+.st-cell--now .st-lesson {
+    box-shadow: 0 0 0 3px var(--hub-accent);
+}
+
+/* ---- Breaks: a quiet band across the week ---- */
+
+.st-break .st-time {
+    padding-block: 0;
+}
+
+.st-break .st-time__range {
+    color: var(--hub-text-subtle);
+    font-size: var(--hub-text-sm);
+    font-weight: var(--hub-weight-regular);
+}
+
+.st-break__band {
+    padding: var(--hub-space-1);
+}
+
+.st-break__label {
+    display: block;
+    border-radius: var(--hub-radius-sm);
+    background: var(--hub-surface-sunken);
+    color: var(--hub-text-muted);
+    font-size: var(--hub-text-sm);
+    font-weight: var(--hub-weight-medium);
+    line-height: 2rem;
+    text-align: center;
+}
+
+.st-break--now .st-break__label {
+    background: var(--hub-accent-soft);
+    color: var(--hub-accent-strong);
+}
+
+.st-break--now .st-time__range {
+    color: var(--hub-accent-strong);
+    font-weight: var(--hub-weight-bold);
+}
+
+/* ---- Editing (settings only) ---- */
+
+.st-table--editable ::deep .st-cell__press {
+    height: 100%;
+    min-height: 3.75rem;
+}
+
+.st-empty {
+    display: grid;
+    place-items: center;
+    box-sizing: border-box;
+    height: 100%;
+    min-height: 3.75rem;
+    border: 1.5px dashed var(--hub-border);
+    border-radius: var(--hub-radius-sm);
+    color: var(--hub-text-subtle);
+}
+
+.st-empty ::deep .hub-icon {
+    width: 1.25rem;
+    height: 1.25rem;
+}
+
+@media (hover: hover) {
+    .st-table--editable ::deep .st-cell__press:hover .st-empty {
+        border-color: var(--hub-accent);
+        color: var(--hub-accent-strong);
+    }
+
+    .st-table--editable ::deep .st-cell__press:hover .st-lesson {
+        box-shadow: 0 0 0 2px var(--hub-border-strong);
+    }
+}
+
+/* ---- Small screens (phones): narrower time column, no lesson numbers ---- */
+
+@media (max-width: 48rem) {
+    .st-table__time-col {
+        width: 4.5rem;
+    }
+
+    .st-time__number {
+        display: none;
+    }
+
+    .st-time__range,
+    .st-lesson__subject {
+        font-size: var(--hub-text-xs);
+    }
+
+    .st-lesson {
+        padding: var(--hub-space-1) var(--hub-space-2);
+    }
+
+    .st-day__end,
+    .st-lesson__note,
+    .st-lesson__next {
+        display: none;
+    }
+}

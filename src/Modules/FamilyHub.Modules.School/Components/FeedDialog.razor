@@ -1,0 +1,94 @@
+@*
+    "Hent skemaet fra et link": the school's iCal link (e.g. Moodle's calendar export) is pasted – easiest from a laptop or
+    a phone. It is fetched at once: a link that doesn't work gets a calm message under the field, and nothing is saved.
+    From then on lessons and times follow the calendar; the fixed timetable is kept untouched for when the link is removed.
+*@
+@inject SchoolScheduleService School
+@inject ScheduleFeedService Feeds
+@inject IToastService Toasts
+@inject ILogger<FeedDialog> Logger
+
+<HubDialog Open="Open" OpenChanged="OpenChanged" Title="Hent skemaet fra et link" Size="DialogSize.Large" CloseOnBackdrop="false">
+    <ChildContent>
+        <HubTextField Label="Kalender-link (iCal)" Kind="InputKind.Url" Placeholder="https://… eller webcal://…" AutoFocus="true"
+                      MaxLength="MaxLinkLength" Error="@error" @bind-Value="url" OnEnter="EnterAsync" EnterLabel="Hent" />
+
+        <InfoBox Tone="HubTone.Neutral" Icon="IconName.Info" Title="Sådan finder du linket i Moodle">
+            Åbn Kalender → Eksportér kalender. Vælg »Alle begivenheder« og »Seneste og næste 60 dage«, og tryk »Hent kalender-URL«.
+            Kopiér linket og indsæt det her – nemmest fra en computer eller telefon. Andre skolesystemer kalder det ofte »abonnér« eller »iCal«.
+        </InfoBox>
+
+        <p class="hub-muted hub-small">
+            Med et link følger timer og tider kalenderen og kan ikke rettes her. Fjernes linket igen, kommer det faste skema tilbage.
+        </p>
+        <p class="hub-muted hub-small">
+            Linket giver adgang til kalenderen. Det gemmes kun på Family Hub-serveren, og skærmen viser kun, hvor det kommer fra.
+        </p>
+    </ChildContent>
+    <Footer>
+        <HubButton Variant="ButtonVariant.Quiet" OnClick="() => OpenChanged.InvokeAsync(false)">Annuller</HubButton>
+        <HubButton Variant="ButtonVariant.Primary" Icon="IconName.Refresh" OnClick="FetchAsync" ErrorMessage="Skemaet blev ikke hentet">Hent skema</HubButton>
+    </Footer>
+</HubDialog>
+
+@code {
+    private const int MaxLinkLength = 2000;
+
+    private bool wasOpen;
+    private string url = "";
+    private string? error;
+
+    [Parameter]
+    public bool Open { get; set; }
+
+    [Parameter]
+    public EventCallback<bool> OpenChanged { get; set; }
+
+    [Parameter, EditorRequired]
+    public SchoolSchedule Schedule { get; set; } = default!;
+
+    protected override void OnParametersSet()
+    {
+        // A fresh form every time – the old link is never shown again (it holds a private key).
+        if (Open && !wasOpen)
+        {
+            url = "";
+            error = null;
+        }
+
+        wasOpen = Open;
+    }
+
+    private Task EnterAsync() => Toasts.TryAsync(FetchAsync, "Skemaet blev ikke hentet", Logger);
+
+    private async Task FetchAsync()
+    {
+        if (string.IsNullOrWhiteSpace(url))
+        {
+            error = "Indsæt linket fra skolens kalender";
+            return;
+        }
+
+        IReadOnlyList<FeedEvent> events;
+        try
+        {
+            events = await Feeds.FetchAsync(url);
+        }
+        catch (FeedException ex)
+        {
+            error = ex.Message;
+            return;
+        }
+
+        error = null;
+        await School.UpdateAsync(Schedule.Id, s => s with { FeedUrl = url.Trim() });
+        await Feeds.SaveAsync(Schedule.Id, events);
+        await OpenChanged.InvokeAsync(false);
+
+        // The table fills by itself; only an empty calendar needs a word (e.g. during the holidays).
+        if (events.Count == 0)
+        {
+            Toasts.Info("Linket virker", "Kalenderen har ingen timer lige nu. Skemaet opdaterer sig selv, når der kommer nogen.");
+        }
+    }
+}

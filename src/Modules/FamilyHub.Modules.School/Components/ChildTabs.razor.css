@@ -1,0 +1,67 @@
+.st-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--hub-space-3);
+}
+
+/* Each tab is a calm card; the chosen one gets the child's colour. */
+.st-tabs ::deep .st-tab {
+    display: flex;
+    align-items: center;
+    gap: var(--hub-space-3);
+    width: auto;
+    min-width: 13rem;
+    min-height: var(--hub-control-lg);
+    padding: var(--hub-space-2) var(--hub-space-5) var(--hub-space-2) var(--hub-space-2);
+    border: 2px solid var(--hub-border);
+    border-radius: var(--hub-radius-pill);
+    background: var(--hub-surface);
+    transition: border-color var(--hub-duration-fast) var(--hub-ease), background-color var(--hub-duration-fast) var(--hub-ease),
+        transform var(--hub-duration-fast) var(--hub-ease);
+}
+
+.st-tabs ::deep .st-tab--selected {
+    border-color: var(--st-tab-color);
+    background: color-mix(in srgb, var(--st-tab-color) 14%, var(--hub-surface));
+}
+
+.st-tab__text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.st-tab__name {
+    font-size: var(--hub-text-lg);
+    font-weight: var(--hub-weight-bold);
+    line-height: var(--hub-leading-tight);
+}
+
+.st-tab__meta {
+    color: var(--hub-text-muted);
+    font-size: var(--hub-text-sm);
+    white-space: nowrap;
+}
+
+/* Changes nobody has marked as seen: the warning colour, always with the sign and a label. */
+.st-tab__alert {
+    display: grid;
+    place-items: center;
+    width: 2rem;
+    height: 2rem;
+    margin-left: auto;
+    border-radius: var(--hub-radius-pill);
+    background: var(--hub-warning-soft);
+    color: var(--hub-warning);
+}
+
+.st-tab__alert ::deep .hub-icon {
+    width: 1.125rem;
+    height: 1.125rem;
+}
+
+@media (hover: hover) {
+    .st-tabs ::deep .st-tab:not(.st-tab--selected):hover {
+        border-color: var(--hub-border-strong);
+    }
+}

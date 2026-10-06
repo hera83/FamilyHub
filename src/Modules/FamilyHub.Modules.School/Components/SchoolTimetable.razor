@@ -1,0 +1,143 @@
+@*
+    The timetable as a table, like the paper on the fridge: Monday to Friday across the top, the times down the left side.
+    Breaks are a quiet band across the whole week. Subjects get a soft tint in their colour, with the name always written.
+    Today's column and the lesson going on right now are marked. Read-only – unless OnCellClick is set (the settings).
+    The week comes from SchoolWeek: the fixed timetable, or this week's lessons from the school's calendar.
+*@
+<table class="st-table @(Editable ? "st-table--editable" : null)">
+    <colgroup>
+        <col class="st-table__time-col" />
+        @foreach (var day in SchoolSchedule.SchoolDays)
+        {
+            <col />
+        }
+    </colgroup>
+    <thead>
+        <tr>
+            <th scope="col" class="st-corner"><span class="visually-hidden">Tid</span></th>
+            @foreach (var day in SchoolSchedule.SchoolDays)
+            {
+                <th scope="col" class="st-day @(day == Today ? "st-day--today" : null)">
+                    <span class="st-day__name">@ScheduleRules.DayName(day)</span>
+                    <span class="st-day__end hub-numeric">@ScheduleRules.EndText(View.DaySpan(day))</span>
+                </th>
+            }
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var period in Schedule.Periods)
+        {
+            var isNow = current?.Id == period.Id;
+            @if (period.IsBreak)
+            {
+                <tr class="st-break @(isNow ? "st-break--now" : null)">
+                    <th scope="row" class="st-time"><span class="st-time__range hub-numeric">@ScheduleRules.TimeText(period)</span></th>
+                    <td colspan="@SchoolSchedule.SchoolDays.Count" class="st-break__band"><span class="st-break__label">@period.Label</span></td>
+                </tr>
+            }
+            else
+            {
+                <tr class="st-row">
+                    <th scope="row" class="st-time @(isNow ? "st-time--now" : null)">
+                        <span class="st-time__range hub-numeric">@ScheduleRules.TimeText(period)</span>
+                        <span class="st-time__number">@ScheduleRules.PeriodTitle(Schedule, period)</span>
+                    </th>
+                    @foreach (var day in SchoolSchedule.SchoolDays)
+                    {
+                        var lesson = View.LessonAt(day, period);
+                        var cellNow = isNow && day == Today;
+                        <td class="st-cell @(day == Today ? "st-cell--today" : null) @(cellNow ? "st-cell--now" : null)">
+                            @if (Editable)
+                            {
+                                <HubPressable Class="st-cell__press" OnClick="() => OnCellClick.InvokeAsync(new TimetableCell(day, period))"
+                                              AriaLabel="@CellLabel(day, period, lesson)">
+                                    @Lesson(lesson)
+                                </HubPressable>
+                            }
+                            else
+                            {
+                                @Lesson(lesson)
+                            }
+                        </td>
+                    }
+                </tr>
+            }
+        }
+    </tbody>
+</table>
+
+@code {
+    private SchoolPeriod? current;
+
+    /// <summary>The schedule in the week shown – decides odd/even subjects, calendar lessons and "Fri 14:15".</summary>
+    [Parameter, EditorRequired]
+    public SchoolWeek View { get; set; } = default!;
+
+    /// <summary>Today's column (null at the weekend).</summary>
+    [Parameter]
+    public DayOfWeek? Today { get; set; }
+
+    /// <summary>The time now – marks the lesson going on (only together with <see cref="Today"/>).</summary>
+    [Parameter]
+    public TimeOnly? Now { get; set; }
+
+    /// <summary>Makes every lesson a touch target – only in the settings.</summary>
+    [Parameter]
+    public EventCallback<TimetableCell> OnCellClick { get; set; }
+
+    private SchoolSchedule Schedule => View.Schedule;
+
+    private bool Editable => OnCellClick.HasDelegate && !View.IsLive;
+
+    protected override void OnParametersSet() =>
+        current = Today is not null && Now is { } now ? ScheduleRules.CurrentPeriod(Schedule, now) : null;
+
+    private string CellLabel(DayOfWeek day, SchoolPeriod period, LessonView lesson) =>
+        $"{ScheduleRules.DayName(day)}, {ScheduleRules.PeriodTitle(Schedule, period)}: {lesson.Subject?.Name ?? "ingen time"}";
+
+    private RenderFragment Lesson(LessonView lesson) => __builder =>
+    {
+        if (lesson.IsEmpty)
+        {
+            if (Editable)
+            {
+                <span class="st-empty"><Icon Name="IconName.Plus" /></span>
+            }
+
+            return;
+        }
+
+        var changeClass = lesson.Change switch
+        {
+            null => null,
+            FeedChangeKind.Cancelled => "st-lesson--changed st-lesson--cancelled",
+            _ => "st-lesson--changed",
+        };
+        <div class="st-lesson @(lesson.Subject is null ? "st-lesson--free" : null) @changeClass"
+             style="@(lesson.Subject is { } subject ? $"--st-color: {ScheduleLook.ColorVariable(subject)}" : null)">
+            @if (lesson.Change is { } change)
+            {
+                <span class="st-lesson__top">
+                    <span class="st-lesson__subject">@lesson.Subject?.Name</span>
+                    <HubBadge Tone="HubTone.Warning" Class="st-lesson__badge">@FeedChanges.Label(change)</HubBadge>
+                </span>
+            }
+            else
+            {
+                <span class="st-lesson__subject">@(lesson.Subject?.Name ?? (lesson.Alternates ? "Fri denne uge" : ""))</span>
+            }
+            @if (lesson.Time is not null || lesson.Note is not null)
+            {
+                <span class="st-lesson__note">@string.Join(" · ", new[] { lesson.Time, lesson.Note }.OfType<string>())</span>
+            }
+            @if (lesson.More > 0)
+            {
+                <span class="st-lesson__next">+@lesson.More mere</span>
+            }
+            @if (lesson.Alternates)
+            {
+                <span class="st-lesson__next">Næste uge: @(lesson.NextWeekSubject?.Name ?? "fri")</span>
+            }
+        </div>
+    };
+}

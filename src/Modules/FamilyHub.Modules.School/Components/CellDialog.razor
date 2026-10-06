@@ -1,0 +1,108 @@
+@*
+    One lesson in the settings: the subject is picked (no keyboard), it can alternate between odd and even weeks,
+    and an optional short note ("Lokale 64", "Husk idrætstøj") is the only thing typed.
+*@
+@inject SchoolScheduleService School
+@inject IToastService Toasts
+@inject ILogger<CellDialog> Logger
+
+<HubDialog Open="Open" OpenChanged="OpenChanged" Title="@Title" Size="DialogSize.Large" CloseOnBackdrop="false">
+    <ChildContent>
+        @if (Cell is { } cell)
+        {
+            <p class="hub-muted st-cell-dialog__time hub-numeric">@ScheduleRules.TimeText(cell.Period)</p>
+
+            <HubChoice TValue="Guid" Label="@(alternates ? WeekLabel(odd: true) : "Fag")" Appearance="ChoiceAppearance.Chips"
+                       Options="subjectOptions" @bind-Value="subjectId" />
+
+            <HubSwitch Label="Skifter hver anden uge" Description="Fx billedkunst i ulige uger og tysk i lige uger." @bind-Value="alternates" />
+
+            @if (alternates)
+            {
+                <HubChoice TValue="Guid" Label="@WeekLabel(odd: false)" Appearance="ChoiceAppearance.Chips"
+                           Options="subjectOptions" @bind-Value="evenSubjectId" />
+            }
+
+            <HubTextField Label="Note" Kind="InputKind.Text" Placeholder="Fx Lokale 64 eller Husk idrætstøj" MaxLength="ScheduleCell.MaxNoteLength"
+                          Help="Vises under faget. Kan udelades." @bind-Value="note" OnEnter="EnterAsync" />
+        }
+    </ChildContent>
+    <Footer>
+        <HubButton Variant="ButtonVariant.Quiet" OnClick="() => OpenChanged.InvokeAsync(false)">Annuller</HubButton>
+        <HubButton Variant="ButtonVariant.Primary" Icon="IconName.Check" OnClick="SaveAsync" ErrorMessage="Timen blev ikke gemt">Gem</HubButton>
+    </Footer>
+</HubDialog>
+
+@code {
+    private bool wasOpen;
+    private IReadOnlyList<ChoiceOption<Guid>> subjectOptions = [];
+    private Guid subjectId;
+    private bool alternates;
+    private Guid evenSubjectId;
+    private string note = "";
+
+    [Parameter]
+    public bool Open { get; set; }
+
+    [Parameter]
+    public EventCallback<bool> OpenChanged { get; set; }
+
+    [Parameter, EditorRequired]
+    public SchoolSchedule Schedule { get; set; } = default!;
+
+    /// <summary>The lesson being edited.</summary>
+    [Parameter]
+    public TimetableCell? Cell { get; set; }
+
+    /// <summary>This week's ISO number – for "Ulige uger – denne uge (uge 41)".</summary>
+    [Parameter]
+    public int Week { get; set; }
+
+    /// <summary>"Mandag · 3. time".</summary>
+    private string Title => Cell is { } cell ? $"{ScheduleRules.DayName(cell.Day)} · {ScheduleRules.PeriodTitle(Schedule, cell.Period)}" : "Time";
+
+    protected override void OnParametersSet()
+    {
+        // A fresh form every time the dialog opens.
+        if (Open && !wasOpen && Cell is { } cell)
+        {
+            subjectOptions = [.. Schedule.Subjects.Select(s => new ChoiceOption<Guid>(s.Id, s.Name)), new(Guid.Empty, "Ingen time")];
+            var existing = Schedule.CellAt(cell.Day, cell.Period.Id);
+            subjectId = existing?.SubjectId ?? Guid.Empty;
+            alternates = existing?.AlternatesWeekly ?? false;
+            evenSubjectId = existing?.EvenWeekSubjectId ?? Guid.Empty;
+            note = existing?.Note ?? "";
+        }
+
+        wasOpen = Open;
+    }
+
+    /// <summary>"Ulige uger – denne uge (uge 41)" / "Lige uger – næste uge (uge 42)".</summary>
+    private string WeekLabel(bool odd)
+    {
+        var thisWeekIsOdd = Week % 2 == 1;
+        var name = odd ? "Ulige uger" : "Lige uger";
+        return odd == thisWeekIsOdd ? $"{name} – denne uge (uge {Week})" : $"{name} – næste uge (uge {Week + 1})";
+    }
+
+    private Task EnterAsync() => Toasts.TryAsync(SaveAsync, "Timen blev ikke gemt", Logger);
+
+    private async Task SaveAsync()
+    {
+        if (Cell is not { } cell)
+        {
+            return;
+        }
+
+        await School.UpdateAsync(Schedule.Id, s => s.WithCell(new ScheduleCell
+        {
+            Day = cell.Day,
+            PeriodId = cell.Period.Id,
+            SubjectId = subjectId == Guid.Empty ? null : subjectId,
+            AlternatesWeekly = alternates,
+            EvenWeekSubjectId = alternates && evenSubjectId != Guid.Empty ? evenSubjectId : null,
+            Note = note,
+        }));
+        await OpenChanged.InvokeAsync(false);
+    }
+}

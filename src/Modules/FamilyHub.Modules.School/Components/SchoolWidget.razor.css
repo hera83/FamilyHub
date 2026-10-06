@@ -1,0 +1,42 @@
+.st-widget {
+    display: flex;
+    flex-direction: column;
+    gap: var(--hub-space-3);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.st-widget__row {
+    display: flex;
+    align-items: center;
+    gap: var(--hub-space-3);
+}
+
+.st-widget__name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    font-weight: var(--hub-weight-medium);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* The child's calendar changed this week – look on the Skole page. */
+.st-widget__alert {
+    display: inline-flex;
+    color: var(--hub-warning);
+}
+
+.st-widget__time {
+    font-size: var(--hub-text-lg);
+    font-weight: var(--hub-weight-bold);
+    white-space: nowrap;
+}
+
+/* Finished or no school: quieter, so the ones still at school stand out. */
+.st-widget__row--done .st-widget__time {
+    color: var(--hub-text-muted);
+    font-size: var(--hub-text-md);
+    font-weight: var(--hub-weight-medium);
+}

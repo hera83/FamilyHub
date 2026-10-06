@@ -28,7 +28,7 @@ public sealed class MealPlanModule : HubModule
 
     public override string Route => Path;
 
-    public override int Order => 20;
+    public override int Order => 30;
 
     /// <summary>"I aften" – today's dinner, from 06:00 until 19:00.</summary>
     public override IReadOnlyList<DashboardWidget> Widgets =>

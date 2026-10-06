@@ -1,0 +1,3 @@
+.st-cell-dialog__time {
+    margin-top: calc(var(--hub-space-2) * -1);
+}

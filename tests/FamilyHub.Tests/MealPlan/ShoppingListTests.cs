@@ -12,6 +12,7 @@ using FamilyHub.Modules.MealPlan.Plan;
 using FamilyHub.Modules.MealPlan.Print;
 using FamilyHub.Modules.MealPlan.Recipes;
 using FamilyHub.Modules.MealPlan.Shopping;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -322,20 +323,20 @@ public sealed class ShoppingListTests : BunitContext
         cut.WaitForAssertion(() => cut.Find(".sl-group__head .hub-btn"));
         Assert.Empty(cut.FindAll(".sl-top .hub-choice")); // Monday: the whole week, nothing to choose
 
-        cut.Find(".sl-group__head .hub-btn").Click();
+        await cut.Find(".sl-group__head .hub-btn").ClickAsync(new MouseEventArgs());
         var dialogs = cut.FindAll(".hub-dialog");
         Assert.Equal("Tilføj fast vare", dialogs[^1].QuerySelector(".hub-dialog__title")!.TextContent);
 
         var input = cut.Find(".hub-dialog input");
         input.Input("skyr");
-        input.KeyDown(new Microsoft.AspNetCore.Components.Web.KeyboardEventArgs { Key = "Enter" });
+        input.KeyDown(new KeyboardEventArgs { Key = "Enter" });
         cut.WaitForAssertion(() => Assert.Contains("Tilføjet: Skyr", cut.Markup));
         Assert.Equal("", cut.Find(".hub-dialog input").GetAttribute("value") ?? "");
 
         // Then one for this week only, with its own amount – and "Tilføj" closes.
         cut.Find(".hub-dialog input").Input("Kage");
-        cut.FindAll(".hub-dialog .hub-choice__option").Single(o => o.TextContent.Trim() == "Kun uge 40").Click();
-        cut.FindAll(".hub-dialog")[^1].QuerySelectorAll(".hub-btn").Single(b => b.TextContent.Trim() == "Tilføj").Click();
+        await cut.FindAll(".hub-dialog .hub-choice__option").Single(o => o.TextContent.Trim() == "Kun uge 40").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".hub-dialog")[^1].QuerySelectorAll(".hub-btn").Single(b => b.TextContent.Trim() == "Tilføj").ClickAsync(new MouseEventArgs());
 
         cut.WaitForAssertion(() => Assert.Equal(["Skyr", "Kage"], cut.FindAll(".sl-side .hub-list__title").Select(e => e.TextContent)));
         Assert.Single(cut.FindAll(".hub-dialog"));
@@ -350,16 +351,17 @@ public sealed class ShoppingListTests : BunitContext
         var cut = RenderList(Monday);
         cut.WaitForAssertion(() => Assert.Equal("1,25 kg", cut.Find(".sl-row[data-key='hakket oksekød'] .sl-row__amount").TextContent));
 
-        cut.Find(".sl-row[data-key='hakket oksekød'] .hub-btn").Click();
+        // ClickAsync waits for each tap to be handled – Click() may return while the renderer is still busy with the list.
+        await cut.Find(".sl-row[data-key='hakket oksekød'] .hub-btn").ClickAsync(new MouseEventArgs());
         Assert.Equal("Hakket oksekød", cut.FindAll(".hub-dialog__title")[^1].TextContent);
-        cut.FindAll(".hub-dialog .hub-choice__option").Single(o => o.TextContent.Trim() == "Hele pakker").Click();
+        await cut.FindAll(".hub-dialog .hub-choice__option").Single(o => o.TextContent.Trim() == "Hele pakker").ClickAsync(new MouseEventArgs());
         Assert.Contains("500 g", cut.Find(".gr-sizes").TextContent);
         Assert.Contains("3 × 500 g", cut.Find(".gr-preview").TextContent);
 
-        cut.FindAll(".hub-dialog .hub-btn").Single(b => b.TextContent.Trim() == "Tilføj størrelse").Click();
+        await cut.FindAll(".hub-dialog .hub-btn").Single(b => b.TextContent.Trim() == "Tilføj størrelse").ClickAsync(new MouseEventArgs());
         Assert.Equal(2, cut.FindAll(".gr-size").Count);
         Assert.Contains("2 × 500 g + 250 g", cut.Find(".gr-preview").TextContent); // the preview follows the sizes
-        cut.FindAll(".hub-dialog .hub-btn").Single(b => b.TextContent.Trim() == "Gem").Click();
+        await cut.FindAll(".hub-dialog .hub-btn").Single(b => b.TextContent.Trim() == "Gem").ClickAsync(new MouseEventArgs());
 
         cut.WaitForAssertion(() => Assert.Empty(cut.FindAll(".gr-sizes")));
         var rule = Assert.Single((await WeekAsync()).Lines).Rule;

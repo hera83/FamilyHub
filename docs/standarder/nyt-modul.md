@@ -25,7 +25,7 @@ public sealed class ChoresModule : HubModule
     public override string Description => "Hvem gør hvad i dag"; // genvej på forsiden
     public override IconName Icon => IconName.CheckSquare;
     public override string Route => Path;
-    public override int Order => 30;                           // Kalender 10, Madplan 20 …
+    public override int Order => 30;                           // Kalender 10, Skole 20, Madplan 30 …
 
     public override IReadOnlyList<DashboardWidget> Widgets =>
         [DashboardWidget.For<TodayChoresWidget>(WidgetSize.Medium, order: 30)];
