@@ -211,4 +211,30 @@ public sealed class FeedChangeTests : IDisposable
         Assert.Empty(restarted.ChangesFor(schedule.Id));
         Assert.Empty(new ScheduleFeedService(http, school, paths, clock, NullLogger<ScheduleFeedService>.Instance).ChangesFor(schedule.Id));
     }
+
+    [Fact]
+    public async Task Lessons_from_another_address_are_a_new_starting_point()
+    {
+        var http = new FeedTests.FakeHttp();
+        var school = new SchoolScheduleService(paths, NullLogger<SchoolScheduleService>.Instance);
+        var feeds = new ScheduleFeedService(http, school, paths, clock, NullLogger<ScheduleFeedService>.Instance);
+        var schedule = await school.AddAsync(University());
+
+        // Fetched from a link that gave nothing this week (Moodle's "Denne uge" gives last week).
+        http.Respond(FeedTests.Moodle.Replace("DTSTART:202610", "DTSTART:202609").Replace("DTEND:202610", "DTEND:202609"));
+        await feeds.SaveAsync(schedule.Id, await feeds.FetchAsync(schedule.FeedUrl!));
+
+        // The address changes: this week's lessons appear, but they are not news to warn about.
+        await school.UpdateAsync(schedule.Id, s => s with { FeedUrl = s.FeedUrl + "&preset_time=recentupcoming" });
+        http.Respond(FeedTests.Moodle);
+        await feeds.RefreshAsync(schedule.Id);
+        Assert.Empty(feeds.ChangesFor(schedule.Id));
+        Assert.NotEmpty(feeds.EventsFor(schedule.Id));
+
+        // From then on (also after a restart) changes are found as usual.
+        var restarted = new ScheduleFeedService(http, school, paths, clock, NullLogger<ScheduleFeedService>.Instance);
+        http.Respond(FeedTests.Moodle.Replace("UID:4@moodle.aau.dk", "UID:4@moodle.aau.dk\nSTATUS:CANCELLED"));
+        await restarted.RefreshAsync(schedule.Id);
+        Assert.Equal(["Onsdag: Lineær algebra 08:15–10:00 er aflyst"], restarted.ChangesFor(schedule.Id).Select(FeedChanges.Describe));
+    }
 }

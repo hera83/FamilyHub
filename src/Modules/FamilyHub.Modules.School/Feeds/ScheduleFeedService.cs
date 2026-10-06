@@ -1,5 +1,8 @@
 using System.Collections.Concurrent;
 using System.Net;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.RegularExpressions;
 using FamilyHub.Core.Storage;
 using FamilyHub.Core.Time;
 using FamilyHub.Modules.School.Schedules;
@@ -54,7 +57,7 @@ public sealed record FeedStatus
 /// Every fetch is compared with the one before: changes in the week on the screen (from today) wait in
 /// <see cref="ChangesFor"/> until someone taps "Markér som set" (<see cref="AcknowledgeAsync"/>) or the day has passed.
 /// </summary>
-public sealed class ScheduleFeedService
+public sealed partial class ScheduleFeedService
 {
     public const string HttpClientName = "FamilyHub.SchoolFeed";
 
@@ -71,7 +74,8 @@ public sealed class ScheduleFeedService
     /// <summary>A school calendar is a few hundred kilobytes – anything far bigger is not one (set on the HttpClient too).</summary>
     public const int MaxBytes = 10 * 1024 * 1024;
 
-    private sealed record FeedCache(DateTimeOffset FetchedAt, IReadOnlyList<FeedEvent> Events, IReadOnlyList<FeedChange>? Changes = null);
+    /// <param name="Source">Fingerprint of the address the lessons came from (<see cref="SourceOf"/>) – null in caches from before it existed.</param>
+    private sealed record FeedCache(DateTimeOffset FetchedAt, IReadOnlyList<FeedEvent> Events, IReadOnlyList<FeedChange>? Changes = null, string? Source = null);
 
     private readonly IHttpClientFactory httpClients;
     private readonly SchoolScheduleService schools;
@@ -81,6 +85,7 @@ public sealed class ScheduleFeedService
     private readonly ConcurrentDictionary<Guid, IReadOnlyList<FeedEvent>> events = new();
     private readonly ConcurrentDictionary<Guid, FeedStatus> statuses = new();
     private readonly ConcurrentDictionary<Guid, IReadOnlyList<FeedChange>> changes = new();
+    private readonly ConcurrentDictionary<Guid, string> sources = new();
     private readonly SemaphoreSlim refreshLock = new(1, 1);
 
     public ScheduleFeedService(IHttpClientFactory httpClients, SchoolScheduleService schools, IAppDataPaths paths, IHubClock clock, ILogger<ScheduleFeedService> logger)
@@ -99,6 +104,10 @@ public sealed class ScheduleFeedService
                 events[schedule.Id] = cache.Events;
                 statuses[schedule.Id] = new FeedStatus { LastSuccess = cache.FetchedAt };
                 changes[schedule.Id] = cache.Changes ?? [];
+                if (cache.Source is { } source)
+                {
+                    sources[schedule.Id] = source;
+                }
             }
         }
     }
@@ -134,7 +143,10 @@ public sealed class ScheduleFeedService
     /// <summary>"www.moodle.aau.dk" – what the screen shows instead of the private link.</summary>
     public static string HostOf(string url) => TryNormalize(url, out var uri) ? uri.Host : "kalender-linket";
 
-    /// <summary>webcal:// becomes https://; only http(s) is fetched.</summary>
+    /// <summary>
+    /// webcal:// becomes https://; only http(s) is fetched. A Moodle export of one week or month is fetched as "Seneste og
+    /// næste 60 dage": a fixed period never reaches next week, and AAU's Moodle gives last week for "Denne uge".
+    /// </summary>
     public static bool TryNormalize(string? url, out Uri uri)
     {
         uri = null!;
@@ -149,9 +161,22 @@ public sealed class ScheduleFeedService
             return false;
         }
 
-        uri = parsed;
+        uri = parsed.AbsolutePath.EndsWith("/calendar/export_execute.php", StringComparison.OrdinalIgnoreCase)
+            ? new Uri(MoodleFixedPeriod().Replace(parsed.AbsoluteUri, "recentupcoming"))
+            : parsed;
         return true;
     }
+
+    [GeneratedRegex(@"(?<=[?&]preset_time=)(weeknow|weeknext|monthnow)(?=&|#|$)", RegexOptions.IgnoreCase)]
+    private static partial Regex MoodleFixedPeriod();
+
+    /// <summary>
+    /// Which address the lessons came from – a fingerprint, so the private link is not written to the cache. When it changes
+    /// (a new link, or an old link now fetched differently), the next fetch is a new starting point, not a list of changes.
+    /// </summary>
+    internal static string? SourceOf(string? url) => TryNormalize(url, out var uri)
+        ? Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(uri.AbsoluteUri)))[..16]
+        : null;
 
     /// <summary>Downloads and reads a link without saving anything – used when a link is added. Throws <see cref="FeedException"/>.</summary>
     public async Task<IReadOnlyList<FeedEvent>> FetchAsync(string url, CancellationToken cancellationToken = default)
@@ -230,6 +255,11 @@ public sealed class ScheduleFeedService
         var now = clock.Now;
         events[scheduleId] = fetched;
         changes[scheduleId] = pending;
+        if (SourceOf(schools.Find(scheduleId)?.FeedUrl) is { } source)
+        {
+            sources[scheduleId] = source;
+        }
+
         statuses[scheduleId] = new FeedStatus { LastSuccess = now, LastAttempt = now };
         Changed?.Invoke();
         await SaveCacheAsync(scheduleId, cancellationToken);
@@ -237,7 +267,7 @@ public sealed class ScheduleFeedService
 
     private Task SaveCacheAsync(Guid scheduleId, CancellationToken cancellationToken) =>
         Store(scheduleId).SaveAsync(
-            new FeedCache(StatusOf(scheduleId).LastSuccess ?? clock.Now, EventsFor(scheduleId), changes.GetValueOrDefault(scheduleId) ?? []),
+            new FeedCache(StatusOf(scheduleId).LastSuccess ?? clock.Now, EventsFor(scheduleId), changes.GetValueOrDefault(scheduleId) ?? [], sources.GetValueOrDefault(scheduleId)),
             cancellationToken);
 
     /// <summary>Fetches one schedule's calendar now ("Opdater nu"). Failures are kept in the status, not thrown.</summary>
@@ -253,12 +283,16 @@ public sealed class ScheduleFeedService
         {
             var fetched = await FetchAsync(schedule.FeedUrl!, cancellationToken);
 
-            // Compare with the last fetch – unless there is none (then this is the starting point).
+            // Compare with the last fetch – unless there is none, or it came from another address (then this is the starting point).
             var pending = changes.GetValueOrDefault(scheduleId) ?? [];
-            if (StatusOf(scheduleId).LastSuccess is not null)
+            if (StatusOf(scheduleId).LastSuccess is not null && sources.GetValueOrDefault(scheduleId) == SourceOf(schedule.FeedUrl))
             {
                 var (from, to) = WatchedWindow();
                 pending = FeedChanges.Merge(pending, FeedChanges.Detect(EventsFor(scheduleId), fetched, from, to, now), clock.Today);
+            }
+            else
+            {
+                pending = [];
             }
 
             await StoreAsync(scheduleId, fetched, pending, cancellationToken);

@@ -45,7 +45,9 @@ Under skemaets indstillinger: **Hent skemaet fra et link → Tilføj link**.
 
 - **Moodle (fx AAU):** Kalender → Eksportér kalender → »Alle begivenheder« og »Seneste og næste 60 dage« → »Hent kalender-URL«.
   Linket ser ud som `https://…/calendar/export_execute.php?userid=…&authtoken=…&preset_what=all&preset_time=recentupcoming`.
-  `webcal://` virker også (hentes som `https://`).
+  `webcal://` virker også (hentes som `https://`). Er der valgt »Denne uge«, »Næste uge« eller »Denne måned«
+  (`weeknow`, `weeknext`, `monthnow`), henter Family Hub alligevel `recentupcoming`: en fast periode når aldrig næste uge,
+  og AAU's Moodle giver ugen *før* ved »Denne uge« (set 6.10.2026: `weeknow` gav 28.9.–2.10.).
 - Linket hentes med det samme: virker det ikke, står der hvorfor under feltet, og intet gemmes.
 - **Skemaet er bundet til linket:** timer, tider og fag følger kalenderen og kan ikke rettes – tabellen er låst, og
   sektionerne »Tider« og »Fag« er skjult. Rækkerne laves ved hver hentning ud fra hele kalenderen (`PeriodPlanner.FromEvents`
@@ -66,7 +68,8 @@ Under skemaets indstillinger: **Hent skemaet fra et link → Tilføj link**.
   med ændringerne i klar tekst, timen får et mærke (»Ny«, »Flyttet«, »Ændret«, »Aflyst«; aflyste står overstreget på deres
   plads), barnets faneblad og forsidekortet får et advarselstegn. **Markér som set** fjerner det på alle skærme. Ændringer gemmes
   i kalender-cachen (overlever en genstart) og forsvinder af sig selv, når dagen er gået. En time, der flyttes tilbage, er ikke
-  længere en ændring. Et nyt link er udgangspunktet – intet i det tæller som ændring. Timerne genkendes på kalenderens UID
+  længere en ændring. Et nyt link er udgangspunktet – intet i det tæller som ændring. Det samme gælder, når et link hentes fra en ny adresse
+  (cachen husker et fingeraftryk af adressen, aldrig selve linket). Timerne genkendes på kalenderens UID
   (plus oprindelig start for gentagne timer); får en time ny UID uden andre ændringer, er det ikke en ændring.
 - **Fjern link** går tilbage til det faste skema (det bliver gemt hele tiden) – med »Fortryd«.
 

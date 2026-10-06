@@ -384,6 +384,20 @@ public sealed class FeedTests : IDisposable
     }
 
     [Theory]
+    [InlineData("https://www.moodle.aau.dk/calendar/export_execute.php?userid=1&authtoken=x&preset_what=all&preset_time=weeknow",
+                "https://www.moodle.aau.dk/calendar/export_execute.php?userid=1&authtoken=x&preset_what=all&preset_time=recentupcoming")]
+    [InlineData("webcal://moodle.example/calendar/export_execute.php?preset_time=monthnow&authtoken=x",
+                "https://moodle.example/calendar/export_execute.php?preset_time=recentupcoming&authtoken=x")]
+    [InlineData("https://www.moodle.aau.dk/calendar/export_execute.php?authtoken=x&preset_time=custom",
+                "https://www.moodle.aau.dk/calendar/export_execute.php?authtoken=x&preset_time=custom")]
+    [InlineData("https://skole.example/kalender.ics?preset_time=weeknow", "https://skole.example/kalender.ics?preset_time=weeknow")]
+    public void A_moodle_link_for_one_week_or_month_is_fetched_as_the_next_60_days(string link, string fetched)
+    {
+        Assert.True(ScheduleFeedService.TryNormalize(link, out var uri));
+        Assert.Equal(fetched, uri.AbsoluteUri);
+    }
+
+    [Theory]
     [InlineData(HttpStatusCode.NotFound, FeedProblem.Rejected)]
     [InlineData(HttpStatusCode.Forbidden, FeedProblem.Rejected)]
     [InlineData(HttpStatusCode.BadGateway, FeedProblem.Offline)]
