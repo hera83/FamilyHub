@@ -28,3 +28,8 @@
     white-space: pre-wrap;
     overflow-wrap: anywhere;
 }
+
+/* "Slet" stands alone on the left of the footer; "Ret" stays on the right. */
+.cal-details__delete {
+    margin-inline-end: auto;
+}

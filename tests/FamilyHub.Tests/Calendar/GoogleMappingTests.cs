@@ -69,7 +69,7 @@ public class GoogleMappingTests
     [Fact]
     public void New_timed_events_are_sent_with_the_local_offset_also_across_daylight_saving()
     {
-        var body = Body(new NewCalendarEvent
+        var body = Body(new CalendarEventDraft
         {
             CalendarId = "cal",
             Title = " Fodbold ",
@@ -87,7 +87,7 @@ public class GoogleMappingTests
     [Fact]
     public void New_all_day_events_use_an_exclusive_end_date()
     {
-        var body = Body(new NewCalendarEvent
+        var body = Body(new CalendarEventDraft
         {
             CalendarId = "cal",
             Title = "Weekend",
@@ -100,8 +100,94 @@ public class GoogleMappingTests
         Assert.Equal("2026-10-05", body.GetProperty("end").GetProperty("date").GetString());
     }
 
-    private static JsonElement Body(NewCalendarEvent e) =>
+    private static JsonElement Body(CalendarEventDraft e) =>
         JsonDocument.Parse(JsonSerializer.Serialize(GoogleMapping.ToInsertBody(e, Copenhagen))).RootElement;
+
+    private static readonly CalendarEvent Dentist = GoogleMapping.ToEvent(Event("""
+        {"id":"a","summary":"Tandlæge","start":{"dateTime":"2026-09-28T10:10:00+02:00"},"end":{"dateTime":"2026-09-28T10:55:00+02:00"}}
+        """), "cal", Copenhagen)!;
+
+    private static CalendarEventDraft DraftOf(CalendarEvent e) => new()
+    {
+        CalendarId = e.CalendarId,
+        Title = e.Title,
+        Date = e.StartDate,
+        StartTime = TimeOnly.FromDateTime(e.Start.DateTime),
+        Duration = e.End - e.Start,
+    };
+
+    private static JsonElement Patch(CalendarEvent original, CalendarEventDraft changes) =>
+        JsonDocument.Parse(JsonSerializer.Serialize(GoogleMapping.ToPatchBody(original, changes, Copenhagen))).RootElement;
+
+    [Fact]
+    public void An_untouched_appointment_sends_no_changes()
+    {
+        Assert.Empty(GoogleMapping.ToPatchBody(Dentist, DraftOf(Dentist), Copenhagen));
+    }
+
+    [Fact]
+    public void A_new_title_alone_leaves_the_time_as_it_is_in_google()
+    {
+        var body = Patch(Dentist, DraftOf(Dentist) with { Title = " Tandlæge med Emma " });
+
+        Assert.Equal("Tandlæge med Emma", body.GetProperty("summary").GetString());
+        Assert.False(body.TryGetProperty("start", out _));
+        Assert.False(body.TryGetProperty("end", out _));
+    }
+
+    [Fact]
+    public void A_moved_appointment_sends_both_start_and_end()
+    {
+        var body = Patch(Dentist, DraftOf(Dentist) with { Date = new DateOnly(2026, 9, 29), StartTime = new TimeOnly(14, 0) });
+
+        Assert.False(body.TryGetProperty("summary", out _));
+        Assert.Equal("2026-09-29T14:00:00+02:00", body.GetProperty("start").GetProperty("dateTime").GetString());
+        Assert.Equal("2026-09-29T14:45:00+02:00", body.GetProperty("end").GetProperty("dateTime").GetString());
+        Assert.Equal(JsonValueKind.Null, body.GetProperty("start").GetProperty("date").ValueKind);
+    }
+
+    [Fact]
+    public void Turning_a_timed_appointment_into_an_all_day_one_clears_the_clock_time()
+    {
+        var body = Patch(Dentist, DraftOf(Dentist) with { IsAllDay = true, Days = 2 });
+
+        Assert.Equal("2026-09-28", body.GetProperty("start").GetProperty("date").GetString());
+        Assert.Equal("2026-09-30", body.GetProperty("end").GetProperty("date").GetString());
+        Assert.Equal(JsonValueKind.Null, body.GetProperty("start").GetProperty("dateTime").ValueKind);
+        Assert.Equal(JsonValueKind.Null, body.GetProperty("end").GetProperty("dateTime").ValueKind);
+    }
+
+    [Fact]
+    public void An_untouched_all_day_appointment_sends_no_dates()
+    {
+        var holiday = GoogleMapping.ToEvent(Event("""{"id":"b","summary":"Ferie","start":{"date":"2026-10-12"},"end":{"date":"2026-10-17"}}"""), "cal", Copenhagen)!;
+
+        var body = GoogleMapping.ToPatchBody(holiday, new CalendarEventDraft { CalendarId = "cal", Title = "Ferie", Date = new DateOnly(2026, 10, 12), IsAllDay = true, Days = 5 }, Copenhagen);
+
+        Assert.Empty(body);
+    }
+
+    [Theory]
+    [InlineData("""{"id":"a","summary":"Møde","start":{"date":"2026-10-12"},"end":{"date":"2026-10-13"},"organizer":{"self":true}}""", EventRestriction.None)]
+    [InlineData("""{"id":"a","summary":"Møde","start":{"date":"2026-10-12"},"end":{"date":"2026-10-13"},"organizer":{"email":"chef@firma.dk"}}""", EventRestriction.Invitation)]
+    [InlineData("""{"id":"a","summary":"Møde","start":{"date":"2026-10-12"},"end":{"date":"2026-10-13"},"organizer":{"email":"x"},"guestsCanModify":true}""", EventRestriction.None)]
+    [InlineData("""{"id":"a","summary":"Emma","start":{"date":"2026-10-12"},"end":{"date":"2026-10-13"},"eventType":"birthday"}""", EventRestriction.Locked)]
+    [InlineData("""{"id":"a","summary":"Fly","start":{"date":"2026-10-12"},"end":{"date":"2026-10-13"},"locked":true}""", EventRestriction.Locked)]
+    public void Appointments_know_whether_they_may_be_changed_from_the_screen(string json, EventRestriction expected)
+    {
+        Assert.Equal(expected, GoogleMapping.ToEvent(Event(json), "cal", Copenhagen)!.Restriction);
+    }
+
+    [Fact]
+    public void Occurrences_of_a_recurring_appointment_know_their_series()
+    {
+        var e = GoogleMapping.ToEvent(Event("""
+            {"id":"r1_20261012","recurringEventId":"r1","summary":"Svømning","start":{"date":"2026-10-12"},"end":{"date":"2026-10-13"}}
+            """), "cal", Copenhagen)!;
+
+        Assert.True(e.IsRecurring);
+        Assert.False(Dentist.IsRecurring);
+    }
 
     [Fact]
     public void Calendars_know_whether_they_can_get_new_events()

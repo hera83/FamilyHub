@@ -254,34 +254,94 @@ public sealed class CalendarService : IDisposable
     }
 
     /// <summary>Adds an appointment in Google and shows it right away.</summary>
-    public async Task<CalendarEvent> AddEventAsync(NewCalendarEvent newEvent, CancellationToken cancellationToken = default)
+    public async Task<CalendarEvent> AddEventAsync(CalendarEventDraft newEvent, CancellationToken cancellationToken = default)
     {
-        var source = snapshot.Sources.FirstOrDefault(s => s.Id == newEvent.CalendarId && s.CanWrite)
-            ?? throw new InvalidOperationException("Kalenderen kan ikke få nye aftaler.");
-        var account = accounts.FirstOrDefault(a => a.Id == source.AccountId)
-            ?? throw new InvalidOperationException("Google-kontoen er ikke forbundet.");
-
+        var account = WritableAccount(newEvent.CalendarId);
         var created = await WithAccessTokenAsync(account, token => api.InsertEventAsync(token, newEvent, clock.TimeZone, cancellationToken), cancellationToken);
+        ReplaceLocal(created.Key, created);
+        return created;
+    }
 
-        var current = snapshot;
-        if (created.StartDate < current.WindowEnd && created.EndDate > current.WindowStart)
+    /// <summary>The appointment may be changed or deleted from the screen.</summary>
+    public bool CanChange(CalendarEvent e) =>
+        e.Restriction == EventRestriction.None && snapshot.Sources.Any(s => s.Id == e.CalendarId && s.CanWrite);
+
+    /// <summary>
+    /// Changes title and time in Google and shows it right away. Location, description and guests stay as they are.
+    /// An occurrence of a recurring event changes on its own; the rest of the series stays.
+    /// </summary>
+    public async Task<CalendarEvent> UpdateEventAsync(CalendarEvent original, CalendarEventDraft changes, CancellationToken cancellationToken = default)
+    {
+        var body = GoogleMapping.ToPatchBody(original, changes, clock.TimeZone);
+        if (body.Count == 0)
         {
-            snapshot = current with { Events = [.. current.Events.Where(e => e.Key != created.Key), created] };
+            return original;
         }
-        else
+
+        var account = WritableAccount(original.CalendarId);
+        var updated = await WithAccessTokenAsync(account, token => api.PatchEventAsync(token, original.CalendarId, original.Id, body, clock.TimeZone, cancellationToken), cancellationToken);
+        ReplaceLocal(original.Key, updated);
+        return updated;
+    }
+
+    /// <summary>Deletes the appointment (or this occurrence) in Google and removes it right away – offer "Fortryd".</summary>
+    public async Task DeleteEventAsync(CalendarEvent e, CancellationToken cancellationToken = default)
+    {
+        var account = WritableAccount(e.CalendarId);
+        await WithAccessTokenAsync(account, async token =>
         {
-            var month = MonthStart(created.StartDate);
-            if (extraMonths.TryGetValue(month, out var list))
+            await api.DeleteEventAsync(token, e.CalendarId, e.Id, cancellationToken);
+            return true;
+        }, cancellationToken);
+        ReplaceLocal(e.Key, null);
+    }
+
+    /// <summary>Undo for <see cref="DeleteEventAsync"/>.</summary>
+    public async Task<CalendarEvent> RestoreEventAsync(CalendarEvent e, CancellationToken cancellationToken = default)
+    {
+        var account = WritableAccount(e.CalendarId);
+        var restored = await WithAccessTokenAsync(account, token => api.PatchEventAsync(token, e.CalendarId, e.Id, GoogleMapping.RestoreBody(), clock.TimeZone, cancellationToken), cancellationToken);
+        ReplaceLocal(e.Key, restored);
+        return restored;
+    }
+
+    private GoogleAccount WritableAccount(string calendarId)
+    {
+        var source = snapshot.Sources.FirstOrDefault(s => s.Id == calendarId && s.CanWrite)
+            ?? throw new InvalidOperationException("Kalenderen kan ikke ændres herfra.");
+        return accounts.FirstOrDefault(a => a.Id == source.AccountId)
+            ?? throw new InvalidOperationException("Google-kontoen er ikke forbundet.");
+    }
+
+    /// <summary>Shows a change made from the screen at once, without waiting for the next sync.</summary>
+    private void ReplaceLocal(string key, CalendarEvent? replacement)
+    {
+        var current = snapshot;
+        var events = current.Events.Where(e => e.Key != key);
+        if (replacement is not null && replacement.StartDate < current.WindowEnd && replacement.EndDate > current.WindowStart)
+        {
+            events = events.Append(replacement);
+        }
+
+        snapshot = current with { Events = [.. events] };
+
+        foreach (var (month, list) in extraMonths)
+        {
+            if (list.Any(e => e.Key == key))
             {
-                extraMonths[month] = [.. list, created];
+                extraMonths[month] = [.. list.Where(e => e.Key != key)];
             }
+        }
+
+        if (replacement is not null && extraMonths.TryGetValue(MonthStart(replacement.StartDate), out var monthEvents))
+        {
+            extraMonths[MonthStart(replacement.StartDate)] = [.. monthEvents, replacement];
         }
 
         NotifyChanged();
 
-        // A sync that was already running may not have seen the new event – one more round makes sure it stays.
+        // A sync that was already running may not have seen the change – one more round makes sure it stays.
         RequestSync();
-        return created;
     }
 
     // ------------------------------------------------------------------ synchronisation

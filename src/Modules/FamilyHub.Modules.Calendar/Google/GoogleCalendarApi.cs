@@ -16,7 +16,8 @@ public sealed class GoogleCalendarApi(IHttpClientFactory httpClients)
     internal const string BaseUrl = "https://www.googleapis.com/calendar/v3/";
 
     private const string CalendarFields = "items(id,summary,summaryOverride,accessRole,primary,selected,hidden),nextPageToken";
-    private const string EventFields = "items(id,status,summary,location,description,start,end,eventType),nextPageToken";
+    private const string OneEventFields = "id,status,summary,location,description,start,end,eventType,recurringEventId,organizer(self),guestsCanModify,locked";
+    private const string EventFields = $"items({OneEventFields}),nextPageToken";
 
     public async Task<IReadOnlyList<CalendarSource>> ListCalendarsAsync(string accessToken, string accountId, CancellationToken cancellationToken = default)
     {
@@ -52,14 +53,45 @@ public sealed class GoogleCalendarApi(IHttpClientFactory httpClients)
         return result;
     }
 
-    public async Task<CalendarEvent> InsertEventAsync(string accessToken, NewCalendarEvent newEvent, TimeZoneInfo timeZone, CancellationToken cancellationToken = default)
+    public async Task<CalendarEvent> InsertEventAsync(string accessToken, CalendarEventDraft newEvent, TimeZoneInfo timeZone, CancellationToken cancellationToken = default)
     {
         using var http = CreateClient(accessToken);
-        var url = $"calendars/{Uri.EscapeDataString(newEvent.CalendarId)}/events?fields={Uri.EscapeDataString("id,status,summary,location,description,start,end,eventType")}";
+        var url = $"calendars/{Uri.EscapeDataString(newEvent.CalendarId)}/events?fields={Uri.EscapeDataString(OneEventFields)}";
         using var response = await http.PostAsJsonAsync(url, GoogleMapping.ToInsertBody(newEvent, timeZone), cancellationToken);
+        return await ReadEventAsync(response, newEvent.CalendarId, timeZone, cancellationToken);
+    }
+
+    /// <summary>
+    /// Changes only what is sent – location, description, guests and reminders stay as they are in Google.
+    /// For an occurrence of a recurring event, only that occurrence changes.
+    /// </summary>
+    public async Task<CalendarEvent> PatchEventAsync(string accessToken, string calendarId, string eventId, object body, TimeZoneInfo timeZone, CancellationToken cancellationToken = default)
+    {
+        using var http = CreateClient(accessToken);
+        var url = $"calendars/{Uri.EscapeDataString(calendarId)}/events/{Uri.EscapeDataString(eventId)}?sendUpdates=none&fields={Uri.EscapeDataString(OneEventFields)}";
+        using var response = await http.PatchAsJsonAsync(url, body, cancellationToken);
+        return await ReadEventAsync(response, calendarId, timeZone, cancellationToken);
+    }
+
+    /// <summary>Deletes the event (or this occurrence). Already gone counts as done.</summary>
+    public async Task DeleteEventAsync(string accessToken, string calendarId, string eventId, CancellationToken cancellationToken = default)
+    {
+        using var http = CreateClient(accessToken);
+        var url = $"calendars/{Uri.EscapeDataString(calendarId)}/events/{Uri.EscapeDataString(eventId)}?sendUpdates=none";
+        using var response = await http.DeleteAsync(url, cancellationToken);
+        if (response.StatusCode is HttpStatusCode.Gone or HttpStatusCode.NotFound)
+        {
+            return;
+        }
+
         ThrowOnError(response);
-        var created = await response.Content.ReadFromJsonAsync<GoogleEventDto>(cancellationToken) ?? throw new HttpRequestException("Tomt svar fra Google.");
-        return GoogleMapping.ToEvent(created, newEvent.CalendarId, timeZone) ?? throw new HttpRequestException("Google oprettede ikke aftalen.");
+    }
+
+    private static async Task<CalendarEvent> ReadEventAsync(HttpResponseMessage response, string calendarId, TimeZoneInfo timeZone, CancellationToken cancellationToken)
+    {
+        ThrowOnError(response);
+        var dto = await response.Content.ReadFromJsonAsync<GoogleEventDto>(cancellationToken) ?? throw new HttpRequestException("Tomt svar fra Google.");
+        return GoogleMapping.ToEvent(dto, calendarId, timeZone) ?? throw new HttpRequestException("Google gemte ikke aftalen.");
     }
 
     private async Task<T> GetAsync<T>(string accessToken, string url, CancellationToken cancellationToken)
@@ -96,7 +128,21 @@ internal sealed record GoogleList<T>(List<T>? Items, string? NextPageToken);
 
 internal sealed record GoogleCalendarDto(string? Id, string? Summary, string? SummaryOverride, string? AccessRole, bool Primary, bool Selected, bool Hidden);
 
-internal sealed record GoogleEventDto(string? Id, string? Status, string? Summary, string? Location, string? Description, GoogleEventTime? Start, GoogleEventTime? End, string? EventType);
+internal sealed record GoogleEventDto(
+    string? Id,
+    string? Status,
+    string? Summary,
+    string? Location,
+    string? Description,
+    GoogleEventTime? Start,
+    GoogleEventTime? End,
+    string? EventType,
+    string? RecurringEventId = null,
+    GoogleOrganizer? Organizer = null,
+    bool GuestsCanModify = false,
+    bool Locked = false);
+
+internal sealed record GoogleOrganizer(bool Self);
 
 internal sealed record GoogleEventTime(string? Date, DateTimeOffset? DateTime, string? TimeZone = null);
 
@@ -164,26 +210,32 @@ internal static partial class GoogleMapping
             IsAllDay = allDay,
             Location = FirstText(dto.Location),
             Description = PlainText(dto.Description),
+            RecurringEventId = FirstText(dto.RecurringEventId),
+            Restriction = RestrictionOf(dto),
         };
     }
 
-    public static object ToInsertBody(NewCalendarEvent newEvent, TimeZoneInfo timeZone)
+    // Birthdays come from Google Contacts and Gmail's events from the mails – Google refuses changes to them.
+    private static EventRestriction RestrictionOf(GoogleEventDto dto) =>
+        dto.Locked || dto.EventType is "birthday" or "fromGmail" ? EventRestriction.Locked
+        : dto.Organizer is { Self: false } && !dto.GuestsCanModify ? EventRestriction.Invitation
+        : EventRestriction.None;
+
+    public static object ToInsertBody(CalendarEventDraft newEvent, TimeZoneInfo timeZone)
     {
-        var title = Truncate(newEvent.Title.Trim(), CalendarEvent.MaxTitleLength);
+        var title = CleanTitle(newEvent.Title);
         if (newEvent.IsAllDay)
         {
-            var days = Math.Clamp(newEvent.Days, 1, 366);
+            var (startDate, endDate) = Dates(newEvent);
             return new
             {
                 summary = title,
-                start = new { date = newEvent.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) },
-                end = new { date = newEvent.Date.AddDays(days).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) },
+                start = new { date = DateText(startDate) },
+                end = new { date = DateText(endDate) },
             };
         }
 
-        var local = newEvent.Date.ToDateTime(newEvent.StartTime);
-        var start = new DateTimeOffset(local, timeZone.GetUtcOffset(local));
-        var end = TimeZoneInfo.ConvertTime(start + newEvent.Duration, timeZone);
+        var (start, end) = Times(newEvent, timeZone);
         return new
         {
             summary = title,
@@ -191,6 +243,58 @@ internal static partial class GoogleMapping
             end = new { dateTime = Rfc3339(end) },
         };
     }
+
+    /// <summary>
+    /// The changes to an existing appointment – only what differs, so an untouched time keeps Google's own time
+    /// zone. Switching between all-day and timed clears the other kind of time (null removes a field in a patch).
+    /// </summary>
+    public static Dictionary<string, object?> ToPatchBody(CalendarEvent original, CalendarEventDraft changes, TimeZoneInfo timeZone)
+    {
+        var body = new Dictionary<string, object?>();
+        var title = CleanTitle(changes.Title);
+        if (title != original.Title)
+        {
+            body["summary"] = title;
+        }
+
+        if (changes.IsAllDay)
+        {
+            var (startDate, endDate) = Dates(changes);
+            if (!original.IsAllDay || original.StartDate != startDate || original.EndDate != endDate)
+            {
+                body["start"] = new Dictionary<string, object?> { ["date"] = DateText(startDate), ["dateTime"] = null };
+                body["end"] = new Dictionary<string, object?> { ["date"] = DateText(endDate), ["dateTime"] = null };
+            }
+        }
+        else
+        {
+            var (start, end) = Times(changes, timeZone);
+            if (original.IsAllDay || original.Start != start || original.End != end)
+            {
+                body["start"] = new Dictionary<string, object?> { ["dateTime"] = Rfc3339(start), ["date"] = null };
+                body["end"] = new Dictionary<string, object?> { ["dateTime"] = Rfc3339(end), ["date"] = null };
+            }
+        }
+
+        return body;
+    }
+
+    /// <summary>Undo for a deletion: Google keeps deleted events as "cancelled" for a while, and this brings one back.</summary>
+    public static object RestoreBody() => new { status = "confirmed" };
+
+    private static string CleanTitle(string title) => Truncate(title.Trim(), CalendarEvent.MaxTitleLength);
+
+    private static (DateOnly Start, DateOnly EndExclusive) Dates(CalendarEventDraft draft) =>
+        (draft.Date, draft.Date.AddDays(Math.Clamp(draft.Days, 1, 366)));
+
+    private static (DateTimeOffset Start, DateTimeOffset End) Times(CalendarEventDraft draft, TimeZoneInfo timeZone)
+    {
+        var local = draft.Date.ToDateTime(draft.StartTime);
+        var start = new DateTimeOffset(local, timeZone.GetUtcOffset(local));
+        return (start, TimeZoneInfo.ConvertTime(start + draft.Duration, timeZone));
+    }
+
+    private static string DateText(DateOnly date) => date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 
     public static string Rfc3339(DateTimeOffset value) => value.ToString("yyyy-MM-dd'T'HH:mm:sszzz", CultureInfo.InvariantCulture);
 

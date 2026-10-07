@@ -2,6 +2,9 @@
 
 Familiens Google-kalendere på køkkenskærmen: **dag** (en kolonne pr. familiemedlem), **uge** (standard) og
 **måned** (med ugenumre). Aftaler kan tilføjes – kun titlen skrives; kalender, dag og tid vælges.
+Tryk på en aftale: **Ret** (titel, dag og tid – sted, beskrivelse og gæster bliver, som de er i Google) og
+**Slet** (sker straks, med »Fortryd«). En gentaget aftale ændres/slettes kun denne gang. Invitationer fra andre
+og Googles egne aftaler (fødselsdage, aftaler fra Gmail) kan ikke ændres herfra.
 Opsætning af Google: [docs/google-kalender.md](../../../docs/google-kalender.md).
 
 ## Sider og ruter
@@ -18,9 +21,9 @@ Forsiden får widgetten **I dag** (resten af dagens aftaler, ellers den næste).
 
 | Mappe | Indhold |
 |---|---|
-| `Google/` | `GoogleOAuthClient` (login med PKCE, fornyelse), `GoogleCalendarApi` (kalendere, aftaler, opret), `GoogleCredentialsProvider` (nøglefil / user-secrets) |
+| `Google/` | `GoogleOAuthClient` (login med PKCE, fornyelse), `GoogleCalendarApi` (kalendere, aftaler, opret, ret, slet), `GoogleCredentialsProvider` (nøglefil / user-secrets) |
 | `Services/` | `CalendarService` (singleton: konti, kalendere, lokal kopi, `Changed`), `CalendarSyncWorker` (hvert 5. min), `CalendarLayout` (datoer, placering i tidsgitter – ren logik), `CalendarMatching` (gæt familiemedlem og farve) |
-| `Components/` | `WeekView`, `DayView`, `MonthView`, `EventCard`, `EventDetailsDialog`, `AddEventDialog`, `TodayWidget` |
+| `Components/` | `WeekView`, `DayView`, `MonthView`, `EventCard`, `EventDetailsDialog` (Ret/Slet), `EventFormDialog` (Tilføj og Ret), `TodayWidget` |
 | `Pages/` | `CalendarPage`, `CalendarSettingsPage`, `GoogleCallbackPage` |
 
 ## Data (i `kalender/` i datamappen)
@@ -43,6 +46,6 @@ dotnet run --project ../../src/FamilyHub.Web
 
 ## Idéer til senere
 
-- Redigere og slette aftaler fra skærmen.
+- Flytte en aftale til en anden kalender, og rette hele serien af en gentaget aftale.
 - Gentagne aftaler ("hver tirsdag") i Tilføj-dialogen.
 - Egne navne til kalendere (i dag bruges navnet fra Google).

@@ -1,5 +1,12 @@
-@* Everything about one appointment. Read-only – changes are made in Google Calendar. *@
-<HubDialog Open="Event is not null" OpenChanged="OnOpenChanged" Title="@(Event?.Title ?? "")" Size="DialogSize.Small">
+@*
+    Everything about one appointment. "Ret" opens the form; "Slet" deletes at once and offers "Fortryd".
+    Location, description and guests are only shown – they are changed in Google Calendar.
+*@
+@inject CalendarService CalendarService
+@inject IToastService Toasts
+
+<HubDialog Open="Event is not null" OpenChanged="OnOpenChanged" Title="@(Event?.Title ?? "")" Size="DialogSize.Small"
+           Footer="@(Event is { } shown && CalendarService.CanChange(shown) ? ChangeFooter : null)">
     @if (Event is { } e)
     {
         <div class="cal-details">
@@ -7,6 +14,13 @@
                 <Icon Name="IconName.Clock" />
                 <span>@CalendarLayout.WhenLabel(e)</span>
             </p>
+            @if (e.IsRecurring)
+            {
+                <p class="cal-details__row">
+                    <Icon Name="IconName.Refresh" />
+                    <span>Gentages</span>
+                </p>
+            }
             @if (Calendar is { } calendar)
             {
                 <p class="cal-details__row">
@@ -38,6 +52,10 @@
             {
                 <p class="cal-details__description">@description</p>
             }
+            @if (Calendar is { CanWrite: true } && RestrictionText(e.Restriction) is { } restriction)
+            {
+                <p class="hub-muted">@restriction</p>
+            }
         </div>
     }
 </HubDialog>
@@ -52,6 +70,46 @@
 
     [Parameter]
     public EventCallback OnClose { get; set; }
+
+    /// <summary>"Ret" was tapped – the page opens the form for this appointment.</summary>
+    [Parameter]
+    public EventCallback<CalendarEvent> OnEdit { get; set; }
+
+    private RenderFragment ChangeFooter => @<text>
+        <div class="cal-details__delete">
+            <HubButton Variant="ButtonVariant.Quiet" Icon="IconName.Trash" OnClick="DeleteAsync" ErrorMessage="Aftalen blev ikke slettet">Slet</HubButton>
+        </div>
+        <HubButton Variant="ButtonVariant.Primary" Icon="IconName.Edit" OnClick="EditAsync">Ret</HubButton>
+    </text>;
+
+    private static string? RestrictionText(EventRestriction restriction) => restriction switch
+    {
+        EventRestriction.Invitation => "Du er inviteret. Kun den, der har lavet aftalen, kan ændre den.",
+        EventRestriction.Locked => "Aftalen kommer fra Google selv og kan ikke ændres herfra.",
+        _ => null,
+    };
+
+    private async Task EditAsync()
+    {
+        if (Event is { } e)
+        {
+            await OnEdit.InvokeAsync(e);
+        }
+    }
+
+    // Deleted at once, with "Fortryd" (docs/standarder/feedback.md). A recurring appointment loses only this occurrence.
+    private async Task DeleteAsync()
+    {
+        if (Event is not { } e)
+        {
+            return;
+        }
+
+        await CalendarService.DeleteEventAsync(e);
+        await OnClose.InvokeAsync();
+        Toasts.Undoable($"{e.Title} er slettet", () => CalendarService.RestoreEventAsync(e),
+            e.IsRecurring ? "Kun denne gang – resten af gentagelserne er der stadig." : null);
+    }
 
     private async Task OnOpenChanged(bool open)
     {

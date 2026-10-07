@@ -10,7 +10,7 @@
         <HubButton Variant="ButtonVariant.Quiet" Icon="IconName.Settings" Href="@CalendarModule.SettingsPath.TrimStart('/')" AriaLabel="Kalenderindstillinger" />
         @if (writable.Count > 0)
         {
-            <HubButton Variant="ButtonVariant.Primary" Icon="IconName.Plus" OnClick="() => adding = true">Tilføj aftale</HubButton>
+            <HubButton Variant="ButtonVariant.Primary" Icon="IconName.Plus" OnClick="Add">Tilføj aftale</HubButton>
         }
     </Actions>
     <ChildContent>
@@ -99,8 +99,10 @@
     </ChildContent>
 </HubPage>
 
-<EventDetailsDialog Event="selected" Calendar="@(selected is null ? null : calendarsById.GetValueOrDefault(selected.CalendarId))" OnClose="() => selected = null" />
-<AddEventDialog @bind-Open="adding" Calendars="writable" InitialDate="date" InitialCalendarId="@SuggestedCalendarId" OnAdded="OnAdded" />
+<EventDetailsDialog Event="selected" Calendar="@(selected is null ? null : calendarsById.GetValueOrDefault(selected.CalendarId))"
+                    OnClose="() => selected = null" OnEdit="Edit" />
+<EventFormDialog @bind-Open="formOpen" Event="editing" Calendars="writable" InitialDate="date" InitialCalendarId="@SuggestedCalendarId"
+                 OnAdded="OnSaved" OnSaved="OnSaved" />
 
 @code {
     private const string AllOwners = "alle";
@@ -128,7 +130,8 @@
     private bool loadFailed;
 
     private CalendarEvent? selected;
-    private bool adding;
+    private CalendarEvent? editing;
+    private bool formOpen;
     private IDisposable? tick;
 
     /// <summary>"dag", "uge" (default) or "maaned".</summary>
@@ -277,14 +280,30 @@
         Navigation.NavigateTo(uri, replace: true);
     }
 
-    // Visible where it landed → no message. Otherwise say where it went.
-    private void OnAdded(CalendarEvent created)
+    private void Add()
     {
+        editing = null;
+        formOpen = true;
+    }
+
+    // The details close and the form opens with the appointment.
+    private void Edit(CalendarEvent e)
+    {
+        selected = null;
+        editing = e;
+        formOpen = true;
+    }
+
+    // Visible where it landed → no message. Otherwise say where it went.
+    private void OnSaved(CalendarEvent saved)
+    {
+        var wasEditing = editing is not null;
+        editing = null;
         var (from, to) = CalendarLayout.Range(view, date);
-        var inView = calendarsById.ContainsKey(created.CalendarId) && created.StartDate < to && created.EndDate > from;
+        var inView = calendarsById.ContainsKey(saved.CalendarId) && saved.StartDate < to && saved.EndDate > from;
         if (!inView)
         {
-            Toasts.Success("Aftalen er tilføjet", CalendarLayout.WhenLabel(created));
+            Toasts.Success(wasEditing ? "Aftalen er flyttet" : "Aftalen er tilføjet", CalendarLayout.WhenLabel(saved));
         }
     }
 

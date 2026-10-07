@@ -216,7 +216,7 @@ public sealed class CalendarServiceTests : IDisposable
         await SignInAsync(service);
         await service.SyncAsync();
 
-        var created = await service.AddEventAsync(new NewCalendarEvent
+        var created = await service.AddEventAsync(new CalendarEventDraft
         {
             CalendarId = "emma@group",
             Title = "Klaver",
@@ -228,6 +228,64 @@ public sealed class CalendarServiceTests : IDisposable
         var post = google.Requests.Single(r => r.Method == HttpMethod.Post && r.Url.Contains("/events", StringComparison.Ordinal));
         Assert.Contains("\"summary\":\"Klaver\"", post.Body);
         Assert.Contains(service.GetEvents(new DateOnly(2026, 9, 30), new DateOnly(2026, 10, 1)), e => e.Key == created.Key);
+    }
+
+    [Fact]
+    public async Task Edited_events_are_patched_in_google_and_shown_right_away()
+    {
+        var (service, _, _) = Create();
+        await SignInAsync(service);
+        await service.SyncAsync();
+        var dentist = service.GetEvents(new DateOnly(2026, 9, 21), new DateOnly(2026, 9, 22)).Single();
+        Assert.True(service.CanChange(dentist));
+
+        var moved = await service.UpdateEventAsync(dentist, new CalendarEventDraft
+        {
+            CalendarId = dentist.CalendarId,
+            Title = "Tandlæge",
+            Date = new DateOnly(2026, 9, 22),
+            StartTime = new TimeOnly(13, 0),
+            Duration = TimeSpan.FromHours(1),
+        });
+
+        var patch = google.Requests.Single(r => r.Method == HttpMethod.Patch);
+        Assert.Contains("/events/t1?", patch.Url, StringComparison.Ordinal);
+        Assert.DoesNotContain("summary", patch.Body, StringComparison.Ordinal); // only the time changed
+        Assert.Empty(service.GetEvents(new DateOnly(2026, 9, 21), new DateOnly(2026, 9, 22)));
+        Assert.Equal(moved.Key, service.GetEvents(new DateOnly(2026, 9, 22), new DateOnly(2026, 9, 23)).Single().Key);
+    }
+
+    [Fact]
+    public async Task Deleted_events_disappear_at_once_and_undo_brings_them_back()
+    {
+        var (service, _, _) = Create();
+        await SignInAsync(service);
+        await service.SyncAsync();
+        var week = (From: new DateOnly(2026, 9, 21), To: new DateOnly(2026, 9, 28));
+        var dentist = service.GetEvents(week.From, week.To).Single(e => e.Title == "Tandlæge");
+
+        await service.DeleteEventAsync(dentist);
+
+        Assert.Contains(google.Requests, r => r.Method == HttpMethod.Delete && r.Url.Contains("/events/t1", StringComparison.Ordinal));
+        Assert.Equal(["Fodbold"], service.GetEvents(week.From, week.To).Select(e => e.Title));
+
+        await service.RestoreEventAsync(dentist);
+
+        Assert.Contains("\"status\":\"confirmed\"", google.Requests.Last(r => r.Method == HttpMethod.Patch).Body, StringComparison.Ordinal);
+        Assert.Equal(["Tandlæge", "Fodbold"], service.GetEvents(week.From, week.To).Select(e => e.Title));
+    }
+
+    [Fact]
+    public async Task Invitations_and_read_only_calendars_cannot_be_changed_from_the_screen()
+    {
+        var (service, _, _) = Create();
+        await SignInAsync(service);
+        await service.SyncAsync();
+        var dentist = service.GetEvents(new DateOnly(2026, 9, 21), new DateOnly(2026, 9, 22)).Single();
+
+        Assert.False(service.CanChange(dentist with { Restriction = EventRestriction.Invitation }));
+        Assert.False(service.CanChange(dentist with { CalendarId = "old@group" }));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.DeleteEventAsync(dentist with { CalendarId = "old@group" }));
     }
 
     [Fact]
@@ -348,6 +406,21 @@ public sealed class CalendarServiceTests : IDisposable
                     start = new { dateTime = sent.RootElement.GetProperty("start").GetProperty("dateTime").GetString() },
                     end = new { dateTime = sent.RootElement.GetProperty("end").GetProperty("dateTime").GetString() },
                 });
+            }
+
+            if (url.Contains("/calendars/heine%40example.com/events/t1", StringComparison.Ordinal))
+            {
+                if (request.Method == HttpMethod.Delete)
+                {
+                    return new HttpResponseMessage(HttpStatusCode.NoContent);
+                }
+
+                // PATCH: the stored event with the sent changes on top.
+                using var sent = JsonDocument.Parse(body);
+                var root = sent.RootElement;
+                string Text(string name, string fallback) => root.TryGetProperty(name, out var value) ? value.GetString()! : fallback;
+                string Time(string name, string fallback) => root.TryGetProperty(name, out var value) ? value.GetProperty("dateTime").GetString()! : fallback;
+                return Json(Timed("t1", Text("summary", "Tandlæge"), Time("start", "2026-09-21T09:00:00+02:00"), Time("end", "2026-09-21T10:00:00+02:00")));
             }
 
             if (url.Contains("/calendars/heine%40example.com/events", StringComparison.Ordinal))

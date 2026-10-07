@@ -261,7 +261,21 @@ async function open(page, path) {
     await event.tap();
     await page.waitForTimeout(600);
     log('calendar: tapping an event shows its details', (await page.locator('.hub-dialog__title', { hasText: title }).count()) === 1, title);
-    await page.locator('.hub-dialog .hub-btn[aria-label="Luk"]').tap();
+    const edit = page.locator('.hub-dialog .hub-btn', { hasText: 'Ret' });
+    if (await edit.count()) {
+      log('calendar: details offer Slet and Ret', (await page.locator('.hub-dialog .hub-btn', { hasText: 'Slet' }).count()) === 1);
+      await page.screenshot({ path: `${OUT}/20a-calendar-details.png` });
+      // Nothing is saved – the demo account can't reach Google.
+      await edit.tap();
+      await page.waitForTimeout(600);
+      log('calendar: Ret opens the form with the appointment', (await page.locator('.hub-dialog__title', { hasText: 'Ret aftale' }).count()) === 1
+        && (await page.locator('.hub-dialog input').first().inputValue()) === title);
+      log('calendar: editing does not raise the keyboard', (await page.locator('.hub-osk[data-visibility="expanded"]').count()) === 0);
+      await page.screenshot({ path: `${OUT}/20b-calendar-edit.png` });
+      await page.locator('.hub-dialog .hub-btn', { hasText: 'Annuller' }).tap();
+    } else {
+      await page.locator('.hub-dialog .hub-btn[aria-label="Luk"]').tap();
+    }
     await page.waitForTimeout(400);
 
     const add = page.locator('.hub-btn', { hasText: 'Tilføj aftale' });

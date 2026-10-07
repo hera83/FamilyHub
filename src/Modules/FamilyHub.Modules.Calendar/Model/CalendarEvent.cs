@@ -46,10 +46,30 @@ public sealed record CalendarEvent
 
     public string? Description { get; init; }
 
+    /// <summary>The series this is one occurrence of. Changes and deletions then apply to this occurrence only.</summary>
+    public string? RecurringEventId { get; init; }
+
+    /// <summary>Why the appointment can't be changed from the screen even though its calendar may be written to.</summary>
+    public EventRestriction Restriction { get; init; }
+
+    [JsonIgnore]
+    public bool IsRecurring => RecurringEventId is not null;
+
     /// <summary>True when the event touches <paramref name="day"/>.</summary>
     public bool OccursOn(DateOnly day) => day >= StartDate && day < EndDate;
 
     /// <summary>Same event in the same calendar – used to merge results from several accounts or fetches.</summary>
     [JsonIgnore]
     public string Key => $"{CalendarId}\n{Id}";
+}
+
+public enum EventRestriction
+{
+    None,
+
+    /// <summary>An invitation from someone else – only the organiser may change it.</summary>
+    Invitation,
+
+    /// <summary>Made by Google itself (birthdays from Contacts, events from Gmail) or locked by the calendar.</summary>
+    Locked,
 }

@@ -105,8 +105,8 @@ public sealed record CalendarSyncStatus
     public bool IsSyncing { get; init; }
 }
 
-/// <summary>A new appointment from the "Tilføj aftale" dialog.</summary>
-public sealed record NewCalendarEvent
+/// <summary>An appointment as filled in on the screen: a new one ("Tilføj aftale") or the changes to one ("Ret aftale").</summary>
+public sealed record CalendarEventDraft
 {
     public required string CalendarId { get; init; }
 
