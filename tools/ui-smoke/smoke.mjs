@@ -670,7 +670,7 @@ async function open(page, path) {
 {
   const { context, page } = await newPage();
   await open(page, '/indstillinger');
-  const card = page.locator('.hub-card', { hasText: 'Pauseskærm' });
+  const card = page.locator('.hub-card', { hasText: /^\s*Pauseskærm/ });   // the card's title, not the help text
   await card.scrollIntoViewIfNeeded();
   await card.locator('.hub-choice__option', { hasText: '15 min' }).tap();
   await page.waitForTimeout(400);
@@ -708,6 +708,37 @@ async function open(page, path) {
   log('screen saver: a key wakes it', (await page.locator('.hub-saver').count()) === 0);
   log('screen saver: the waking key typed nothing', (await field.inputValue()) === '', JSON.stringify(await field.inputValue()));
 
+  // "Prøv" is only a preview – even with "Tilbage til forsiden" on, the screen stays in Indstillinger.
+  await page.locator('.hub-card', { hasText: 'Tilbage til forsiden' }).locator('.hub-choice__option', { hasText: '2 min' }).tap();
+  await page.waitForTimeout(400);
+  await card.locator('.hub-btn', { hasText: 'Prøv' }).tap();
+  await page.waitForTimeout(1200);
+  await page.touchscreen.tap(960, 540);
+  await page.waitForTimeout(800);
+  log('screen saver: "Prøv" keeps the page', new URL(page.url()).pathname === '/indstillinger', new URL(page.url()).pathname);
+
+  await context.close();
+}
+
+// ---------------------------------------------------------------- screen saver before "Tilbage til forsiden"
+// Pauseskærm after 5 min, home after 10: waking from the screen saver must show the home screen, not the old menu.
+// Minute-long timers run a minute per second here, so the test takes seconds.
+{
+  const { context, page } = await newPage();
+  await context.addInitScript(() => {
+    localStorage.setItem('familyhub.device.v1', JSON.stringify({ idleReturnMinutes: 10, screenSaverMinutes: 5 }));
+    const setTimeoutOriginal = window.setTimeout;
+    window.setTimeout = (fn, ms, ...args) => setTimeoutOriginal(fn, ms >= 60_000 ? ms / 60 : ms, ...args);
+  });
+  await open(page, '/');
+  await page.locator('.hub-rail__item', { hasText: 'Madplan' }).tap();
+  await page.waitForTimeout(7000);   // screen saver after 5 s, home only after 10 s
+  log('screen saver: starts by itself', await page.locator('.hub-saver').isVisible());
+  log('screen saver: the home screen waits underneath', new URL(page.url()).pathname === '/', new URL(page.url()).pathname);
+  await page.touchscreen.tap(960, 540);
+  await page.waitForTimeout(800);
+  log('screen saver: waking shows the home screen', (await page.locator('.hub-saver').count()) === 0 && await page.locator('.home-hero__time').isVisible());
+  await page.screenshot({ path: `${OUT}/43-pauseskaerm-vaagnet-forside.png` });
   await context.close();
 }
 

@@ -70,6 +70,7 @@ export function setIdleTimeout(dotnetRef, minutes) {
 
 // Screen saver: calls dotnetRef.OnSleep() after the given minutes without activity (0 = only via showScreenSaver),
 // and dotnetRef.OnWake() on the next touch, key or mouse movement. null = off.
+// When it starts by itself and "Tilbage til forsiden" is on, the home screen is waiting underneath on waking.
 export function setScreenSaver(dotnetRef, minutes) {
   saver.ref = dotnetRef;
   saver.ms = Math.max(0, minutes) * 60_000;
@@ -160,23 +161,32 @@ function onActivity() {
 function resetIdle() {
   clearTimeout(idle.timer);
   if (idle.ms > 0 && idle.ref) {
-    idle.timer = setTimeout(() => idle.ref?.invokeMethodAsync('OnIdle').catch(() => { }), idle.ms);
+    idle.timer = setTimeout(returnHome, idle.ms);
   }
+}
+
+function returnHome() {
+  clearTimeout(idle.timer);
+  idle.ref?.invokeMethodAsync('OnIdle').catch(() => { });
 }
 
 function armScreenSaver() {
   clearTimeout(saver.timer);
   if (saver.ms > 0 && saver.ref) {
-    saver.timer = setTimeout(sleep, saver.ms);
+    saver.timer = setTimeout(() => sleep(true), saver.ms);
   }
 }
 
-function sleep() {
+// automatic = the idle time ran out (not the "Prøv" button).
+function sleep(automatic = false) {
   if (!saver.ref || saver.asleep) return;
   saver.asleep = true;
   saver.since = performance.now();
   // If the server can't draw it (connection lost), don't keep swallowing keys.
   saver.ref.invokeMethodAsync('OnSleep').catch(() => { saver.asleep = false; });
+
+  // The screen saver may start before "Tilbage til forsiden" runs out – the waking touch must not find the old menu.
+  if (automatic && idle.ms > 0) returnHome();
 }
 
 function wake() {

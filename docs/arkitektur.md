@@ -91,7 +91,8 @@ FamilyHub.Web       værten: Program.cs, layout, navigation, forside, indstillin
 - **Inaktivitet:** skærmen kan vende tilbage til forsiden efter X minutter (indstilles pr. skærm).
 - **Pauseskærm:** efter X minutter uden berøring bliver skærmen sort med et dæmpet ur, der flytter sig lidt hvert minut
   (`ScreenSaver.razor`, placering i `ScreenSaverLayout`). `device.js` bestemmer, hvornår den sover og vågner; et tryk
-  vækker den først, når fingeren løftes, så trykket aldrig rammer en knap nedenunder. Siden bagved er urørt.
+  vækker den først, når fingeren løftes, så trykket aldrig rammer en knap nedenunder. Siden bagved er urørt – undtagen
+  når "Tilbage til forsiden" er slået til: så skifter den til forsiden, i det øjeblik pauseskærmen tænder af sig selv.
   Browseren kan ikke skrue ned for skærmens baggrundslys – en sort skærm giver langt mindre lys, men skærmen er stadig tændt.
 
 ## Beslutninger

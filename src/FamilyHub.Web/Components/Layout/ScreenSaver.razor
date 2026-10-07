@@ -7,7 +7,8 @@
 @*
     The screen saver (Indstillinger → Pauseskærm): after the idle time the screen goes black with a quiet clock.
     device.js decides when to sleep and wake, because it sees every touch and key; this component only draws it.
-    The page underneath is left as it was – a touch brings it back exactly as the family left it.
+    The page underneath is left as it was – a touch brings it back exactly as the family left it. Exception: with
+    "Tilbage til forsiden" on, device.js sends the page home as the screen saver starts by itself (not via "Prøv").
     Modules may add a small value in a ring beside the clock (ScreenSaverItems, e.g. the glucose): this component
     draws the ring and moves it, always on the side of the clock with room (ScreenSaverLayout); the module draws the inside.
 *@

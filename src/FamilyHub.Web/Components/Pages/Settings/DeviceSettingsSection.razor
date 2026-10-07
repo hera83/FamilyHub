@@ -39,7 +39,7 @@
 
     <HubCard Title="Tilbage til forsiden" Icon="IconName.Home">
         <HubChoice Options="idleOptions" Value="Device.Settings.IdleReturnMinutes"
-                   Help="Når ingen har rørt skærmen i et stykke tid, vender den tilbage til forsiden."
+                   Help="Når ingen har rørt skærmen i et stykke tid, vender den tilbage til forsiden. Det gør den også, når pauseskærmen tænder."
                    ValueChanged="(int minutes) => UpdateAsync(s => s with { IdleReturnMinutes = minutes })" />
     </HubCard>
 
