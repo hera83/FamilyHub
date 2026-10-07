@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using FamilyHub.Core.Household;
+using FamilyHub.Modules.School.Feeds;
 
 namespace FamilyHub.Modules.School.Schedules;
 
@@ -78,11 +79,68 @@ public sealed record ScheduleCell
     public bool IsEmpty => SubjectId is null && EvenWeekSubjectId is null && string.IsNullOrWhiteSpace(Note);
 }
 
+/// <summary>
+/// One lesson on one date as the family has changed it on the school page: hidden (e.g. cancelled) and/or a note for
+/// that day only. A lesson in the fixed timetable is its row on the date; one from the school's calendar is its key
+/// (<see cref="FeedChanges.KeyOf"/> – one occurrence, so it follows the lesson if it is moved).
+/// </summary>
+public sealed record LessonAdjustment
+{
+    public const int MaxNoteLength = 60;
+    public const int MaxTitleLength = 120;
+
+    /// <summary>The lesson's date – decides which week the adjustment belongs to.</summary>
+    public DateOnly Date { get; init; }
+
+    /// <summary>The row in the fixed timetable – null for a lesson from the calendar.</summary>
+    public Guid? PeriodId { get; init; }
+
+    /// <summary>The calendar lesson's key – null for a lesson in the fixed timetable.</summary>
+    public string? LessonKey { get; init; }
+
+    public bool Hidden { get; init; }
+
+    /// <summary>"Husk madpakke" – shown under the lesson that day, after the timetable's own note.</summary>
+    public string? Note { get; init; }
+
+    /// <summary>The subject when it was adjusted – for the list of hidden lessons, also if the lesson is gone later.</summary>
+    public string Title { get; init; } = "";
+
+    public TimeOnly Start { get; init; }
+
+    public TimeOnly End { get; init; }
+
+    [JsonIgnore]
+    public bool IsEmpty => !Hidden && string.IsNullOrWhiteSpace(Note);
+
+    /// <summary>A lesson in the fixed timetable on a date.</summary>
+    public static LessonAdjustment ForPeriod(DateOnly date, SchoolPeriod period, string title) =>
+        new() { Date = date, PeriodId = period.Id, Title = title, Start = period.Start, End = period.End };
+
+    /// <summary>A lesson from the school's calendar.</summary>
+    public static LessonAdjustment ForLesson(FeedEvent lesson) => new()
+    {
+        Date = DateOnly.FromDateTime(lesson.Start),
+        LessonKey = FeedChanges.KeyOf(lesson),
+        Title = lesson.Title,
+        Start = TimeOnly.FromDateTime(lesson.Start),
+        End = TimeOnly.FromDateTime(lesson.End),
+    };
+
+    /// <summary>True when both are about the same lesson (the calendar key – or the row on the same date).</summary>
+    public bool IsSameLesson(LessonAdjustment other) => LessonKey is not null
+        ? LessonKey == other.LessonKey
+        : other.LessonKey is null && PeriodId == other.PeriodId && Date == other.Date;
+}
+
 /// <summary>One child's weekly timetable, Monday to Friday.</summary>
 public sealed record SchoolSchedule
 {
     public const int MaxPeriods = 16;
     public const int MaxSubjects = 30;
+
+    /// <summary>Plenty for a few weeks ahead – the newest are kept.</summary>
+    public const int MaxAdjustments = 300;
 
     /// <summary>The class letters offered in the settings – "6.a", "0.b", "2.b".</summary>
     public static IReadOnlyList<string> ClassLetters { get; } = ["A", "B", "C", "D", "E", "F"];
@@ -111,6 +169,9 @@ public sealed record SchoolSchedule
 
     public IReadOnlyList<ScheduleCell> Cells { get; init; } = [];
 
+    /// <summary>Lessons hidden or given a note on one date – from this week on (older ones are dropped on the next change).</summary>
+    public IReadOnlyList<LessonAdjustment> Adjustments { get; init; } = [];
+
     /// <summary>
     /// Optional iCalendar link (e.g. Moodle's calendar export) – then the lessons come from the school's calendar and keep
     /// themselves up to date. It holds a private key, so it stays on the server and the screen only shows the host.
@@ -137,6 +198,23 @@ public sealed record SchoolSchedule
         var others = Cells.Where(c => c.Day != cell.Day || c.PeriodId != cell.PeriodId);
         return this with { Cells = cell.IsEmpty ? [.. others] : [.. others, cell] };
     }
+
+    /// <summary>What the family has done to the lesson – null when nothing.</summary>
+    public LessonAdjustment? FindAdjustment(LessonAdjustment lesson) => Adjustments.FirstOrDefault(a => a.IsSameLesson(lesson));
+
+    /// <summary>
+    /// Changes one lesson's adjustment, starting from the one saved (or <paramref name="lesson"/>), so a note and "Skjul" from
+    /// two screens never overwrite each other. Removed when it ends up empty; adjustments before <paramref name="keepFrom"/> go.
+    /// </summary>
+    public SchoolSchedule WithAdjustment(LessonAdjustment lesson, Func<LessonAdjustment, LessonAdjustment> change, DateOnly keepFrom)
+    {
+        var updated = change(FindAdjustment(lesson) ?? lesson);
+        var others = Adjustments.Where(a => !a.IsSameLesson(lesson) && a.Date >= keepFrom);
+        return this with { Adjustments = updated.IsEmpty ? [.. others] : [.. others, updated] };
+    }
+
+    /// <summary>The plain timetable, as the settings show it – nothing hidden, no notes for a single day.</summary>
+    public SchoolSchedule WithoutAdjustments() => this with { Adjustments = [] };
 
     /// <summary>
     /// Cleans up before saving – also a file edited by hand: valid grade and letter, trimmed names,
@@ -188,6 +266,21 @@ public sealed record SchoolSchedule
             .Reverse()
             .ToList();
 
+        // A row removed in the settings takes its adjustments along; calendar lessons are kept while the link is away.
+        var adjustments = (Adjustments ?? [])
+            .Where(a => a is not null && (a.PeriodId is { } row ? a.LessonKey is null && lessonIds.Contains(row) : !string.IsNullOrWhiteSpace(a.LessonKey)))
+            .Select(a => a with
+            {
+                Note = string.IsNullOrWhiteSpace(a.Note) ? null : Truncate(a.Note.Trim(), LessonAdjustment.MaxNoteLength),
+                Title = Truncate((a.Title ?? "").Trim(), LessonAdjustment.MaxTitleLength),
+            })
+            .Where(a => !a.IsEmpty)
+            .Reverse()
+            .DistinctBy(a => (a.LessonKey, a.LessonKey is null ? a.PeriodId : null, a.LessonKey is null ? a.Date : default))
+            .Take(MaxAdjustments)
+            .Reverse()
+            .ToList();
+
         var level = Enum.IsDefined(Level) ? Level : SchoolLevel.PrimarySchool;
         var letter = ClassLetter?.Trim().ToUpperInvariant();
         return this with
@@ -199,6 +292,7 @@ public sealed record SchoolSchedule
             Subjects = subjects,
             Periods = periods,
             Cells = cells,
+            Adjustments = adjustments,
         };
     }
 

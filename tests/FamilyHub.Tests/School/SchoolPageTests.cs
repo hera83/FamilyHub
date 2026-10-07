@@ -405,14 +405,113 @@ public sealed class SchoolPageTests : BunitContext
     }
 
     [Fact]
-    public async Task A_fixed_timetable_has_no_details_to_tap()
+    public async Task A_lesson_in_the_fixed_timetable_gets_a_note_for_that_day_only()
     {
         await WithTwoChildrenAsync();
 
         var cut = Render<SchoolPage>();
+        cut.Find("[aria-label='Åbn Tirsdag, 1. time: Dansk']").Click();
 
-        Assert.NotEmpty(cut.FindAll(".st-lesson"));
-        Assert.Empty(cut.FindAll(".st-cell__press"));
+        var dialog = cut.Find(".hub-dialog");
+        Assert.Equal("Dansk", dialog.QuerySelector(".hub-dialog__title")!.TextContent);
+        Assert.Contains("Tirsdag 6. oktober · 08:00–08:45", dialog.TextContent);
+        Assert.Contains("kun tirsdag 6. oktober", dialog.TextContent);
+        Assert.DoesNotContain(cut.FindAll(".hub-dialog .hub-btn"), b => b.TextContent.Trim() == "Gem");
+
+        cut.Find(".hub-dialog input").Input("Husk madpakke");
+        await cut.FindAll(".hub-dialog .hub-btn").Single(b => b.TextContent.Trim() == "Gem").ClickAsync(new());
+
+        cut.WaitForAssertion(() => Assert.Empty(cut.FindAll(".hub-dialog")));
+        Assert.Contains("Husk madpakke", cut.Find("[aria-label='Åbn Tirsdag, 1. time: Dansk']").TextContent);
+        Assert.Empty(toasts.Visible);
+
+        // Next week's Tuesday has no note.
+        await cut.Find("[aria-label='Næste uge']").ClickAsync(new());
+        Assert.DoesNotContain("Husk madpakke", cut.Markup);
+    }
+
+    [Fact]
+    public async Task A_hidden_lesson_leaves_the_week_and_is_shown_again_from_the_eye()
+    {
+        await WithTwoChildrenAsync();
+
+        var cut = Render<SchoolPage>();
+        Assert.Empty(cut.FindAll("[aria-label^='Skjult:']"));
+
+        cut.Find("[aria-label='Åbn Tirsdag, 2. time: Matematik']").Click();
+        await cut.FindAll(".hub-dialog .hub-btn").Single(b => b.TextContent.Trim() == "Skjul").ClickAsync(new());
+
+        cut.WaitForAssertion(() => Assert.Empty(cut.FindAll(".hub-dialog")));
+        Assert.Empty(cut.FindAll("[aria-label='Åbn Tirsdag, 2. time: Matematik']"));
+        Assert.Equal("Fri 08:45", cut.FindAll(".st-day__end")[1].TextContent);
+        Assert.Equal("6.a · fri 08:45", cut.FindAll(".st-tab__meta")[0].TextContent);
+        Assert.Equal("Matematik er skjult", Assert.Single(toasts.Visible).Title);
+        Assert.Equal("1", cut.Find("[aria-label='Skjult: 1 time']").TextContent.Trim());
+
+        // Only this week: next week has nothing hidden – and back again it is still hidden.
+        await cut.Find("[aria-label='Næste uge']").ClickAsync(new());
+        Assert.Empty(cut.FindAll("[aria-label^='Skjult:']"));
+        Assert.NotEmpty(cut.FindAll("[aria-label='Åbn Tirsdag, 2. time: Matematik']"));
+        await cut.FindAll(".hub-btn").Single(b => b.TextContent.Trim() == "Denne uge").ClickAsync(new());
+
+        cut.Find("[aria-label='Skjult: 1 time']").Click();
+        var dialog = cut.Find(".hub-dialog");
+        Assert.Equal("Skjulte timer i uge 41", dialog.QuerySelector(".hub-dialog__title")!.TextContent);
+        Assert.Contains("Tirsdag · 08:45–09:30", dialog.TextContent);
+
+        await cut.Find("[aria-label='Vis Matematik igen']").ClickAsync(new());
+
+        cut.WaitForAssertion(() => Assert.Empty(cut.FindAll(".hub-dialog")));
+        Assert.NotEmpty(cut.FindAll("[aria-label='Åbn Tirsdag, 2. time: Matematik']"));
+        Assert.Empty(cut.FindAll("[aria-label^='Skjult:']"));
+    }
+
+    [Fact]
+    public async Task A_calendar_lesson_can_be_hidden_and_undone_and_the_home_card_follows()
+    {
+        await household.UpdateAsync(h => h with { Members = [emma] });
+        var schedule = await School.AddAsync(new SchoolSchedule
+        {
+            MemberId = emma.Id,
+            Level = SchoolLevel.University,
+            Grade = 3,
+            Periods = PeriodPlanner.StandardDay(SchoolLevel.University),
+            FeedUrl = "https://www.moodle.aau.dk/calendar/export_execute.php?authtoken=hemmelig",
+        });
+        Http.Respond(FeedTests.Moodle);
+        await Feeds.SaveAsync(schedule.Id, await Feeds.FetchAsync(schedule.FeedUrl!));
+
+        var cut = Render<SchoolPage>();
+        cut.FindAll(".st-cell__press").First(p => p.TextContent.Contains("Programmering (PBL)")).Click();
+        cut.Find(".hub-dialog input").Input("Aflevering");
+        await cut.FindAll(".hub-dialog .hub-btn").Single(b => b.TextContent.Trim() == "Skjul").ClickAsync(new());
+
+        cut.WaitForAssertion(() => Assert.DoesNotContain("Programmering (PBL)", cut.Find("table").TextContent));
+        Assert.Equal("Fri 12:00", cut.FindAll(".st-day__end")[1].TextContent);
+        Assert.Equal("1", cut.Find("[aria-label='Skjult: 1 modul']").TextContent.Trim());
+
+        // Tuesday 09:00 in the lecture: the home card says she has finished at 12:00, not 16:15.
+        time.SetUtcNow(new DateTimeOffset(2026, 10, 6, 7, 0, 0, TimeSpan.Zero));
+        Assert.Equal("Fri 12:00", Render<SchoolWidget>().FindAll(".st-widget__time")[0].TextContent);
+
+        await Assert.Single(toasts.Visible).Action!.Callback();
+
+        cut.WaitForAssertion(() => Assert.Contains("Programmering (PBL)", cut.Find("table").TextContent));
+        Assert.Contains("Aflevering", cut.Find("table").TextContent); // the note typed before hiding is kept
+        Assert.Equal("Fri 16:15", cut.FindAll(".st-day__end")[1].TextContent);
+    }
+
+    [Fact]
+    public async Task The_settings_show_the_plain_timetable_without_hidden_lessons()
+    {
+        var (schedule, _) = await WithTwoChildrenAsync();
+        var second = schedule.Periods.Where(p => !p.IsBreak).ElementAt(1);
+        await School.UpdateAsync(schedule.Id, s => s.WithAdjustment(
+            LessonAdjustment.ForPeriod(new DateOnly(2026, 10, 6), second, "Matematik"), a => a with { Hidden = true }, new DateOnly(2026, 10, 5)));
+
+        var cut = Render<ScheduleEditorPage>(p => p.Add(e => e.Id, schedule.Id));
+
+        Assert.NotEmpty(cut.FindAll("[aria-label='Tirsdag, 2. time: Matematik']"));
     }
 
     [Fact]

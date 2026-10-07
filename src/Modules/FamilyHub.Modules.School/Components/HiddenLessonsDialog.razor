@@ -1,0 +1,48 @@
+@*
+    The lessons hidden in the week shown, for the selected child – each with "Vis igen". Opened with the eye next to the
+    gear; the page only offers it in a week with something hidden, and closes it when the last one is shown again.
+*@
+@inject SchoolScheduleService School
+@inject IHubClock Clock
+
+<HubDialog Open="Open" OpenChanged="OpenChanged" Title="@Title" Size="DialogSize.Medium">
+    <ChildContent>
+        <HubList>
+            @foreach (var lesson in Week.Hidden)
+            {
+                <HubListItem Title="@lesson.Title" Subtitle="@When(lesson)" Icon="IconName.EyeOff">
+                    <Trailing>
+                        <HubButton Size="ButtonSize.Small" Icon="IconName.Eye" OnClick="() => ShowAsync(lesson)" ErrorMessage="Timen blev ikke vist igen"
+                                   AriaLabel="@($"Vis {lesson.Title} igen")">Vis igen</HubButton>
+                    </Trailing>
+                </HubListItem>
+            }
+        </HubList>
+    </ChildContent>
+    <Footer>
+        <HubButton Variant="ButtonVariant.Quiet" OnClick="() => OpenChanged.InvokeAsync(false)">Luk</HubButton>
+    </Footer>
+</HubDialog>
+
+@code {
+    [Parameter]
+    public bool Open { get; set; }
+
+    [Parameter]
+    public EventCallback<bool> OpenChanged { get; set; }
+
+    /// <summary>The week shown on the page – its hidden lessons are listed.</summary>
+    [Parameter, EditorRequired]
+    public SchoolWeek Week { get; set; } = default!;
+
+    /// <summary>"Skjulte timer i uge 42" – "moduler" at gymnasium and university.</summary>
+    private string Title => $"Skjulte {(Week.Schedule.Level == SchoolLevel.PrimarySchool ? "timer" : "moduler")} i uge {Week.IsoWeek}";
+
+    /// <summary>"Tirsdag · 08:15–09:00" – the week is in the title.</summary>
+    private static string When(LessonAdjustment lesson) =>
+        $"{ScheduleRules.DayName(lesson.Date.DayOfWeek)} · {DanishFormat.TimeRange(lesson.Start, lesson.End)}";
+
+    // The lesson is back in the timetable (and leaves this list) – visible, so no message.
+    private Task ShowAsync(LessonAdjustment lesson) =>
+        School.UpdateAsync(Week.Schedule.Id, s => s.WithAdjustment(lesson, a => a with { Hidden = false }, ScheduleRules.MondayOf(Clock.Today)));
+}

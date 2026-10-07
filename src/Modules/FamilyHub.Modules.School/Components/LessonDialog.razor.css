@@ -48,3 +48,14 @@
     color: var(--hub-text-muted);
     font-size: var(--hub-text-sm);
 }
+
+/* Several lessons in one cell: each has its own "Skjul" under its note. */
+.sl-lesson__hide {
+    display: flex;
+    justify-content: flex-end;
+}
+
+/* One lesson: "Skjul" stands alone on the left of the footer; Luk and Gem stay on the right. */
+.sl-footer__hide {
+    margin-inline-end: auto;
+}

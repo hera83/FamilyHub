@@ -2,7 +2,8 @@
 
 Børnenes skoleskemaer på køkkenskærmen – som papiret på køleskabet: mandag–fredag øverst, tiderne i venstre side,
 pauser som et bånd hen over ugen. Ét faneblad pr. barn (avatar, navn, klasse og »fri 14:15« for i dag).
-Visningen kan ikke redigeres; skemaerne sættes op under tandhjulet.
+Skemaerne sættes op under tandhjulet. På selve skolesiden kan en time kun skjules eller få en note for én dag – se
+[Skjul og note for en dag](#skjul-og-note-for-en-dag).
 
 ## Sider og ruter
 
@@ -57,8 +58,8 @@ Under skemaets indstillinger: **Hent skemaet fra et link → Tilføj link**.
 - **Visningen** viser ugens rigtige timer: hver time står i de rækker, den overlapper (en forelæsning 08:15–12:00 står i begge
   moduler). Har timen sin egen tid, står den under navnet (»10:15–12:00 · Auditorium 1«). Flere timer i samme række: »+1 mere«.
   Timer, der ikke rammer nogen række, står under tabellen i »Uden for skemaets tider«.
-- **Detaljer om en time:** kun i skemaer med link er hver time på skolesiden et trykmål (`SchoolTimetable.OnLessonClick`),
-  ligesom timerne under »Uden for skemaets tider«. `LessonDialog` viser tid, sted og kalenderens beskrivelse – læst af
+- **Detaljer om en time:** hver time på skolesiden er et trykmål (`SchoolTimetable.OnLessonClick`), ligesom timerne under
+  »Uden for skemaets tider«. Med link viser `LessonDialog` tid, sted og kalenderens beskrivelse – læst af
   `LessonDetails.Sections`: Moodles blokke (»COURSE«, »TEACHER«) bliver »Kursus« og »Underviser(e)«, første blok »Om timen«.
   Links, linknumre (»[1]«) og e-mailadresser udelades – skærmen kan ikke åbne dem. Flere timer i én celle vises alle; en
   ændring står øverst. Beskrivelsen gemmes i cachen (højst 2000 tegn) og tæller ikke som en ændring.
@@ -84,6 +85,21 @@ værtsnavnet, fx »www.moodle.aau.dk«), og HTTP-klienten logger ikke adresser (
 `IcsParser` læser RFC 5545: UTC-, TZID- og flydende tider, `DURATION`, foldede linjer, `\,`-escapes, ugentlige og daglige
 gentagelser (`INTERVAL`, `COUNT`, `UNTIL`, `BYDAY`), `EXDATE` og flyttede forekomster (`RECURRENCE-ID`).
 
+## Skjul og note for en dag
+
+Tryk på en time på skolesiden → `LessonDialog` (samme popup med og uden link):
+
+- **Note** gælder kun den dag (»Husk madpakke«) og står under timen efter skemaets faste note (»Lokale 64 · Husk madpakke«)
+  eller, med link, efter lokalet. Ingen `AutoFocus` – tastaturet kommer først, når feltet trykkes. »Gem« vises, når noten er ændret.
+- **Skjul** (fx en aflyst time) virker straks med »Fortryd«. Den skjulte time er væk fra tabellen og tæller ikke med i »Fri 14:15«,
+  fanerne eller forsidekortet. En note skrevet inden »Skjul« gemmes med.
+- **Øjet** ved tandhjulet (med antal) vises kun i en uge, hvor det valgte barn har skjulte timer. Det åbner `HiddenLessonsDialog`
+  med »Vis igen« pr. time. Det følger den viste uge: skjules noget i næste uge, er der intet skjult i denne.
+- Gemmes i skemaet som `SchoolSchedule.Adjustments` (`LessonAdjustment`): en time i det faste skema er rækken på datoen; en time
+  fra kalenderen er dens nøgle (`FeedChanges.KeyOf`) – flyttes den, er den stadig skjult og står i den uge, den er flyttet til.
+  Justeringer før denne uges mandag ryddes væk ved næste ændring. Fjernes en række under indstillingerne, går dens justeringer med.
+- Indstillingerne viser det faste skema uden skjulte timer og noter (`WithoutAdjustments`).
+
 ## Regler
 
 | Regel | Hvor |
@@ -104,7 +120,7 @@ Ferier og helligdage er ikke med – skemaet er en fast uge.
 |---|---|
 | `Feeds/` | `IcsParser` (iCalendar), `ScheduleFeedService` (hent, gem, status, ændringer, `Changed`), `ScheduleFeedWorker`, `FeedChanges` (find, flet og beskriv ændringer) |
 | `Schedules/` | `SchoolModels` (skema, fag, rækker, timer), `SchoolLevels` (folkeskole/gymnasium/universitet), `SchoolWeek` (fast skema eller ugens timer fra kalenderen), `ScheduleRules`, `PeriodPlanner`, `SubjectCatalog`, `SchoolScheduleService` (singleton med `Changed`) – ren logik med tests |
-| `Components/` | `SchoolTimetable` (tabellen – visning, eller trykbar med `OnCellClick`), `FeedDialog`, `ChildTabs`, `ClassFields` (skoleform, trin, klasse), `SchoolWidget`, `ScheduleLook`, dialogerne `NewScheduleDialog`, `CellDialog`, `PeriodDialog`, `SubjectDialog` |
+| `Components/` | `SchoolTimetable` (tabellen – visning med `OnLessonClick`, eller redigerbar med `OnCellClick`), `FeedDialog`, `ChildTabs`, `ClassFields` (skoleform, trin, klasse), `SchoolWidget`, `ScheduleLook`, dialogerne `LessonDialog` (time: detaljer, note, skjul), `HiddenLessonsDialog`, `NewScheduleDialog`, `CellDialog`, `PeriodDialog`, `SubjectDialog` |
 | `Pages/` | `SchoolPage`, `SchoolSettingsPage`, `ScheduleEditorPage` |
 
 Dialoger ligger efter `</HubPage>` (som i madplanen): `HubPage`s indgangsanimation giver siden en `transform`,
@@ -114,7 +130,7 @@ og så ville en dialog inde i siden blive centreret på hele den lange side i st
 
 | Fil | Indhold |
 |---|---|
-| `skemaer.json` | Alle skemaer – fælles for alle skærme. Nogle få kilobyte, så en JSON-fil (`JsonFileStore`) er nok. Indeholder kalender-links. |
+| `skemaer.json` | Alle skemaer – fælles for alle skærme. Nogle få kilobyte, så en JSON-fil (`JsonFileStore`) er nok. Indeholder kalender-links og ugens skjulte timer og noter. |
 | `kalender/{id}.json` | Seneste timer hentet fra et skemas kalender-link (14 dage tilbage, 120 frem) og ændringer, der ikke er markeret som set. |
 
 Demodata (`tools/ui-smoke/demo-data.mjs`) indeholder skemaerne Emma 6.a, Oliver 0.b og Mette (universitet, uden link) samt en

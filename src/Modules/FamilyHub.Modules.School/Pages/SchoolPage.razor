@@ -7,6 +7,12 @@
 
 <HubPage Title="Skole" Subtitle="@Subtitle" Width="PageWidth.Full">
     <Actions>
+        @if (selected is { Hidden: { Count: > 0 } hidden })
+        {
+            @* Only in a week with something hidden for the child shown – the number says how much. *@
+            <HubButton Variant="ButtonVariant.Quiet" Icon="IconName.EyeOff" OnClick="() => hiddenOpen = true"
+                       AriaLabel="@($"Skjult: {selected.Schedule.Level.LessonCount(hidden.Count)}")">@hidden.Count</HubButton>
+        }
         <HubButton Variant="ButtonVariant.Quiet" Icon="IconName.Settings" Href="@SchoolModule.SettingsPath.TrimStart('/')" AriaLabel="Indstillinger for skole" />
     </Actions>
     <ChildContent>
@@ -75,7 +81,7 @@
                                 <li>
                                     <HubPressable Class="st-outside__press" OnClick="() => details = [selected.Details(lesson)]" AriaLabel="@($"Vis detaljer: {lesson.Title}")">
                                         <span class="st-outside__when hub-numeric">@ScheduleRules.DayName(lesson.Start.DayOfWeek) @DanishFormat.TimeRange(TimeOnly.FromDateTime(lesson.Start), TimeOnly.FromDateTime(lesson.End))</span>
-                                        <span>@lesson.Title@(lesson.Location is { } place ? $" · {place}" : null)</span>
+                                        <span>@string.Join(" · ", new[] { lesson.Title, lesson.Location, selected.NoteOf(lesson) }.OfType<string>())</span>
                                     </HubPressable>
                                 </li>
                             }
@@ -84,7 +90,8 @@
                 }
             </div>
 
-            <LessonDialog Lessons="details" OnClose="() => details = null" />
+            <LessonDialog ScheduleId="selected.Schedule.Id" Lessons="details" Timetable="timetableLesson" OnClose="CloseLesson" />
+            <HiddenLessonsDialog Open="hiddenOpen" OpenChanged="open => hiddenOpen = open" Week="selected" />
         }
     </ChildContent>
 </HubPage>
@@ -105,6 +112,8 @@
     private TimeOnly time;
     private IDisposable? tick;
     private IReadOnlyList<CalendarLesson>? details;
+    private TimetableLesson? timetableLesson;
+    private bool hiddenOpen;
 
     /// <summary>"Uge 41 · ulige uge" – "Næste uge · uge 42 · lige uge" when looking ahead (and at the weekend).</summary>
     private string? Subtitle
@@ -190,6 +199,12 @@
         schedules = ScheduleLook.Ordered(School.Schedules, household);
         var weeks = schedules.Select(s => SchoolWeek.For(s, monday, Feeds.EventsFor(s.Id), Feeds.ChangesFor(s.Id))).ToList();
         selected = weeks.FirstOrDefault(w => w.Schedule.Id == selectedId) ?? weeks.FirstOrDefault();
+        // The list closes when its last lesson is shown again (on any screen).
+        if (selected is not { Hidden.Count: > 0 })
+        {
+            hiddenOpen = false;
+        }
+
         tabs = [.. weeks.Select(w => new ChildTabs.Tab(w.Schedule, ScheduleLook.Name(w.Schedule, household), ScheduleLook.Color(w.Schedule, household), Hint(w), w.Changes.Count > 0))];
     }
 
@@ -223,8 +238,29 @@
     // The box goes away on every screen – the result is visible, so no message.
     private Task AcknowledgeAsync() => selected is { } week ? Feeds.AcknowledgeAsync(week.Schedule.Id) : Task.CompletedTask;
 
-    // Only schedules with a calendar link have details – the timetable only offers the tap there.
-    private void ShowLesson(TimetableCell cell) => details = selected?.CalendarLessonsAt(cell.Day, cell.Period);
+    // A calendar lesson shows the calendar's details; a lesson in the fixed timetable its subject – both a note and "Skjul".
+    private void ShowLesson(TimetableCell cell)
+    {
+        if (selected is not { } week)
+        {
+            return;
+        }
+
+        if (week.IsLive)
+        {
+            details = week.CalendarLessonsAt(cell.Day, cell.Period);
+        }
+        else
+        {
+            timetableLesson = week.TimetableLessonAt(cell.Day, cell.Period);
+        }
+    }
+
+    private void CloseLesson()
+    {
+        details = null;
+        timetableLesson = null;
+    }
 
     private void Select(Guid id)
     {

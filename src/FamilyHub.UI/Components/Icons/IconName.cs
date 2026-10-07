@@ -64,6 +64,8 @@ public enum IconName
     Smartphone,
     Server,
     Type,
+    Eye,
+    EyeOff,
 
     // Keyboard
     Keyboard,

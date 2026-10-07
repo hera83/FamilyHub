@@ -243,7 +243,8 @@
         schedule = School.Find(Id);
         var monday = ScheduleRules.DisplayedMonday(Clock.Today);
         week = ScheduleRules.WeekOf(monday);
-        view = schedule is null ? null : SchoolWeek.For(schedule, monday, Feeds.EventsFor(schedule.Id), Feeds.ChangesFor(schedule.Id));
+        // The fixed timetable is edited as it is every week – a lesson hidden on the school page is still here.
+        view = schedule is null ? null : SchoolWeek.For(schedule.UsesFeed ? schedule : schedule.WithoutAdjustments(), monday, Feeds.EventsFor(schedule.Id), Feeds.ChangesFor(schedule.Id));
         brushOptions =
         [
             new(EditBrush, "Redigér", IconName.Edit),

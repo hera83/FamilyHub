@@ -85,4 +85,4 @@ Læs `docs/standarder/` før en ny menu bygges. Det vigtigste:
 | `docs/dexcom.md` + `src/FamilyHub.Core/Dexcom/` | Blodsukker: `IDexcomService` (seneste måling, periode, status) mod familiens Dexcom-API, nøgle i `.env` |
 | `docs/mambeno.md` + `src/FamilyHub.Core/Mambeno/` | Mambeno-opskrifter: `IMambenoService` (kategorier, søgning med sider, opskrift, status) mod familiens Mambeno-API – kun læsning, nøgle i `.env` |
 | `src/Modules/FamilyHub.Modules.Dexcom/` | Menuen Dexcom: lige nu, graf (SVG) og tid i målområdet; `GlucoseMonitor` deler målingerne mellem skærme – se modulets README |
-| `src/Modules/FamilyHub.Modules.School/` | Menuen Skole: børnenes skoleskemaer – folkeskole, gymnasium og universitet (tabel med faneblade pr. barn, ulige/lige uger, valgfrit iCal-link fx Moodle), opsætning under tandhjulet, forsidekortet »Skole i dag« – se modulets README |
+| `src/Modules/FamilyHub.Modules.School/` | Menuen Skole: børnenes skoleskemaer – folkeskole, gymnasium og universitet (tabel med faneblade pr. barn, ulige/lige uger, valgfrit iCal-link fx Moodle, skjul/note pr. time for én dag), opsætning under tandhjulet, forsidekortet »Skole i dag« – se modulets README |

@@ -78,7 +78,8 @@
     /// <summary>"6.a · 28 timer om ugen", "3. semester · fra www.moodle.aau.dk · 8 moduler denne uge".</summary>
     private string Summary(SchoolSchedule schedule)
     {
-        var lessons = SchoolWeek.For(schedule, ScheduleRules.DisplayedMonday(Clock.Today), Feeds.EventsFor(schedule.Id)).LessonCount;
+        var plain = schedule.UsesFeed ? schedule : schedule.WithoutAdjustments();
+        var lessons = SchoolWeek.For(plain, ScheduleRules.DisplayedMonday(Clock.Today), Feeds.EventsFor(schedule.Id)).LessonCount;
         if (schedule.UsesFeed)
         {
             return $"{schedule.ClassName} · fra {ScheduleFeedService.HostOf(schedule.FeedUrl!)} · {schedule.Level.LessonCount(lessons)} denne uge";

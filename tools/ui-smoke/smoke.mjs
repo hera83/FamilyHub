@@ -755,7 +755,7 @@ async function open(page, path) {
     const days = await page.locator('.st-day__name').allInnerTexts();
     log('school: Monday to Friday across the top', days.join(',').toLowerCase() === 'mandag,tirsdag,onsdag,torsdag,fredag', days.join(','));
     log('school: times down the side', (await page.locator('.st-time__range').first().innerText()) === '08:00–08:45');
-    log('school: read-only (no buttons in the table)', (await page.locator('.st-table button').count()) === 0);
+    log('school: every lesson is a touch target', (await page.locator('.st-table .st-cell__press').count()) === (await page.locator('.st-table .st-lesson').count()));
     const table = await page.locator('.st-table').boundingBox();
     log('school: the whole week fits on the kitchen screen', table.y + table.height <= 1080, `table bottom ${Math.round(table.y + table.height)}`);
 
@@ -771,6 +771,59 @@ async function open(page, path) {
     await page.waitForTimeout(400);
     await page.screenshot({ path: `${OUT}/52-skole-dark.png` });
     await page.evaluate(() => document.documentElement.dataset.theme = 'light');
+
+    // A lesson in the fixed timetable: a note for that day, and "Skjul" – then the eye next to the gear shows it again.
+    const lessons = page.locator('.st-table .st-cell__press');
+    const first = (await lessons.first().getAttribute('aria-label')).replace(/^Åbn /, '');
+    await lessons.first().tap();
+    await page.waitForSelector('.hub-dialog', { timeout: 5000 });
+    await page.waitForTimeout(400);
+    log('school: a tapped lesson opens with a note field and "Skjul"',
+      (await page.locator('.hub-dialog input').count()) === 1 && (await page.locator('.hub-dialog .hub-btn', { hasText: 'Skjul' }).count()) === 1);
+    log('school: no keyboard until the note field is tapped', (await page.locator('.hub-osk[data-visibility="expanded"]').count()) === 0);
+    await page.screenshot({ path: `${OUT}/52b-skole-time.png` });
+    await page.locator('.hub-dialog input').tap();
+    await page.waitForTimeout(400);
+    log('school: tapping the note field opens the keyboard', (await page.locator('.hub-osk[data-visibility="expanded"]').count()) === 1);
+    await page.locator('.hub-dialog input').fill('Husk madpakke');
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: `${OUT}/52c-skole-time-note.png` });
+    await page.locator('.hub-dialog .hub-btn', { hasText: 'Gem' }).tap();
+    await page.waitForTimeout(600);
+    log('school: the note shows under the lesson', (await page.locator('.st-table').innerText()).includes('Husk madpakke'));
+
+    await page.locator(`.st-table [aria-label="Åbn ${first}"]`).tap();
+    await page.waitForSelector('.hub-dialog', { timeout: 5000 });
+    await page.locator('.hub-dialog .hub-btn', { hasText: 'Skjul' }).tap();
+    await page.waitForTimeout(800);
+    const eye = page.locator('[aria-label^="Skjult:"]');
+    log('school: a hidden lesson leaves the table and the eye appears',
+      (await page.locator(`.st-table [aria-label="Åbn ${first}"]`).count()) === 0 && (await eye.count()) === 1);
+    await page.screenshot({ path: `${OUT}/52d-skole-skjult.png` });
+    await page.locator('[aria-label="Næste uge"]').tap();
+    await page.waitForTimeout(500);
+    log('school: next week has nothing hidden', (await eye.count()) === 0);
+    await page.locator('.hub-btn', { hasText: 'Denne uge' }).tap();
+    await page.waitForTimeout(500);
+    await eye.tap();
+    await page.waitForSelector('.hub-dialog', { timeout: 5000 });
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: `${OUT}/52e-skole-skjulte.png` });
+    await page.evaluate(() => document.documentElement.dataset.theme = 'dark');
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: `${OUT}/52f-skole-skjulte-dark.png` });
+    await page.evaluate(() => document.documentElement.dataset.theme = 'light');
+    await page.locator('.hub-dialog .hub-btn', { hasText: 'Vis igen' }).first().tap();
+    await page.waitForTimeout(800);
+    log('school: "Vis igen" brings the lesson back and closes the list',
+      (await page.locator('.hub-dialog').count()) === 0 && (await page.locator(`.st-table [aria-label="Åbn ${first}"]`).count()) === 1);
+
+    // Tidy up the demo data: the note goes again.
+    await page.locator(`.st-table [aria-label="Åbn ${first}"]`).tap();
+    await page.waitForSelector('.hub-dialog', { timeout: 5000 });
+    await page.locator('.hub-dialog input').fill('');
+    await page.locator('.hub-dialog .hub-btn', { hasText: 'Gem' }).tap();
+    await page.waitForTimeout(600);
 
     // Settings: the list, then Emma's schedule.
     await open(page, '/skole/indstillinger');
